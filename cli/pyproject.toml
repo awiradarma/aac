@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "arch-agent"
+version = "0.1.0"
+description = "Architecture as Code Governance CLI"
+authors = ["Sovereign AaC"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+typer = "^0.24.1"
+pydantic = "^2.12.5"
+pyyaml = "^6.0.3"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

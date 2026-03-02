@@ -1,0 +1,9 @@
+apiVersion: arch.acme.com/v1alpha1
+kind: XInternalAPI
+metadata:
+  name: Claims-Processing-API
+spec:
+  parameters:
+    database_type: yugabyte
+    gateway_type: apigee
+    topology: active-active
