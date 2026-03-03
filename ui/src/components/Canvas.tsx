@@ -77,11 +77,12 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 id: getId(),
                 type,
                 position,
-                style: type === 'hierarchyNode' ? { width: pattern.name === 'Cloud Region' ? 1200 : 1000, height: pattern.name === 'Cloud Region' ? 1000 : 800 } : undefined,
+                style: type === 'hierarchyNode' ? { width: pattern.default_width || 800, height: pattern.default_height || 600 } : undefined,
                 data: {
                     label: `${pattern.name} Instance`,
                     pattern_ref: `${pattern.id}@${pattern.version}`,
                     c4Level: pattern.c4Level,
+                    layer: pattern.layer,
                     properties: defaultProps,
                     status: 'new'
                 },
@@ -104,43 +105,49 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 return { x, y };
             };
 
-            // Find potential parent nodes using absolute bounds
-            const parentHost = nodes.find(n => {
-                if (n.type !== 'hostNode') return false;
+            // Generic bounding-box hit detection for infinite hierarchy depth
+            const possibleParents = nodes.filter(n => {
+                if (n.type !== 'hierarchyNode' && n.type !== 'hostNode') return false;
                 const pos = getAbsolutePosition(n);
-                return position.x >= pos.x && position.x <= pos.x + 384 &&
-                    position.y >= pos.y && position.y <= pos.y + 300;
-            });
+                const nPattern = getPatternById(n.data.pattern_ref?.split('@')[0]);
+                const width = n.style?.width ? Number(n.style.width) : (nPattern?.default_width || 500);
+                const height = n.style?.height ? Number(n.style.height) : (nPattern?.default_height || 400);
 
-            const possibleHierarchies = nodes.filter(n => {
-                if (n.type !== 'hierarchyNode') return false;
-                const pos = getAbsolutePosition(n);
-                const width = n.style?.width ? Number(n.style.width) : (n.data.label.includes('Region') ? 1200 : 1000);
-                const height = n.style?.height ? Number(n.style.height) : (n.data.label.includes('Region') ? 1000 : 800);
                 return position.x >= pos.x && position.x <= pos.x + width &&
                     position.y >= pos.y && position.y <= pos.y + height;
             });
-            // Priority to Datacenter -> smaller area -> should be parent
-            possibleHierarchies.sort((a, _b) => a.data.label.includes('Datacenter') ? -1 : 1);
-            const parentHierarchy = possibleHierarchies[0];
+
+            // The closest parent mathematically is the one with the smallest area (deepest nest)
+            possibleParents.sort((a, b) => {
+                const aPattern = getPatternById(a.data.pattern_ref?.split('@')[0]);
+                const bPattern = getPatternById(b.data.pattern_ref?.split('@')[0]);
+                const aArea = (a.style?.width ? Number(a.style.width) : (aPattern?.default_width || 500)) *
+                    (a.style?.height ? Number(a.style.height) : (aPattern?.default_height || 400));
+                const bArea = (b.style?.width ? Number(b.style.width) : (bPattern?.default_width || 500)) *
+                    (b.style?.height ? Number(b.style.height) : (bPattern?.default_height || 400));
+                return aArea - bArea;
+            });
+
+            const closestParent = possibleParents.length > 0 ? possibleParents[0] : null;
 
             // Logic matching macro-drop
             if (patternId === 'internal-api-ocp') {
-                const isDroppedInDatacenter = parentHierarchy && parentHierarchy.data.label.includes('Datacenter');
+                const isDroppedInDatacenter = closestParent && closestParent.data.label.includes('Datacenter');
 
                 // Generate cluster
                 const clusterNode: Node<NodeData> = {
                     id: getId(),
                     type: 'hostNode',
                     position: isDroppedInDatacenter ? { x: 50, y: 100 } : { x: position.x - 200, y: position.y },
-                    parentNode: isDroppedInDatacenter ? parentHierarchy.id : undefined,
+                    parentNode: isDroppedInDatacenter ? closestParent.id : undefined,
                     extent: isDroppedInDatacenter ? 'parent' : undefined,
                     zIndex: 10,
                     data: {
                         label: 'Standard OpenShift Cluster Instance',
                         pattern_ref: 'openshift-cluster-v4@4.12.0',
                         c4Level: 'DeploymentNode',
-                        properties: { datacenter_id: isDroppedInDatacenter ? parentHierarchy.data.properties.dc_id : '', region: '' },
+                        layer: 'Cluster',
+                        properties: { datacenter_id: isDroppedInDatacenter ? closestParent.data.properties.dc_id : '', region: '' },
                         status: 'new'
                     },
                 };
@@ -150,7 +157,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     id: getId(),
                     type: 'infrastructureNode',
                     position: isDroppedInDatacenter ? { x: 500, y: 100 } : { x: position.x + 200, y: position.y },
-                    parentNode: isDroppedInDatacenter ? parentHierarchy.id : undefined,
+                    parentNode: isDroppedInDatacenter ? closestParent.id : undefined,
                     extent: isDroppedInDatacenter ? 'parent' : undefined,
                     zIndex: 10,
                     data: {
@@ -167,7 +174,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     id: getId(),
                     type: 'infrastructureNode',
                     position: isDroppedInDatacenter ? { x: 500, y: 250 } : { x: position.x + 200, y: position.y + 150 },
-                    parentNode: isDroppedInDatacenter ? parentHierarchy.id : undefined,
+                    parentNode: isDroppedInDatacenter ? closestParent.id : undefined,
                     extent: isDroppedInDatacenter ? 'parent' : undefined,
                     zIndex: 10,
                     data: {
@@ -195,22 +202,12 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 return;
             }
 
-            // Standard Relationship Resolution
-            if (parentHost && type === 'workloadNode') {
-                const parentAbs = getAbsolutePosition(parentHost);
-                newNode.parentNode = parentHost.id;
+            // Standard Relationship Resolution based on geometric boundaries
+            if (closestParent) {
+                const parentAbs = getAbsolutePosition(closestParent);
+                newNode.parentNode = closestParent.id;
                 newNode.extent = 'parent';
-                newNode.zIndex = 20;
-                newNode.position = {
-                    x: position.x - parentAbs.x,
-                    y: position.y - parentAbs.y,
-                };
-            } else if (parentHierarchy) {
-                // E.g Host dropped in Datacenter, Datacenter dropped in Region
-                const parentAbs = getAbsolutePosition(parentHierarchy);
-                newNode.parentNode = parentHierarchy.id;
-                newNode.extent = 'parent';
-                newNode.zIndex = parentHierarchy.data.label.includes('Region') ? 5 : 10;
+                newNode.zIndex = (closestParent.zIndex || 5) + 5; // Stack layer
                 newNode.position = {
                     x: position.x - parentAbs.x,
                     y: position.y - parentAbs.y,
@@ -218,6 +215,9 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
             } else if (type === 'workloadNode') {
                 alert(`Governance Violation: A ${pattern.name} must be placed inside a valid Infrastructure Host.`);
                 return;
+            } else if (type === 'hierarchyNode') {
+                // Placing hierarchy element on root canvas
+                newNode.zIndex = 5;
             }
 
             setNodes((nds: Node[]) => nds.concat(newNode));

@@ -21,16 +21,29 @@ export type Pattern = {
     c4Level: "System" | "Container" | "DeploymentNode" | "InfrastructureNode" | "Component";
     description?: string;
     type?: string;
+    layer?: string;
+    default_width?: number;
+    default_height?: number;
     parameters?: Record<string, PatternParameter>;
     rules?: PatternRule[];
-    infrastructure_requirements?: any;
+    infrastructure_requirements?: {
+        allowed_hierarchies?: string[];
+        [key: string]: any;
+    };
     capabilities?: string[];
     crossplane_mapping?: any;
+};
+
+export type DeploymentHierarchy = {
+    id: string;
+    name: string;
+    valid_layer_chain: string[];
 };
 
 export type Registry = {
     registryName: string;
     version: string;
+    deployment_hierarchies?: DeploymentHierarchy[];
     patterns: Pattern[];
 };
 
@@ -39,6 +52,7 @@ export type NodeData = {
     description?: string;
     pattern_ref: string;
     c4Level: string;
+    layer?: string;
     properties: Record<string, any>;
     status?: "new" | "existing";
 };

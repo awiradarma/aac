@@ -190,9 +190,9 @@ export default function App() {
             // Static sizing and offsets based on tier
             let width, height, zIndex = 15;
             if (type === 'hierarchyNode') {
-              width = dn.name.includes('Region') || dn.name.includes('region') ? 1200 : 1000;
-              height = dn.name.includes('Region') || dn.name.includes('region') ? 1000 : 800;
-              zIndex = dn.name.includes('Region') || dn.name.includes('region') ? 5 : 10;
+              width = pattern?.default_width || 1000;
+              height = pattern?.default_height || 800;
+              zIndex = (depth * 5) + 5;
             }
 
             const newProps = { ...props };
@@ -211,6 +211,7 @@ export default function App() {
                 label: dn.name.replace(/-/g, ' '),
                 pattern_ref: props.pattern_ref || '',
                 c4Level: pattern ? pattern.c4Level : 'DeploymentNode',
+                layer: pattern?.layer,
                 properties: newProps,
                 status: props.status || 'existing'
               }
@@ -247,6 +248,7 @@ export default function App() {
                     label: cn.name.replace(/-/g, ' '),
                     pattern_ref: cProps.pattern_ref || '',
                     c4Level: cPattern ? cPattern.c4Level : 'Container',
+                    layer: cPattern?.layer,
                     properties: cleanCProps,
                     status: 'existing'
                   }
@@ -307,7 +309,7 @@ export default function App() {
     const structurizrAst = generateYamlObj();
     // Re-use universally shared validator
     // Patterns JSON is imported statically for the UI
-    const errors = validateArchitecture(structurizrAst, (PATTERNS_JSON as any).patterns);
+    const errors = validateArchitecture(structurizrAst, PATTERNS_JSON as any);
 
     if (errors.length > 0) {
       alert("⚠️ Architecture Validation Failed:\n\n" + errors.map(e => "• " + e).join("\n"));

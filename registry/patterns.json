@@ -1,6 +1,38 @@
 {
   "registryName": "Enterprise-Architecture-Patterns",
   "version": "2026.03.01",
+  "deployment_hierarchies": [
+    {
+      "id": "on-prem-ocp",
+      "name": "On-Prem OpenShift Deployment",
+      "valid_layer_chain": [
+        "Region",
+        "Datacenter",
+        "Cluster",
+        "Namespace"
+      ]
+    },
+    {
+      "id": "cots-vm",
+      "name": "COTS VMs Deployment",
+      "valid_layer_chain": [
+        "Region",
+        "Datacenter",
+        "vSphere Cluster",
+        "Virtual Machine"
+      ]
+    },
+    {
+      "id": "azure-serverless",
+      "name": "Azure Serverless Deployment",
+      "valid_layer_chain": [
+        "Azure Region",
+        "Resource Group",
+        "App Service Plan",
+        "Function"
+      ]
+    }
+  ],
   "patterns": [
     {
       "id": "internal-api-ocp",
@@ -52,7 +84,10 @@
       "infrastructure_requirements": {
         "host_capability": "openshift-cluster-v4",
         "replication_factor": 4,
-        "regions": 2
+        "regions": 2,
+        "allowed_hierarchies": [
+          "on-prem-ocp"
+        ]
       },
       "crossplane_mapping": {
         "kind": "XInternalAPI",
@@ -79,6 +114,9 @@
         "host_capability": "openshift-cluster-v4",
         "required_plugins": [
           "autosys-k8s-agent"
+        ],
+        "allowed_hierarchies": [
+          "on-prem-ocp"
         ]
       },
       "crossplane_mapping": {
@@ -91,7 +129,10 @@
       "name": "Cloud Region",
       "version": "1.0.0",
       "c4Level": "DeploymentNode",
-      "type": "Hierarchy",
+      "type": "Region",
+      "layer": "Region",
+      "default_width": 1200,
+      "default_height": 1000,
       "parameters": {
         "region_id": {
           "type": "string",
@@ -104,7 +145,19 @@
       "name": "Datacenter",
       "version": "1.0.0",
       "c4Level": "DeploymentNode",
-      "type": "Hierarchy",
+      "type": "Datacenter",
+      "layer": "Datacenter",
+      "default_width": 1000,
+      "default_height": 800,
+      "rules": [
+        {
+          "id": "dc-placement-rule",
+          "description": "Datacenter must be placed within a Region boundary.",
+          "structural_assertions": [
+            "assert(parent.layer == 'Region')"
+          ]
+        }
+      ],
       "parameters": {
         "dc_id": {
           "type": "string",
@@ -172,7 +225,19 @@
       "name": "Standard OpenShift Cluster",
       "version": "4.12.0",
       "c4Level": "DeploymentNode",
-      "type": "Host",
+      "type": "Cluster",
+      "layer": "Cluster",
+      "default_width": 600,
+      "default_height": 500,
+      "rules": [
+        {
+          "id": "cluster-placement-rule",
+          "description": "Cluster must be placed within a Datacenter boundary.",
+          "structural_assertions": [
+            "assert(parent.layer == 'Datacenter')"
+          ]
+        }
+      ],
       "capabilities": [
         "openshift-cluster-v4",
         "k8s-api-access",

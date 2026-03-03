@@ -1,7 +1,8 @@
-import type { Pattern } from '../types';
+import type { Pattern, Registry } from '../types';
 
-export function validateArchitecture(arch: any, patterns: Pattern[]): string[] {
+export function validateArchitecture(arch: any, registry: Registry): string[] {
     const errors: string[] = [];
+    const patterns = registry.patterns || [];
 
     const containerMap: Record<string, any> = {};
     const cNodes = arch.model?.containers || [];
@@ -12,16 +13,20 @@ export function validateArchitecture(arch: any, patterns: Pattern[]): string[] {
     // Helper to flatten deployment tree into node objects with parent context
     const flatDeployments: any[] = [];
 
-    const parseTree = (nodes: any[], parentType: string | null, parentId: string | null, regionId: string | null, datacenterId: string | null) => {
+    const parseTree = (nodes: any[], parentLayer: string | null, parentId: string | null, regionId: string | null, datacenterId: string | null) => {
         nodes.forEach(dn => {
             let currentRegion = regionId;
             let currentDc = datacenterId;
 
-            let type = 'Host';
-            if (dn.name.toLowerCase().includes('region')) { type = 'Region'; currentRegion = dn.id; }
-            else if (dn.name.toLowerCase().includes('datacenter')) { type = 'Datacenter'; currentDc = dn.id; }
+            // Lookup logical layer from pattern registry
+            const patternId = dn.properties?.pattern_ref?.split('@')[0];
+            const pattern = patternId ? patterns.find(p => p.id === patternId) : null;
+            const layerType = pattern?.layer || 'Unknown';
 
-            flatDeployments.push({ ...dn, type, parentType, parentId, regionId: currentRegion, datacenterId: currentDc });
+            if (layerType === 'Region') { currentRegion = dn.id; }
+            else if (layerType === 'Datacenter') { currentDc = dn.id; }
+
+            flatDeployments.push({ ...dn, type: layerType, layer: layerType, parentLayer, parentId, regionId: currentRegion, datacenterId: currentDc });
 
             // Add container instances as virtual nodes
             if (dn.containerInstances) {
@@ -33,7 +38,8 @@ export function validateArchitecture(arch: any, patterns: Pattern[]): string[] {
                             isInstance: true,
                             instanceId: ci.id,
                             type: 'Container',
-                            parentType: type,
+                            layer: 'Container',
+                            parentLayer: layerType,
                             parentId: dn.id,
                             regionId: currentRegion,
                             datacenterId: currentDc
@@ -43,12 +49,115 @@ export function validateArchitecture(arch: any, patterns: Pattern[]): string[] {
             }
 
             if (dn.nodes && dn.nodes.length > 0) {
-                parseTree(dn.nodes, type, dn.id, currentRegion, currentDc);
+                parseTree(dn.nodes, layerType, dn.id, currentRegion, currentDc);
             }
         });
     };
 
     parseTree(dNodes, null, null, null, null);
+
+    // Validate Explicit Deployment Hierarchies
+    if (registry.deployment_hierarchies && registry.deployment_hierarchies.length > 0) {
+        // Build all root-to-leaf paths
+        const paths: string[][] = [];
+        const leafNodes = flatDeployments.filter(n => !flatDeployments.find(child => child.parentId === n.id));
+
+        leafNodes.forEach(leaf => {
+            const currentPath: string[] = [];
+            let curr: any = leaf;
+            while (curr) {
+                // Ignore Containers themselves, we only care about the DeploymentNode infrastructure chain
+                if (curr.c4Level !== 'Container' && curr.layer !== 'Container' && curr.layer !== 'Unknown') {
+                    currentPath.unshift(curr.layer);
+                }
+                curr = flatDeployments.find(n => n.id === curr.parentId);
+            }
+            if (currentPath.length > 1) {
+                paths.push(currentPath);
+            }
+        });
+
+        paths.forEach(path => {
+            // Check if this path is a contiguous sub-sequence of ANY valid_layer_chain
+            let isValid = false;
+            for (const template of registry.deployment_hierarchies!) {
+                const chain = template.valid_layer_chain;
+
+                // Sub-sequence check
+                let matchIndex = 0;
+                let pathIdx = 0;
+                while (matchIndex < chain.length && pathIdx < path.length) {
+                    if (chain[matchIndex] === path[pathIdx]) {
+                        pathIdx++;
+                    } else if (pathIdx > 0) {
+                        // We started matching but hit a gap (e.g. Region -> Cluster missing Datacenter)
+                        break;
+                    }
+                    matchIndex++;
+                }
+                if (pathIdx === path.length) {
+                    isValid = true;
+                    break;
+                }
+            }
+
+            if (!isValid) {
+                errors.push(`Hierarchy Violation: The deployment path [${path.join(' -> ')}] does not explicitly conform to any approved deployment hierarchy template.`);
+            }
+        });
+    }
+
+    // Evaluate Allowed Hierarchies for Containers
+    const containerNodes = flatDeployments.filter(n => n.c4Level === 'Container' || n.layer === 'Container');
+
+    containerNodes.forEach(container => {
+        const props = container.properties || {};
+        const patternId = props.pattern_ref?.split('@')[0];
+        if (!patternId) return;
+
+        const pattern = patterns.find(p => p.id === patternId);
+        if (!pattern) return;
+
+        const allowedHierarchies = pattern.infrastructure_requirements?.allowed_hierarchies;
+
+        if (allowedHierarchies && allowedHierarchies.length > 0 && registry.deployment_hierarchies) {
+            const currentPath: string[] = [];
+            let curr: any = flatDeployments.find(n => n.id === container.parentId);
+            while (curr) {
+                if (curr.c4Level !== 'Container' && curr.layer !== 'Container' && curr.layer !== 'Unknown') {
+                    currentPath.unshift(curr.layer);
+                }
+                curr = flatDeployments.find(n => n.id === curr.parentId);
+            }
+
+            if (currentPath.length > 0) {
+                let pathIsValid = false;
+                for (const expectedHId of allowedHierarchies) {
+                    const template = registry.deployment_hierarchies.find(h => h.id === expectedHId);
+                    if (template) {
+                        const chain = template.valid_layer_chain;
+                        let matchIndex = 0;
+                        let pathIdx = 0;
+                        while (matchIndex < chain.length && pathIdx < currentPath.length) {
+                            if (chain[matchIndex] === currentPath[pathIdx]) {
+                                pathIdx++;
+                            } else if (pathIdx > 0) {
+                                break;
+                            }
+                            matchIndex++;
+                        }
+                        if (pathIdx === currentPath.length) {
+                            pathIsValid = true;
+                            break;
+                        }
+                    }
+                }
+                if (!pathIsValid) {
+                    errors.push(`Hierarchy Violation: ${patternId} (${container.name}) failed deployment hierarchy check. Its path [${currentPath.join(' -> ')}] does not conform to its allowed templates: ${allowedHierarchies.join(', ')}.`);
+                }
+            }
+        }
+    });
 
     // Evaluate Rules against all logical nodes
     flatDeployments.forEach(node => {
@@ -109,11 +218,11 @@ export function validateArchitecture(arch: any, patterns: Pattern[]): string[] {
             // Structural Boundary Assertions
             if (rule.structural_assertions) {
                 rule.structural_assertions.forEach(assertion => {
-                    if (assertion.includes("parent.type")) {
+                    if (assertion.includes("parent.layer")) {
                         const expectedParent = assertion.split("==")[1].replace(/['")]/g, '').trim();
 
-                        if (node.parentType?.toLowerCase() !== expectedParent.toLowerCase()) {
-                            errors.push(`Boundary Violation: ${pattern.id} (${node.name}) must be placed inside a ${expectedParent} container! Found inside ${node.parentType || 'root'}.`);
+                        if (node.parentLayer?.toLowerCase() !== expectedParent.toLowerCase()) {
+                            errors.push(`Boundary Violation: ${pattern.id} (${node.name}) must be placed inside a ${expectedParent} container! Found inside ${node.parentLayer || 'root'}.`);
                         }
                     }
                 });

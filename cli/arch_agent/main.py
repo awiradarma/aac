@@ -32,10 +32,13 @@ def validate(file: str, registry_file: str = "../registry/patterns.json"):
     
     def trace_deployments(node_list, path_context):
         for n in node_list:
-            # Determine Node Type
-            name_lower = n.get("name", "").lower()
-            node_type = "Region" if "region" in name_lower else "Datacenter" if "datacenter" in name_lower else "Host"
-            current_context = path_context + [{"type": node_type, "id": n.get("id"), "name": n.get("name")}]
+            # Determine Node Layer from Registry
+            pattern_ref = n.get("properties", {}).get("pattern_ref", "").split("@")[0]
+            node_layer = "Unknown"
+            if pattern_ref in patterns:
+                node_layer = patterns[pattern_ref].get("layer", "Unknown")
+            
+            current_context = path_context + [{"layer": node_layer, "id": n.get("id"), "name": n.get("name")}]
             
             # Save deployment context for this specific node
             container_deployments[n.get("id")] = [current_context]
@@ -64,6 +67,82 @@ def validate(file: str, registry_file: str = "../registry/patterns.json"):
         
     all_nodes_to_check = containers + flatten_deployment_nodes(deployment_nodes)
 
+    # Validate Explicit Deployment Hierarchies
+    deployment_hierarchies = registry.get("deployment_hierarchies", [])
+    if deployment_hierarchies:
+        # Build all root-to-leaf paths
+        leaf_nodes = [n for n in flatten_deployment_nodes(deployment_nodes) if not n.get("nodes")]
+        
+        paths = []
+        for leaf in leaf_nodes:
+            # We already have the full path context built in trace_deployments
+            context = container_deployments.get(leaf.get("id"), [[]])[0]
+            # Ignore containers, extract just the layers
+            path = [node["layer"] for node in context if node["layer"] != "Container" and node["layer"] != "Unknown"]
+            if len(path) > 1 and path not in paths:
+                paths.append(path)
+
+        for path in paths:
+            is_valid = False
+            for template in deployment_hierarchies:
+                chain = template.get("valid_layer_chain", [])
+                
+                # Sub-sequence Check
+                match_index = int(0)
+                path_idx = int(0)
+                while match_index < len(chain) and path_idx < len(path):
+                    if chain[match_index] == path[path_idx]:
+                        path_idx += 1
+                    elif path_idx > 0:
+                        break
+                    match_index += 1
+                    
+                if path_idx == len(path):
+                    is_valid = True
+                    break
+                    
+            if not is_valid:
+                errors.append(f"Hierarchy Violation: The deployment path {' -> '.join(path)} does not explicitly conform to any approved deployment hierarchy template.")
+
+    for container in containers:
+        props = container.get("properties", {})
+        ref = props.get("pattern_ref")
+        if not ref:
+            continue
+            
+        pattern_id = ref.split("@")[0]
+        if pattern_id not in patterns:
+            continue
+            
+        pattern = patterns[pattern_id]
+        allowed_hierarchies = pattern.get("infrastructure_requirements", {}).get("allowed_hierarchies", [])
+        
+        if allowed_hierarchies and deployment_hierarchies:
+            context = container_deployments.get(container.get("id"), [[]])[0]
+            path = [node["layer"] for node in context if node["layer"] != "Container" and node["layer"] != "Unknown"]
+            
+            if path:
+                path_is_valid = False
+                for expected_h_id in allowed_hierarchies:
+                    template = next((h for h in deployment_hierarchies if h.get("id") == expected_h_id), None)
+                    if template:
+                        chain = template.get("valid_layer_chain", [])
+                        match_index = int(0)
+                        path_idx = int(0)
+                        while match_index < len(chain) and path_idx < len(path):
+                            if chain[match_index] == path[path_idx]:
+                                path_idx += 1
+                            elif path_idx > 0:
+                                break
+                            match_index += 1
+                        
+                        if path_idx == len(path):
+                            path_is_valid = True
+                            break
+                
+                if not path_is_valid:
+                    errors.append(f"Hierarchy Violation: {pattern_id} ({container.get('name')}) failed deployment hierarchy check. Its path {' -> '.join(path)} does not conform to its allowed templates: {', '.join(allowed_hierarchies)}.")
+                
     for container in all_nodes_to_check:
         props = container.get("properties", {})
         ref = props.get("pattern_ref")
@@ -96,9 +175,9 @@ def validate(file: str, registry_file: str = "../registry/patterns.json"):
                         dcs = set()
                         for dep_path in deployments:
                             for p_node in dep_path:
-                                if p_node["type"] == "Region":
+                                if p_node["layer"] == "Region":
                                     regions.add(p_node["id"])
-                                if p_node["type"] == "Datacenter":
+                                if p_node["layer"] == "Datacenter":
                                     dcs.add(p_node["id"])
                                     
                         if len(regions) < 2:
@@ -114,7 +193,7 @@ def validate(file: str, registry_file: str = "../registry/patterns.json"):
             # Parent Assertions (e.g. Infrastructure Nodes must be in Datacenter)
             if "structural_assertions" in rule:
                 for assertion in rule.get("structural_assertions", []):
-                    if "parent.type" in assertion:
+                    if "parent.layer" in assertion:
                         expected_parent = assertion.split("==")[1].strip(" ')\"")
                         deployments = container_deployments.get(container.get("id"), [])
                         # For a deployment node itself, its parent is the second-to-last generic context item
@@ -122,11 +201,11 @@ def validate(file: str, registry_file: str = "../registry/patterns.json"):
                         if deployments:
                             dep_path = deployments[0]
                             if len(dep_path) >= 2:
-                                parent_type = dep_path[-2]["type"] # The parent node context
-                                if parent_type.lower() == expected_parent.lower():
+                                parent_layer = dep_path[-2]["layer"] # The parent node context
+                                if parent_layer.lower() == expected_parent.lower():
                                     is_valid = True
                         if not is_valid:
-                            errors.append(f"Structural Violation: {pattern_id} must have a parent of type '{expected_parent}'. Context: {deployments}")
+                            errors.append(f"Structural Violation: {pattern_id} must have a parent of layer '{expected_parent}'. Context: {deployments}")
 
     if errors:
         typer.secho("\n⚠️ Architecture Governance Warning", fg=typer.colors.YELLOW, bold=True)

@@ -27,8 +27,7 @@ export const Sidebar = () => {
                                     className="p-3 bg-blue-50 border border-blue-200 rounded cursor-grab hover:bg-blue-100 transition-colors shadow-sm"
                                     onDragStart={(e) => {
                                         let flowType = 'workloadNode';
-                                        if (pattern.type === 'Host') flowType = 'hostNode';
-                                        if (pattern.type === 'Hierarchy') flowType = 'hierarchyNode';
+                                        if (pattern.c4Level === 'DeploymentNode') flowType = 'hierarchyNode';
                                         if (pattern.c4Level === 'InfrastructureNode') flowType = 'infrastructureNode';
                                         onDragStart(e, flowType, pattern.id);
                                     }}
