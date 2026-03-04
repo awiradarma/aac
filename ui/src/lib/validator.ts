@@ -1,4 +1,4 @@
-import type { Pattern, Registry } from '../types';
+import type { Registry } from '../types';
 
 export function validateArchitecture(arch: any, registry: Registry): string[] {
     const errors: string[] = [];

@@ -130,75 +130,83 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
 
             const closestParent = possibleParents.length > 0 ? possibleParents[0] : null;
 
-            // Logic matching macro-drop
-            if (patternId === 'internal-api-ocp') {
+            // Dynamic Macro Expansion
+            if (pattern.macro_expansion) {
                 const isDroppedInDatacenter = closestParent && closestParent.data.label.includes('Datacenter');
+                const generatedNodes: Node<NodeData>[] = [];
+                const generatedEdges: Edge[] = [];
+                const nodeMap: Record<string, string> = {}; // maps suffix to generated id
 
-                // Generate cluster
-                const clusterNode: Node<NodeData> = {
-                    id: getId(),
-                    type: 'hostNode',
-                    position: isDroppedInDatacenter ? { x: 50, y: 100 } : { x: position.x - 200, y: position.y },
-                    parentNode: isDroppedInDatacenter ? closestParent.id : undefined,
-                    extent: isDroppedInDatacenter ? 'parent' : undefined,
-                    zIndex: 10,
-                    data: {
-                        label: 'Standard OpenShift Cluster Instance',
-                        pattern_ref: 'openshift-cluster-v4@4.12.0',
-                        c4Level: 'DeploymentNode',
-                        layer: 'Cluster',
-                        properties: { datacenter_id: isDroppedInDatacenter ? closestParent.data.properties.dc_id : '', region: '' },
-                        status: 'new'
-                    },
-                };
+                // Base positions for the primary node (e.g. cluster)
+                const baseX = isDroppedInDatacenter ? 50 : position.x - 200;
+                const baseY = isDroppedInDatacenter ? 100 : position.y;
 
-                // Gen Load Balancer
-                const lbNode: Node<NodeData> = {
-                    id: getId(),
-                    type: 'infrastructureNode',
-                    position: isDroppedInDatacenter ? { x: 500, y: 100 } : { x: position.x + 200, y: position.y },
-                    parentNode: isDroppedInDatacenter ? closestParent.id : undefined,
-                    extent: isDroppedInDatacenter ? 'parent' : undefined,
-                    zIndex: 10,
-                    data: {
-                        label: 'Local Load Balancer Instance',
-                        pattern_ref: 'local-load-balancer@2.0.0',
-                        c4Level: 'InfrastructureNode',
-                        properties: { provider: 'avi' },
-                        status: 'new'
-                    },
-                };
+                // 1. Generate Nodes
+                pattern.macro_expansion.nodes.forEach((macroNode: any, index: number) => {
+                    const nodeId = getId();
+                    nodeMap[macroNode.id_suffix] = nodeId;
 
-                // Gen API Gateway
-                const gwNode: Node<NodeData> = {
-                    id: getId(),
-                    type: 'infrastructureNode',
-                    position: isDroppedInDatacenter ? { x: 500, y: 250 } : { x: position.x + 200, y: position.y + 150 },
-                    parentNode: isDroppedInDatacenter ? closestParent.id : undefined,
-                    extent: isDroppedInDatacenter ? 'parent' : undefined,
-                    zIndex: 10,
-                    data: {
-                        label: 'API Gateway Instance',
-                        pattern_ref: 'api-gateway@2.0.0',
-                        c4Level: 'InfrastructureNode',
-                        properties: { provider: 'apigee' },
-                        status: 'new'
-                    },
-                };
+                    // Simple auto-layout: first node at baseX/baseY, subsequent nodes spaced out
+                    let offsetX = 0;
+                    let offsetY = 0;
+                    if (index > 0) {
+                        offsetX = 450;
+                        offsetY = (index - 1) * 150;
+                    }
 
-                // Actual workload
-                newNode.parentNode = clusterNode.id;
-                newNode.extent = 'parent';
-                newNode.position = { x: 50, y: 80 };
-                newNode.zIndex = 20;
+                    const gNode: Node<NodeData> = {
+                        id: nodeId,
+                        type: macroNode.type,
+                        position: { x: baseX + offsetX, y: baseY + offsetY },
+                        parentNode: isDroppedInDatacenter ? closestParent.id : undefined,
+                        extent: isDroppedInDatacenter ? 'parent' : undefined,
+                        zIndex: 10,
+                        data: {
+                            label: macroNode.label,
+                            pattern_ref: macroNode.pattern_ref,
+                            c4Level: macroNode.c4Level,
+                            layer: macroNode.layer,
+                            properties: macroNode.properties ? { ...macroNode.properties } : {},
+                            status: 'new'
+                        }
+                    };
 
-                setNodes((nds: Node[]) => nds.concat([clusterNode, lbNode, gwNode, newNode]));
+                    if (isDroppedInDatacenter && macroNode.layer === 'Cluster') {
+                        gNode.data.properties.datacenter_id = closestParent.data.properties.dc_id;
+                        gNode.data.properties.region = '';
+                    }
 
-                // Add connections between generated infra
-                setEdges((eds: Edge[]) => eds.concat([
-                    { id: `e-${lbNode.id}-${clusterNode.id}`, source: lbNode.id, target: clusterNode.id, animated: true, style: { stroke: '#blue' } },
-                    { id: `e-${gwNode.id}-${lbNode.id}`, source: gwNode.id, target: lbNode.id, animated: true }
-                ]));
+                    generatedNodes.push(gNode);
+                });
+
+                // 2. Generate Edges
+                pattern.macro_expansion.edges.forEach((macroEdge: any) => {
+                    const sourceId = nodeMap[macroEdge.source_suffix];
+                    const targetId = nodeMap[macroEdge.target_suffix];
+                    if (sourceId && targetId) {
+                        generatedEdges.push({
+                            id: `e-${sourceId}-${targetId}`,
+                            source: sourceId,
+                            target: targetId,
+                            animated: true,
+                            style: macroEdge.style
+                        });
+                    }
+                });
+
+                // 3. Attach actual workload
+                const targetHostId = nodeMap[pattern.macro_expansion.workload_target_suffix];
+                if (targetHostId) {
+                    newNode.parentNode = targetHostId;
+                    newNode.extent = 'parent';
+                    newNode.position = { x: 50, y: 80 };
+                    newNode.zIndex = 20;
+                }
+
+                setNodes((nds: Node[]) => nds.concat([...generatedNodes, newNode]));
+                if (generatedEdges.length > 0) {
+                    setEdges((eds: Edge[]) => eds.concat(generatedEdges));
+                }
                 return;
             }
 

@@ -14,6 +14,28 @@ export type PatternRule = {
     structural_assertions?: string[];
 };
 
+export type MacroExpansionNode = {
+    id_suffix: string;
+    type: string;
+    pattern_ref: string;
+    label: string;
+    layer?: string;
+    c4Level: string;
+    properties?: Record<string, any>;
+};
+
+export type MacroExpansionEdge = {
+    source_suffix: string;
+    target_suffix: string;
+    style?: Record<string, any>;
+};
+
+export type MacroExpansion = {
+    nodes: MacroExpansionNode[];
+    edges: MacroExpansionEdge[];
+    workload_target_suffix: string;
+};
+
 export type Pattern = {
     id: string;
     name: string;
@@ -32,6 +54,7 @@ export type Pattern = {
     };
     capabilities?: string[];
     crossplane_mapping?: any;
+    macro_expansion?: MacroExpansion;
 };
 
 export type DeploymentHierarchy = {
