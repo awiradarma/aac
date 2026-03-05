@@ -1,0 +1,34 @@
+registryName: Enterprise-Architecture-Widgets
+version: 2026.03.01
+
+widgets:
+  - id: api-gateway
+    name: API Gateway
+    versions:
+      - "2.0.0"
+    latest: "2.0.0"
+  - id: local-load-balancer
+    name: Local Load Balancer
+    versions:
+      - "2.0.0"
+    latest: "2.0.0"
+  - id: openshift-cluster-v4
+    name: Standard OpenShift Cluster
+    versions:
+      - "4.12.0"
+    latest: "4.12.0"
+  - id: region
+    name: Cloud Region
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: datacenter
+    name: Datacenter
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: virtual-machine
+    name: Virtual Machine
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"

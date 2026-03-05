@@ -1,5 +1,5 @@
 import React from 'react';
-import { registry } from '../lib/registry';
+import { getRegistry } from '../lib/registry';
 
 export const Sidebar = () => {
     const onDragStart = (event: React.DragEvent, nodeType: string, patternId: string) => {
@@ -14,7 +14,7 @@ export const Sidebar = () => {
             <div className="text-sm text-slate-500 mb-2">Drag elements to the canvas</div>
 
             {['DeploymentNode', 'InfrastructureNode', 'Container', 'Component'].map(level => {
-                const patterns = registry.patterns.filter(p => p.c4Level === level);
+                const patterns = getRegistry().patterns.filter(p => p.c4Level === level);
                 if (patterns.length === 0) return null;
 
                 return (

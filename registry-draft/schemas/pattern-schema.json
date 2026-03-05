@@ -1,0 +1,188 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "C4 Pattern Definition Schema",
+    "type": "object",
+    "required": [
+        "id",
+        "name",
+        "version",
+        "c4Level",
+        "macro_expansion"
+    ],
+    "properties": {
+        "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$"
+        },
+        "name": {
+            "type": "string"
+        },
+        "version": {
+            "type": "string"
+        },
+        "c4Level": {
+            "type": "string",
+            "enum": [
+                "Container",
+                "Component",
+                "DeploymentNode"
+            ]
+        },
+        "description": {
+            "type": "string"
+        },
+        "parameters": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string"
+                    },
+                    "options": {
+                        "type": "array"
+                    },
+                    "default": {},
+                    "const": {}
+                },
+                "required": [
+                    "type"
+                ]
+            }
+        },
+        "infrastructure_requirements": {
+            "type": "object",
+            "properties": {
+                "host_capability": {
+                    "type": "string"
+                },
+                "required_plugins": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "crossplane_mapping": {
+            "type": "object",
+            "properties": {
+                "kind": {
+                    "type": "string"
+                },
+                "apiVersion": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "kind",
+                "apiVersion"
+            ]
+        },
+        "constraints": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "condition": {
+                        "type": "string"
+                    },
+                    "assert": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": [
+                    "id",
+                    "assert"
+                ]
+            }
+        },
+        "macro_expansion": {
+            "type": "object",
+            "required": [
+                "nodes"
+            ],
+            "properties": {
+                "edges": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "source_suffix": {
+                                "type": "string"
+                            },
+                            "target_suffix": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "source_suffix",
+                            "target_suffix"
+                        ]
+                    }
+                },
+                "workload_target_suffix": {
+                    "type": "string"
+                },
+                "nodes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/nodeExpansion"
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "nodeExpansion": {
+            "type": "object",
+            "required": [
+                "id_suffix",
+                "type",
+                "pattern_ref",
+                "label",
+                "c4Level"
+            ],
+            "properties": {
+                "id_suffix": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "pattern_ref": {
+                    "type": "string",
+                    "pattern": "^.*@\\d+\\.\\d+\\.\\d+$"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "layer": {
+                    "type": "string"
+                },
+                "c4Level": {
+                    "type": "string"
+                },
+                "properties": {
+                    "type": "object"
+                },
+                "children": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/nodeExpansion"
+                    },
+                    "description": "Recursive definition of nested children for establishing spatial hierarchies like Region -> Datacenter -> Cluster."
+                }
+            }
+        }
+    }
+}

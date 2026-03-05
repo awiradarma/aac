@@ -141,69 +141,122 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 const baseX = isDroppedInDatacenter ? 50 : position.x - 200;
                 const baseY = isDroppedInDatacenter ? 100 : position.y;
 
-                // 1. Generate Nodes
-                pattern.macro_expansion.nodes.forEach((macroNode: any, index: number) => {
-                    const nodeId = getId();
-                    nodeMap[macroNode.id_suffix] = nodeId;
+                const processNodes = (nodeList: any[], parentId: string | undefined, depth: number, startX: number, startY: number, extent?: 'parent') => {
+                    nodeList.forEach((macroNode: any, index: number) => {
+                        let existingNode = null;
+                        const checkType = macroNode.type === 'deploymentNode' ? 'hierarchyNode' : macroNode.type;
 
-                    // Simple auto-layout: first node at baseX/baseY, subsequent nodes spaced out
-                    let offsetX = 0;
-                    let offsetY = 0;
-                    if (index > 0) {
-                        offsetX = 450;
-                        offsetY = (index - 1) * 150;
-                    }
-
-                    const gNode: Node<NodeData> = {
-                        id: nodeId,
-                        type: macroNode.type,
-                        position: { x: baseX + offsetX, y: baseY + offsetY },
-                        parentNode: isDroppedInDatacenter ? closestParent.id : undefined,
-                        extent: isDroppedInDatacenter ? 'parent' : undefined,
-                        zIndex: 10,
-                        data: {
-                            label: macroNode.label,
-                            pattern_ref: macroNode.pattern_ref,
-                            c4Level: macroNode.c4Level,
-                            layer: macroNode.layer,
-                            properties: macroNode.properties ? { ...macroNode.properties } : {},
-                            status: 'new'
+                        if (parentId) {
+                            existingNode = nodes.find(n =>
+                                n.parentNode === parentId &&
+                                n.data.pattern_ref === macroNode.pattern_ref &&
+                                n.data.layer === macroNode.layer &&
+                                n.type === checkType
+                            );
+                        } else {
+                            existingNode = nodes.find(n =>
+                                !n.parentNode &&
+                                n.data.pattern_ref === macroNode.pattern_ref &&
+                                n.data.layer === macroNode.layer &&
+                                n.type === checkType
+                            );
                         }
-                    };
 
-                    if (isDroppedInDatacenter && macroNode.layer === 'Cluster') {
-                        gNode.data.properties.datacenter_id = closestParent.data.properties.dc_id;
-                        gNode.data.properties.region = '';
-                    }
+                        let currentNodeId: string;
 
-                    generatedNodes.push(gNode);
-                });
+                        if (existingNode) {
+                            // Merge: node already exists in this scope
+                            currentNodeId = existingNode.id;
+                            nodeMap[macroNode.id_suffix] = currentNodeId;
+                        } else {
+                            currentNodeId = getId();
+                            nodeMap[macroNode.id_suffix] = currentNodeId;
 
-                // 2. Generate Edges
-                pattern.macro_expansion.edges.forEach((macroEdge: any) => {
-                    const sourceId = nodeMap[macroEdge.source_suffix];
-                    const targetId = nodeMap[macroEdge.target_suffix];
-                    if (sourceId && targetId) {
-                        generatedEdges.push({
-                            id: `e-${sourceId}-${targetId}`,
-                            source: sourceId,
-                            target: targetId,
-                            animated: true,
-                            style: macroEdge.style
-                        });
-                    }
-                });
+                            // Simple auto-layout
+                            let offsetX = 0;
+                            let offsetY = 0;
+                            if (depth === 0) {
+                                offsetX = index * 450;
+                            } else {
+                                offsetX = 50 + (index * 450);
+                                offsetY = 80;
+                            }
 
-                // 3. Attach actual workload
-                const targetHostId = nodeMap[pattern.macro_expansion.workload_target_suffix];
-                if (targetHostId) {
-                    newNode.parentNode = targetHostId;
-                    newNode.extent = 'parent';
-                    newNode.position = { x: 50, y: 80 };
-                    newNode.zIndex = 20;
+                            const nPattern = macroNode.pattern_ref ? getPatternById(macroNode.pattern_ref.split('@')[0]) : null;
+
+                            const gNode: Node<NodeData> = {
+                                id: currentNodeId,
+                                type: checkType,
+                                position: { x: startX + offsetX, y: startY + offsetY },
+                                style: (checkType === 'hierarchyNode') ? { width: nPattern?.default_width || 500, height: nPattern?.default_height || 400 } : undefined,
+                                parentNode: parentId,
+                                extent: extent,
+                                zIndex: 10 + depth,
+                                data: {
+                                    label: macroNode.label,
+                                    pattern_ref: macroNode.pattern_ref,
+                                    c4Level: macroNode.c4Level,
+                                    layer: macroNode.layer,
+                                    properties: macroNode.properties ? { ...macroNode.properties } : {},
+                                    status: 'new'
+                                }
+                            };
+
+                            if (isDroppedInDatacenter && macroNode.layer === 'Cluster') {
+                                gNode.data.properties.datacenter_id = closestParent?.data.properties.dc_id;
+                                gNode.data.properties.region = '';
+                            }
+
+                            generatedNodes.push(gNode);
+                        }
+
+                        if (macroNode.children && macroNode.children.length > 0) {
+                            processNodes(macroNode.children, currentNodeId, depth + 1, 0, 0, 'parent');
+                        }
+                    });
+                };
+
+                // 1. Generate Nodes recursively
+                if (pattern.macro_expansion.nodes) {
+                    processNodes(pattern.macro_expansion.nodes, isDroppedInDatacenter && closestParent ? closestParent.id : undefined, 0, baseX, baseY, isDroppedInDatacenter ? 'parent' : undefined);
                 }
 
-                setNodes((nds: Node[]) => nds.concat([...generatedNodes, newNode]));
+                // 2. Generate Edges
+                if (pattern.macro_expansion.edges) {
+                    pattern.macro_expansion.edges.forEach((macroEdge: any) => {
+                        const sourceId = nodeMap[macroEdge.source_suffix];
+                        const targetId = nodeMap[macroEdge.target_suffix];
+                        if (sourceId && targetId) {
+                            generatedEdges.push({
+                                id: `e-${sourceId}-${targetId}`,
+                                source: sourceId,
+                                target: targetId,
+                                animated: true,
+                                style: macroEdge.style
+                            });
+                        }
+                    });
+                }
+
+                // 3. Attach actual workload (if applicable)
+                let shouldAddWorkloadNode = false;
+                if (pattern.macro_expansion.workload_target_suffix) {
+                    const targetHostId = nodeMap[pattern.macro_expansion.workload_target_suffix];
+                    if (targetHostId) {
+                        newNode.parentNode = targetHostId;
+                        newNode.extent = 'parent';
+                        newNode.position = { x: 50, y: 80 };
+                        newNode.zIndex = 20;
+                        shouldAddWorkloadNode = true;
+                    }
+                }
+
+                if (shouldAddWorkloadNode) {
+                    setNodes((nds: Node[]) => nds.concat([...generatedNodes, newNode]));
+                } else {
+                    setNodes((nds: Node[]) => nds.concat([...generatedNodes]));
+                }
+
                 if (generatedEdges.length > 0) {
                     setEdges((eds: Edge[]) => eds.concat(generatedEdges));
                 }

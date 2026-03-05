@@ -1,0 +1,40 @@
+id: internal-api-ocp
+name: Internal API on OpenShift
+version: 2.1.0
+c4Level: Container
+description: Multi-region API deployment with GSLB and API Gateway ingress.
+
+infrastructure_requirements:
+  host_capability: openshift-cluster-v4
+macro_expansion:
+  nodes:
+    - id_suffix: cluster
+      type: hostNode
+      pattern_ref: openshift-cluster-v4@4.12.0
+      label: Standard OpenShift Cluster Instance
+      layer: Cluster
+      c4Level: DeploymentNode
+    - id_suffix: lb
+      type: infrastructureNode
+      pattern_ref: local-load-balancer@2.0.0
+      label: Local Load Balancer Instance
+      c4Level: InfrastructureNode
+      properties:
+        provider: avi
+    - id_suffix: gw
+      type: infrastructureNode
+      pattern_ref: api-gateway@2.0.0
+      label: API Gateway Instance
+      c4Level: InfrastructureNode
+      properties:
+        provider: apigee
+  edges:
+    - source_suffix: lb
+      target_suffix: cluster
+    - source_suffix: gw
+      target_suffix: lb
+  workload_target_suffix: cluster
+crossplane_mapping:
+  kind: XInternalAPI
+  apiVersion: arch.acme.com/v1alpha1
+

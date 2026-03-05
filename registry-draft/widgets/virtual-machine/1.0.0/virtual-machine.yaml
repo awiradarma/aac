@@ -1,0 +1,10 @@
+id: virtual-machine
+name: Virtual Machine
+version: 1.0.0
+c4Level: DeploymentNode
+type: VirtualMachine
+layer: VirtualMachine
+default_width: 250
+default_height: 400
+capabilities:
+  - virtual-machine

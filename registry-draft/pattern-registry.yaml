@@ -1,0 +1,19 @@
+registryName: Enterprise-Architecture-Patterns
+version: 2026.03.01
+
+patterns:
+  - id: internal-api-ocp
+    name: Internal API on OpenShift
+    versions:
+      - "2.1.0"
+    latest: "2.1.0"
+  - id: batch-workload-ocp
+    name: Autosys Batch on OpenShift
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: on-prem-ocp-active-passive
+    name: On-Prem OpenShift Active-Passive Hierarchy
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"

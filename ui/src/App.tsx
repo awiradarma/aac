@@ -1,20 +1,28 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { ReactFlowProvider, useNodesState, useEdgesState } from 'reactflow';
 import { Sidebar } from './components/Sidebar';
 import { CanvasArea } from './components/Canvas';
 import { PropertyPanel } from './components/PropertyPanel';
 import type { NodeData } from './types';
 import yaml from 'js-yaml';
-import { getPatternById } from './lib/registry';
+import { initRegistry, getPatternById, getRegistry } from './lib/registry';
 import { validateArchitecture } from './lib/validator';
 import type { Node } from 'reactflow';
-import PATTERNS_JSON from '../../registry/patterns.json';
 
 export default function App() {
   const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<any>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [isRegistryLoaded, setIsRegistryLoaded] = useState(false);
+
+  useEffect(() => {
+    initRegistry('').then(() => {
+      setIsRegistryLoaded(true);
+    }).catch(err => {
+      console.error("Failed to load registry:", err);
+    });
+  }, []);
 
   const selectedNode = nodes.find(n => n.id === selectedNodeId) || null;
   const selectedEdge = edges.find(e => e.id === selectedEdgeId) || null;
@@ -307,9 +315,7 @@ export default function App() {
 
   const handleValidate = () => {
     const structurizrAst = generateYamlObj();
-    // Re-use universally shared validator
-    // Patterns JSON is imported statically for the UI
-    const errors = validateArchitecture(structurizrAst, PATTERNS_JSON as any);
+    const errors = validateArchitecture(structurizrAst, getRegistry() as any);
 
     if (errors.length > 0) {
       alert("⚠️ Architecture Validation Failed:\n\n" + errors.map(e => "• " + e).join("\n"));
@@ -317,6 +323,10 @@ export default function App() {
       alert("✅ Architecture Valid!\n\nAll constraints and placement boundaries conform to the Pattern Registry.");
     }
   };
+
+  if (!isRegistryLoaded) {
+    return <div className="flex h-screen items-center justify-center font-bold text-xl text-slate-600">Loading Registry...</div>;
+  }
 
   return (
     <div className="flex flex-col h-screen w-full bg-slate-50 font-sans">

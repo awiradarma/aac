@@ -24,8 +24,8 @@ export const HierarchyNode = ({ data, selected }: NodeProps<NodeData>) => {
             </div>
 
             {/* Background Label */}
-            <div className={`absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03] text-9xl font-black text-${colorClass}-900 uppercase tracking-tighter`}>
-                {isRegion ? 'REGION' : 'DATACENTER'}
+            <div className={`absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03] text-[8rem] font-black text-${colorClass}-900 uppercase tracking-tighter leading-none text-center px-4 overflow-hidden`}>
+                {data.label.toUpperCase()}
             </div>
 
             <Handle type="target" position={Position.Left} className="w-3 h-3 !bg-slate-400 border-2 !border-white" />

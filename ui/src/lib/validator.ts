@@ -191,7 +191,7 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
                             if (sis.regionId) myRegions.add(sis.regionId);
                             if (sis.regionId && sis.datacenterId) {
                                 if (!datacentersByRegion[sis.regionId]) datacentersByRegion[sis.regionId] = new Set();
-                                datacentersByRegion[sis.regionId].add(sis.datacenterId);
+                                datacentersByRegion[sis.regionId]?.add(sis.datacenterId);
                             }
                         });
 
@@ -219,9 +219,9 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
             if (rule.structural_assertions) {
                 rule.structural_assertions.forEach(assertion => {
                     if (assertion.includes("parent.layer")) {
-                        const expectedParent = assertion.split("==")[1].replace(/['")]/g, '').trim();
+                        const expectedParent = assertion.split("==")[1]?.replace(/['")]/g, '').trim();
 
-                        if (node.parentLayer?.toLowerCase() !== expectedParent.toLowerCase()) {
+                        if (expectedParent && node.parentLayer?.toLowerCase() !== expectedParent.toLowerCase()) {
                             errors.push(`Boundary Violation: ${pattern.id} (${node.name}) must be placed inside a ${expectedParent} container! Found inside ${node.parentLayer || 'root'}.`);
                         }
                     }

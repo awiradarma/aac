@@ -2,7 +2,8 @@ import fs from 'fs';
 import yaml from 'js-yaml';
 import { program } from 'commander';
 import { validateArchitecture } from '../ui/src/lib/validator';
-import { Pattern } from '../ui/src/types';
+import { ResolverEngine } from '../ui/src/lib/ResolverEngine';
+import type { Pattern } from '../ui/src/types';
 
 program
     .name('arch-cli')
@@ -13,16 +14,20 @@ program
     .command('validate')
     .description('Validate an architecture.yaml file against the pattern registry constraints')
     .argument('<file>', 'Path to the architecture.yaml file')
-    .action((file) => {
+    .action(async (file) => {
         try {
             const yamlContent = fs.readFileSync(file, 'utf8');
             const archObj: any = yaml.load(yamlContent);
 
-            const registryContent = fs.readFileSync('../registry/patterns.json', 'utf8');
-            const registry = JSON.parse(registryContent);
+            // Initialize ResolverEngine targeting the local registry-draft directory for CLI
+            const registryBasePath = __dirname + '/../registry-draft';
+            const resolver = new ResolverEngine(registryBasePath);
+
+            console.log("Fetching registry and resolving dependencies...");
+            const registry = await resolver.initialize();
             const patterns: Pattern[] = registry.patterns;
 
-            const errors = validateArchitecture(archObj, patterns);
+            const errors = validateArchitecture(archObj, registry);
 
             if (errors.length > 0) {
                 console.error("⚠️ Architecture Validation Failed:");

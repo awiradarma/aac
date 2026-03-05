@@ -1,0 +1,12 @@
+id: datacenter
+name: Datacenter
+version: 1.0.0
+c4Level: DeploymentNode
+type: Datacenter
+layer: Datacenter
+default_width: 1000
+default_height: 800
+parameters:
+  dc_id:
+    type: string
+    default: DC1

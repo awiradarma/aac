@@ -1,0 +1,21 @@
+Propose a different model where these reusable assets are maintained by different personas. 
+The first one is the consumer of the solution, the application architect that is using the solution to document his application architecture, 
+or designing a brand new one using these C4 based building blocks.
+
+Then there is a C4 widget maintainer, that defines and maintains the C4 widgets, using semantic versioning, and maintaining a list of C4 widgets in a widget registry file.
+The widgets are the basic building blocks of the solution, that is used both for the C4 model and the diagram, that is, the various types of C4 containers, such api, ui,
+database instances, batch job etc. Then there are the infrastructureNode widgets, like load balancers, api gateways, etc. Finally, there's also those deploymentNode widgets,
+like region, datacenter, kubernetes clusters, etc.
+
+The third persona is the C4 pattern maintainer, that defines and maintains the C4 patterns, using semantic versioning, and maintaining a list of C4 patterns in a pattern registry file.
+We are focusing on application deployment patterns for now, where a pattern is a composition of widgets that are used to document a specific deployment pattern.
+
+For example, there is a pattern for an internal-api-on-openshift, that is composed of a single api container widget, enclosed within an openshift deployment node widget, and accompanied by a load balancer and an api gateway infrastructure node widget.
+The pattern is defined in a single pattern file, under a specific folder based on the version number, underneath the pattern name in the patterns folder. It will reference the widgets it's using, along with their versions.
+There will also be a constraint section, that defines the constraints of the pattern, such as the fact that the api container widget must be enclosed within an openshift deployment node widget, and accompanied by a load balancer and an api gateway infrastructure node widget.
+There might also be constraints that validates relationships between widgets, or properties of a given widget.
+
+Each version of a widget would also be defined in a single file, under a specific folder based on the version number, underneath the widget name in the widgets folder.
+The widget definition would include some metadata, and a prototype section, that basically mimics the structure and set of fields of that widget type when rendered in an application aac (like the example architecture.yaml file)
+
+Each type of files (widget, pattern) would have a corresponding schema file under a schemas folder, that would be used to validate the files of that type.

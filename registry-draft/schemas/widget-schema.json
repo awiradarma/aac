@@ -1,0 +1,78 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "C4 Widget Definition Schema",
+    "type": "object",
+    "required": [
+        "id",
+        "name",
+        "version",
+        "c4Level",
+        "type"
+    ],
+    "properties": {
+        "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$"
+        },
+        "name": {
+            "type": "string"
+        },
+        "version": {
+            "type": "string",
+            "description": "Semantic version of the widget."
+        },
+        "c4Level": {
+            "type": "string",
+            "enum": [
+                "Container",
+                "Component",
+                "SoftwareSystem",
+                "DeploymentNode",
+                "InfrastructureNode"
+            ]
+        },
+        "type": {
+            "type": "string",
+            "description": "The specific archetype categorizing this node (e.g., Datacenter, Region, Host, Cluster)."
+        },
+        "layer": {
+            "type": "string",
+            "description": "The logical tier in the deployment hierarchy."
+        },
+        "default_width": {
+            "type": "integer"
+        },
+        "default_height": {
+            "type": "integer"
+        },
+        "capabilities": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "Functional traits provided by this widget."
+        },
+        "parameters": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string"
+                    },
+                    "options": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "default": {},
+                    "const": {}
+                },
+                "required": [
+                    "type"
+                ]
+            }
+        }
+    }
+}

@@ -1,0 +1,12 @@
+id: region
+name: Cloud Region
+version: 1.0.0
+c4Level: DeploymentNode
+type: Region
+layer: Region
+default_width: 1200
+default_height: 1000
+parameters:
+  region_id:
+    type: string
+    default: us-east-1

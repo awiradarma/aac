@@ -1,0 +1,13 @@
+id: local-load-balancer
+name: Local Load Balancer
+version: 2.0.0
+c4Level: InfrastructureNode
+type: Host
+capabilities:
+  - haproxy-ingress
+  - avi
+parameters:
+  provider:
+    type: string
+    const: avi
+
