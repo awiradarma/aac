@@ -5,135 +5,84 @@ model:
       properties:
         pattern_ref: internal-api-ocp@2.1.0
         status: new
-        topology: active-active
+  relationships:
+    - sourceId: node_8
+      destinationId: node_5
+      description: Uses
+      technology: ''
+    - sourceId: node_9
+      destinationId: node_8
+      description: Uses
+      technology: ''
+    - sourceId: node_12
+      destinationId: node_3
+      description: Uses
+      technology: ''
+    - sourceId: node_13
+      destinationId: node_12
+      description: Uses
+      technology: ''
 deployment:
   nodes:
-    - name: Cloud-Region-Instance
-      id: node_0
+    - name: Primary-Region
+      id: node_1
       properties:
         pattern_ref: region@1.0.0
         status: new
-        region_id: us-east-1
       nodes:
-        - name: Datacenter-Instance
-          id: node_1
+        - name: Primary-Datacenter
+          id: node_2
           properties:
             pattern_ref: datacenter@1.0.0
             status: new
-            dc_id: DC1
           nodes:
-            - name: Standard-OpenShift-Cluster-Instance
+            - name: Primary-OpenShift-Cluster
               id: node_3
               properties:
                 pattern_ref: openshift-cluster-v4@4.12.0
                 status: new
-                datacenter_id: DC1
-                region: ''
-              containerInstances:
-                - id: node_2_instance
-                  containerId: internal-api-ocp-internal-api-on-openshift-instance
-            - name: Local-Load-Balancer-Instance
-              id: node_4
-              properties:
-                pattern_ref: local-load-balancer@2.0.0
-                status: new
-                provider: avi
-            - name: API-Gateway-Instance
-              id: node_5
-              properties:
-                pattern_ref: api-gateway@2.0.0
-                status: new
-                provider: apigee
-        - name: Datacenter-Instance
-          id: node_6
-          properties:
-            pattern_ref: datacenter@1.0.0
-            status: new
-            dc_id: DC1
-          nodes:
-            - name: Standard-OpenShift-Cluster-Instance
-              id: node_12
-              properties:
-                pattern_ref: openshift-cluster-v4@4.12.0
-                status: new
-                datacenter_id: DC1
-                region: ''
               containerInstances:
                 - id: node_11_instance
                   containerId: internal-api-ocp-internal-api-on-openshift-instance
             - name: Local-Load-Balancer-Instance
+              id: node_12
+              properties:
+                pattern_ref: local-load-balancer@2.0.0
+                status: new
+                provider: avi
+            - name: API-Gateway-Instance
               id: node_13
               properties:
-                pattern_ref: local-load-balancer@2.0.0
-                status: new
-                provider: avi
-            - name: API-Gateway-Instance
-              id: node_14
-              properties:
                 pattern_ref: api-gateway@2.0.0
                 status: new
                 provider: apigee
-    - name: Cloud-Region-Instance
-      id: node_15
-      properties:
-        pattern_ref: region@1.0.0
-        status: new
-        region_id: us-east-1
-      nodes:
-        - name: Datacenter-Instance
-          id: node_16
+        - name: Passive-Datacenter
+          id: node_4
           properties:
             pattern_ref: datacenter@1.0.0
             status: new
-            dc_id: DC1
           nodes:
-            - name: Standard-OpenShift-Cluster-Instance
-              id: node_18
+            - name: Passive-OpenShift-Cluster
+              id: node_5
               properties:
                 pattern_ref: openshift-cluster-v4@4.12.0
                 status: new
-                datacenter_id: DC1
-                region: ''
               containerInstances:
-                - id: node_17_instance
+                - id: node_7_instance
                   containerId: internal-api-ocp-internal-api-on-openshift-instance
+            - name: Virtual-Machine-Instance
+              id: node_6
+              properties:
+                pattern_ref: virtual-machine@1.0.0
+                status: new
             - name: Local-Load-Balancer-Instance
-              id: node_19
+              id: node_8
               properties:
                 pattern_ref: local-load-balancer@2.0.0
                 status: new
                 provider: avi
             - name: API-Gateway-Instance
-              id: node_20
-              properties:
-                pattern_ref: api-gateway@2.0.0
-                status: new
-                provider: apigee
-        - name: Datacenter-Instance
-          id: node_21
-          properties:
-            pattern_ref: datacenter@1.0.0
-            status: new
-            dc_id: DC1
-          nodes:
-            - name: Standard-OpenShift-Cluster-Instance
-              id: node_23
-              properties:
-                pattern_ref: openshift-cluster-v4@4.12.0
-                status: new
-                datacenter_id: DC1
-                region: ''
-              containerInstances:
-                - id: node_22_instance
-                  containerId: internal-api-ocp-internal-api-on-openshift-instance
-            - name: Local-Load-Balancer-Instance
-              id: node_24
-              properties:
-                pattern_ref: local-load-balancer@2.0.0
-                status: new
-                provider: avi
-            - name: API-Gateway-Instance
-              id: node_25
+              id: node_9
               properties:
                 pattern_ref: api-gateway@2.0.0
                 status: new

@@ -260,7 +260,9 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                     icon: nPattern?.display_metadata?.icon,
                                     color: nPattern?.display_metadata?.color,
                                     min_width: nPattern?.min_width,
-                                    min_height: nPattern?.min_height
+                                    min_height: nPattern?.min_height,
+                                    origin_pattern: pattern.id,
+                                    macro_id_suffix: macroNode.id_suffix
                                 }
                             };
 

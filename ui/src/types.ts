@@ -90,4 +90,6 @@ export type NodeData = {
     color?: string;
     min_width?: number;
     min_height?: number;
+    origin_pattern?: string;
+    macro_id_suffix?: string;
 };

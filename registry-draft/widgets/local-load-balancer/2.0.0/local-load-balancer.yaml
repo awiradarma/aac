@@ -8,7 +8,11 @@ capabilities:
 parameters:
   provider:
     type: string
-    const: avi
+    options:
+      - avi
+      - f5
+      - haproxy
+    default: avi
 display_metadata:
   icon: Box
   color: purple

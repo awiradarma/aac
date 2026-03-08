@@ -13,6 +13,78 @@ The entire system is powered by a modular registry located in `registry-draft/`.
 
 ---
 
+## Governance & Constraints
+
+The AaC Fabric enforces architecture standards through a multi-layered constraint system defined in the YAML registry.
+
+### 1. Structural Constraints (Hierarchies)
+Defined in `registry-draft/hierarchy-registry.yaml`, these define the "legal" stacking order of deployment layers.
+
+```yaml
+hierarchies:
+  - id: on-prem-ocp
+    name: On-Prem OpenShift Standard
+    valid_layer_chain:
+      - Region        # Layer 1 (Root)
+      - Datacenter    # Layer 2
+      - Cluster       # Layer 3
+      - Namespace     # Layer 4
+```
+
+### 2. Infrastructure Constraints (Capabilities)
+Patterns can declare specific requirements for the infrastructure they are dropped into.
+
+*   **`allowed_hierarchies`**: Restricts a pattern to a specific set of hierarchy IDs.
+*   **`host_capability`**: Rejects placement if the parent container does not provide the required tag.
+
+```yaml
+infrastructure_requirements:
+  allowed_hierarchies: ["on-prem-ocp"]
+  host_capability: ["openshift-cluster-v4"]
+```
+
+### 3. Internal Constraints (Parameters)
+Widget parameters use a JSON-Schema inspired syntax to control user input.
+
+*   **`const`**: Fixes a value (cannot be edited in the UI).
+*   **`options`**: Provides a restricted dropdown selection.
+*   **`type`**: Enforces data types (string, number, boolean).
+
+```yaml
+parameters:
+  environment:
+    type: string
+    options: ["dev", "prod", "dr"]
+  managed_by:
+    type: string
+    const: "central-it"
+```
+
+### 4. Sizing & Visual Constraints
+Ensure consistent UI presentation and prevent illegal resizing of complex containers.
+
+```yaml
+default_width: 1200
+default_height: 1000
+min_width: 600      # Prevents resizing smaller than this
+min_height: 400
+
+### 5. Pattern Blueprints (Standardization)
+When a complex pattern (Macro Expansion) defines specific `properties` for its nodes, these values become mandatory standards for that deployment. The validator will flag a **Standardization Violation** if a user drifts from these values.
+
+```yaml
+# In internal-api-ocp.yaml
+macro_expansion:
+  nodes:
+    - id_suffix: lb
+      pattern_ref: local-load-balancer@2.0.0
+      properties:
+        provider: avi  # AVI is now mandatory for the LB in this specific pattern
+```
+```
+
+---
+
 ## Authoring Guide
 
 ### A. Creating a New Widget
@@ -42,7 +114,6 @@ parameters:
 ### B. Creating a New Pattern (Macro Expansion)
 Patterns allow you to define "opinionated" deployments. When a pattern is dragged to the canvas, it can automatically create and link multiple dependencies.
 
-Example snippet for a Load Balanced API:
 ```yaml
 macro_expansion:
   nodes:
@@ -52,7 +123,8 @@ macro_expansion:
       layer: Cluster
       layout_hint: { x: 400, y: 0 }
       property_mappings:
-        datacenter_id: parent.properties.dc_id # Inherit DC ID from the container
+        # Resolve 'datacenter_id' from the parent context
+        datacenter_id: parent.properties.dc_id 
     - id_suffix: lb
       pattern_ref: local-load-balancer@2.0.0
       c4Level: InfrastructureNode
@@ -60,28 +132,7 @@ macro_expansion:
   edges:
     - source_suffix: lb
       target_suffix: cluster
-  workload_target_suffix: cluster # Where the actual workload container will be placed
-```
-
-### C. Defining Valid Deployment Hierarchies
-Hierarchies are defined in `registry-draft/hierarchy-registry.yaml`. They prevent architects from creating "illegal" structures (like putting a cluster directly into a region without a datacenter).
-
-```yaml
-hierarchies:
-  - id: on-prem-ocp
-    name: On-Prem OpenShift Standard
-    valid_layer_chain:
-      - Region
-      - Datacenter
-      - Cluster
-      - Namespace
-```
-
-To enforce this for a pattern, add the requirement to the pattern's YAML:
-```yaml
-infrastructure_requirements:
-  allowed_hierarchies:
-    - on-prem-ocp
+  workload_target_suffix: cluster # Where the actual workload container will land
 ```
 
 ---
@@ -89,7 +140,10 @@ infrastructure_requirements:
 ## Technical Architecture
 
 *   **Frontend**: React + React Flow for the visual canvas.
-*   **Validation Engine**: A custom Datalog-inspired validator (`ui/src/lib/validator.ts`) that verifies structural integrity against the registry.
+*   **Design Tokens**: Custom CSS in `ui/src/index.css` manages "high-visibility" resizers and ports.
+*   **Relationship Layer**: All edges are elevated to `zIndex: 5000` to prevent occlusion by large containers.
+*   **Validation Engine**: A custom Datalog-inspired validator (`ui/src/lib/validator.ts`) verifies structural integrity, parameter constraints, and pattern standardization.
+*   **Ancestry Tracking**: Every node preserves its origin via `origin_pattern` and `macro_id_suffix`, ensuring governance is maintained even after design exports.
 *   **Registry Client**: Dynamically resolves and fetches YAML assets from the `registry-draft` public directory.
 
 ---

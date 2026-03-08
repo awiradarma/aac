@@ -168,6 +168,55 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
         const pattern = patterns.find(p => p.id === patternId);
         if (!pattern) return;
 
+        // 1. Validate Parameter Constraints (const and options)
+        if (pattern.parameters) {
+            Object.entries(pattern.parameters).forEach(([paramId, paramDef]) => {
+                const val = props[paramId];
+                if (val !== undefined) {
+                    // Check 'const'
+                    if (paramDef.const !== undefined && val !== paramDef.const) {
+                        errors.push(`Constraint Violation: ${pattern.id} property '${paramId}' must be exactly '${paramDef.const}'. Found: '${val}'`);
+                    }
+                    // Check 'options'
+                    if (paramDef.options && paramDef.options.length > 0) {
+                        if (!paramDef.options.includes(val)) {
+                            errors.push(`Constraint Violation: ${pattern.id} property '${paramId}' must be one of [${paramDef.options.join(', ')}]. Found: '${val}'`);
+                        }
+                    }
+                    // Type checking could be added here in the future
+                }
+            });
+        }
+
+        // 2. Validate Pattern Blueprints (Overriding Macro Properties)
+        // If this node came from a macro, it might have inherited specific properties that must remain fixed.
+        if (props.origin_pattern && props.macro_id_suffix) {
+            const originPattern = patterns.find(p => p.id === props.origin_pattern);
+            if (originPattern && originPattern.macro_expansion) {
+                // Find the specific node in the macro expansion that this canvas node represents
+                const findInTree = (nodes: any[]): any | null => {
+                    for (const mNode of nodes) {
+                        if (mNode.id_suffix === props.macro_id_suffix) return mNode;
+                        if (mNode.children) {
+                            const res = findInTree(mNode.children);
+                            if (res) return res;
+                        }
+                    }
+                    return null;
+                };
+
+                const macroNodeDefinition = findInTree(originPattern.macro_expansion.nodes);
+                if (macroNodeDefinition && macroNodeDefinition.properties) {
+                    Object.entries(macroNodeDefinition.properties).forEach(([pId, fixedVal]) => {
+                        const actualVal = props[pId];
+                        if (actualVal !== fixedVal) {
+                            errors.push(`Standardization Violation: ${node.name} (from pattern '${originPattern.name}') must use ${pId}='${fixedVal}'. Found: '${actualVal}'`);
+                        }
+                    });
+                }
+            }
+        }
+
         pattern.rules?.forEach(rule => {
             // Active-Active DB and Topology Rule
             if (rule.condition?.includes("topology == 'active-active'")) {

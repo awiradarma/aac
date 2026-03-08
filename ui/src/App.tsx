@@ -125,6 +125,8 @@ export default function App() {
           id: child.id,
           properties: {
             pattern_ref: child.data.pattern_ref,
+            origin_pattern: (child.data as any).origin_pattern,
+            macro_id_suffix: (child.data as any).macro_id_suffix,
             status: 'new',
             ...child.data.properties
           }
@@ -207,6 +209,8 @@ export default function App() {
             const newProps = { ...props };
             delete newProps.pattern_ref;
             delete newProps.status;
+            delete newProps.origin_pattern;
+            delete newProps.macro_id_suffix;
 
             newNodes.push({
               id: dn.id,
@@ -226,7 +230,9 @@ export default function App() {
                 icon: pattern?.display_metadata?.icon,
                 color: pattern?.display_metadata?.color,
                 min_width: pattern?.min_width,
-                min_height: pattern?.min_height
+                min_height: pattern?.min_height,
+                origin_pattern: props.origin_pattern,
+                macro_id_suffix: props.macro_id_suffix
               }
             });
 
@@ -246,6 +252,8 @@ export default function App() {
                 const cPattern = cProps.pattern_ref ? getPatternById(cProps.pattern_ref.split('@')[0]) : null;
                 const cleanCProps = { ...cProps };
                 delete cleanCProps.pattern_ref;
+                delete cleanCProps.origin_pattern;
+                delete cleanCProps.macro_id_suffix;
 
                 // Generate a unique node ID for the React Flow canvas to prevent collisions
                 const instanceNodeId = `workload-${ci.containerId}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
@@ -267,7 +275,9 @@ export default function App() {
                     icon: cPattern?.display_metadata?.icon,
                     color: cPattern?.display_metadata?.color,
                     min_width: cPattern?.min_width,
-                    min_height: cPattern?.min_height
+                    min_height: cPattern?.min_height,
+                    origin_pattern: cProps.origin_pattern,
+                    macro_id_suffix: cProps.macro_id_suffix
                   }
                 });
                 containerY += 150;
