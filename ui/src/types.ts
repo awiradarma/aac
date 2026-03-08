@@ -22,6 +22,8 @@ export type MacroExpansionNode = {
     layer?: string;
     c4Level: string;
     properties?: Record<string, any>;
+    layout_hint?: { x: number; y: number };
+    property_mappings?: Record<string, string>;
 };
 
 export type MacroExpansionEdge = {
@@ -42,10 +44,11 @@ export type Pattern = {
     version: string;
     c4Level: "System" | "Container" | "DeploymentNode" | "InfrastructureNode" | "Component";
     description?: string;
-    type?: string;
     layer?: string;
     default_width?: number;
     default_height?: number;
+    min_width?: number;
+    min_height?: number;
     parameters?: Record<string, PatternParameter>;
     rules?: PatternRule[];
     infrastructure_requirements?: {
@@ -55,6 +58,11 @@ export type Pattern = {
     capabilities?: string[];
     crossplane_mapping?: any;
     macro_expansion?: MacroExpansion;
+    display_metadata?: {
+        icon?: string;
+        color?: string;
+        category?: string;
+    };
 };
 
 export type DeploymentHierarchy = {
@@ -78,4 +86,8 @@ export type NodeData = {
     layer?: string;
     properties: Record<string, any>;
     status?: "new" | "existing";
+    icon?: string;
+    color?: string;
+    min_width?: number;
+    min_height?: number;
 };

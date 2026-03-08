@@ -5,6 +5,7 @@ export interface RegistryIndex {
     version: string;
     patterns?: RegistryItem[];
     widgets?: RegistryItem[];
+    hierarchies?: any[];
 }
 
 export interface RegistryItem {
@@ -28,6 +29,10 @@ export class RegistryClient {
 
     async getPatternRegistry(): Promise<RegistryIndex> {
         return this.fetchYaml(`${this.baseUrl}/pattern-registry.yaml`);
+    }
+
+    async getHierarchyRegistry(): Promise<RegistryIndex> {
+        return this.fetchYaml(`${this.baseUrl}/hierarchy-registry.yaml`);
     }
 
     async getWidget(id: string, version: string): Promise<any> {

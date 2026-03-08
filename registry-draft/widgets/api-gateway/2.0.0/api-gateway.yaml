@@ -2,7 +2,6 @@ id: api-gateway
 name: API Gateway
 version: 2.0.0
 c4Level: InfrastructureNode
-type: Host
 capabilities:
   - api-gateway-ingress
 parameters:
@@ -12,4 +11,7 @@ parameters:
       - apigee
       - datapower
     default: apigee
-
+display_metadata:
+  icon: Box
+  color: purple
+  category: InfrastructureNode

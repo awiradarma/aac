@@ -37,7 +37,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
     const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
 
     const onConnect = useCallback((params: Edge | Connection) => {
-        const edge = { ...params, id: `e-${params.source}-${params.target}-${Date.now()}`, animated: true, zIndex: 50, data: { label: 'Uses', technology: '' } };
+        const edge = { ...params, id: `e-${params.source}-${params.target}-${Date.now()}`, animated: true, zIndex: 5000, style: { strokeWidth: 3, stroke: '#64748b' }, data: { label: 'Uses', technology: '' } };
         setEdges((eds: Edge[]) => addEdge(edge, eds));
     }, [setEdges]);
 
@@ -84,7 +84,11 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     c4Level: pattern.c4Level,
                     layer: pattern.layer,
                     properties: defaultProps,
-                    status: 'new'
+                    status: 'new',
+                    icon: pattern.display_metadata?.icon,
+                    color: pattern.display_metadata?.color,
+                    min_width: pattern.min_width,
+                    min_height: pattern.min_height
                 },
             };
 
@@ -107,7 +111,8 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
 
             // Generic bounding-box hit detection for infinite hierarchy depth
             const possibleParents = nodes.filter(n => {
-                if (n.type !== 'hierarchyNode' && n.type !== 'hostNode') return false;
+                // Hierarchies and Hosts are containers. Infrastructure nodes can be drop targets for macro merging.
+                if (n.type !== 'hierarchyNode' && n.type !== 'hostNode' && n.type !== 'infrastructureNode') return false;
                 const pos = getAbsolutePosition(n);
                 const nPattern = getPatternById(n.data.pattern_ref?.split('@')[0]);
                 const width = n.style?.width ? Number(n.style.width) : (nPattern?.default_width || 500);
@@ -132,34 +137,84 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
 
             // Dynamic Macro Expansion
             if (pattern.macro_expansion) {
-                const isDroppedInDatacenter = closestParent && closestParent.data.label.includes('Datacenter');
+                const targetNode = closestParent;
+                const isHierarchyParent = targetNode && targetNode.type === 'hierarchyNode';
+                const isHostParent = targetNode && targetNode.type === 'hostNode';
+                const isInfraParent = targetNode && targetNode.type === 'infrastructureNode';
+
+                // Helper to resolve generic property mappings
+                const resolveValue = (path: string, scopeNode: Node<NodeData> | null): any => {
+                    if (!path.startsWith('parent.') || !scopeNode || !scopeNode.parentNode) return undefined;
+                    const parentNode = nodes.find(n => n.id === scopeNode.parentNode);
+                    if (!parentNode) return undefined;
+
+                    const subPath = path.substring(7); // skip 'parent.'
+                    if (subPath === 'properties') return parentNode.data.properties;
+                    if (subPath.startsWith('properties.')) {
+                        return parentNode.data.properties[subPath.substring(11)];
+                    }
+                    if (subPath.startsWith('parent.')) {
+                        return resolveValue(subPath, parentNode);
+                    }
+                    return undefined;
+                };
+
+                // 1. Determine if we are merging the macro anchor with the drop target to correctly set the scope for siblings
+                let anchorMatchFound = false;
+                if (targetNode && pattern.macro_expansion.nodes) {
+                    anchorMatchFound = pattern.macro_expansion.nodes.some((mNode: any) => {
+                        const checkType = (mNode.type === 'deploymentNode' || mNode.type === 'hostNode' || mNode.type === 'hierarchyNode') ? 'hierarchyNode' : mNode.type;
+                        return targetNode.data.pattern_ref === mNode.pattern_ref &&
+                            targetNode.data.layer === mNode.layer &&
+                            targetNode.type === checkType;
+                    });
+                }
+
+                // If dropping on a matching anchor (e.g. cluster), use that anchor's parent for all other nodes in the macro
+                // If dropping on a container without a match (e.g. datacenter), then it's a child.
+                const searchParentId = (anchorMatchFound && targetNode) ? targetNode.parentNode : (isHierarchyParent && targetNode ? targetNode.id : ((isHostParent || isInfraParent) && targetNode ? targetNode.parentNode : undefined));
+                const isParentExtent = !!searchParentId;
+
                 const generatedNodes: Node<NodeData>[] = [];
                 const generatedEdges: Edge[] = [];
                 const nodeMap: Record<string, string> = {}; // maps suffix to generated id
 
-                // Base positions for the primary node (e.g. cluster)
-                const baseX = isDroppedInDatacenter ? 50 : position.x - 200;
-                const baseY = isDroppedInDatacenter ? 100 : position.y;
+                // Base positions relative to parent or canvas
+                const baseX = isParentExtent ? 50 : position.x - 200;
+                const baseY = isParentExtent ? 100 : position.y;
 
                 const processNodes = (nodeList: any[], parentId: string | undefined, depth: number, startX: number, startY: number, extent?: 'parent') => {
                     nodeList.forEach((macroNode: any, index: number) => {
                         let existingNode = null;
-                        const checkType = macroNode.type === 'deploymentNode' ? 'hierarchyNode' : macroNode.type;
+                        const checkType = (macroNode.type === 'deploymentNode' || macroNode.type === 'hostNode' || macroNode.type === 'hierarchyNode') ? 'hierarchyNode' : macroNode.type;
 
-                        if (parentId) {
-                            existingNode = nodes.find(n =>
-                                n.parentNode === parentId &&
-                                n.data.pattern_ref === macroNode.pattern_ref &&
-                                n.data.layer === macroNode.layer &&
-                                n.type === checkType
-                            );
-                        } else {
-                            existingNode = nodes.find(n =>
-                                !n.parentNode &&
-                                n.data.pattern_ref === macroNode.pattern_ref &&
-                                n.data.layer === macroNode.layer &&
-                                n.type === checkType
-                            );
+                        // Priority 1: Direct match with the node we actually dropped on
+                        if (depth === 0 && closestParent) {
+                            const matchesPattern = closestParent.data.pattern_ref === macroNode.pattern_ref;
+                            const matchesLayer = closestParent.data.layer === macroNode.layer;
+                            const matchesType = closestParent.type === checkType;
+                            if (matchesPattern && matchesLayer && matchesType) {
+                                existingNode = closestParent;
+                            }
+                        }
+
+                        // Priority 2: Generic search in the parent scope
+                        if (!existingNode) {
+                            if (parentId) {
+                                existingNode = nodes.find(n =>
+                                    n.parentNode === parentId &&
+                                    n.data.pattern_ref === macroNode.pattern_ref &&
+                                    n.data.layer === macroNode.layer &&
+                                    n.type === checkType
+                                );
+                            } else {
+                                existingNode = nodes.find(n =>
+                                    !n.parentNode &&
+                                    n.data.pattern_ref === macroNode.pattern_ref &&
+                                    n.data.layer === macroNode.layer &&
+                                    n.type === checkType
+                                );
+                            }
                         }
 
                         let currentNodeId: string;
@@ -172,14 +227,17 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                             currentNodeId = getId();
                             nodeMap[macroNode.id_suffix] = currentNodeId;
 
-                            // Simple auto-layout
-                            let offsetX = 0;
-                            let offsetY = 0;
-                            if (depth === 0) {
-                                offsetX = index * 450;
-                            } else {
-                                offsetX = 50 + (index * 450);
-                                offsetY = 80;
+                            // Use layout hint if provided, else fallback to simple auto-layout
+                            let offsetX = macroNode.layout_hint?.x ?? 0;
+                            let offsetY = macroNode.layout_hint?.y ?? 0;
+
+                            if (!macroNode.layout_hint) {
+                                if (depth === 0) {
+                                    offsetX = index * 450;
+                                } else {
+                                    offsetX = 50 + (index * 450);
+                                    offsetY = 80;
+                                }
                             }
 
                             const nPattern = macroNode.pattern_ref ? getPatternById(macroNode.pattern_ref.split('@')[0]) : null;
@@ -198,12 +256,27 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                     c4Level: macroNode.c4Level,
                                     layer: macroNode.layer,
                                     properties: macroNode.properties ? { ...macroNode.properties } : {},
-                                    status: 'new'
+                                    status: 'new',
+                                    icon: nPattern?.display_metadata?.icon,
+                                    color: nPattern?.display_metadata?.color,
+                                    min_width: nPattern?.min_width,
+                                    min_height: nPattern?.min_height
                                 }
                             };
 
-                            if (isDroppedInDatacenter && macroNode.layer === 'Cluster') {
-                                gNode.data.properties.datacenter_id = closestParent?.data.properties.dc_id;
+                            // Apply generic property mappings from pattern
+                            if (macroNode.property_mappings) {
+                                Object.entries(macroNode.property_mappings).forEach(([targetProp, sourcePath]) => {
+                                    const val = resolveValue(sourcePath as string, gNode);
+                                    if (val !== undefined) {
+                                        gNode.data.properties[targetProp] = val;
+                                    }
+                                });
+                            }
+
+                            // Deprecated hardcoded mapping (kept for safety until all patterns updated)
+                            if (isParentExtent && macroNode.layer === 'Cluster' && targetNode?.data.properties?.dc_id && !macroNode.property_mappings) {
+                                gNode.data.properties.datacenter_id = targetNode.data.properties.dc_id;
                                 gNode.data.properties.region = '';
                             }
 
@@ -218,7 +291,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
 
                 // 1. Generate Nodes recursively
                 if (pattern.macro_expansion.nodes) {
-                    processNodes(pattern.macro_expansion.nodes, isDroppedInDatacenter && closestParent ? closestParent.id : undefined, 0, baseX, baseY, isDroppedInDatacenter ? 'parent' : undefined);
+                    processNodes(pattern.macro_expansion.nodes, searchParentId, 0, baseX, baseY, isParentExtent ? 'parent' : undefined);
                 }
 
                 // 2. Generate Edges
@@ -226,13 +299,17 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     pattern.macro_expansion.edges.forEach((macroEdge: any) => {
                         const sourceId = nodeMap[macroEdge.source_suffix];
                         const targetId = nodeMap[macroEdge.target_suffix];
-                        if (sourceId && targetId) {
+                        const edgeId = `e-${sourceId}-${targetId}`;
+
+                        if (sourceId && targetId && !edges.some(e => e.id === edgeId)) {
                             generatedEdges.push({
-                                id: `e-${sourceId}-${targetId}`,
+                                id: edgeId,
                                 source: sourceId,
                                 target: targetId,
                                 animated: true,
-                                style: macroEdge.style
+                                zIndex: 5000,
+                                data: { label: 'Uses', technology: '' },
+                                style: { strokeWidth: 3, stroke: '#64748b', ...macroEdge.style }
                             });
                         }
                     });
@@ -264,7 +341,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
             }
 
             // Standard Relationship Resolution based on geometric boundaries
-            if (closestParent) {
+            if (closestParent && (closestParent.type === 'hierarchyNode' || closestParent.type === 'hostNode')) {
                 const parentAbs = getAbsolutePosition(closestParent);
                 newNode.parentNode = closestParent.id;
                 newNode.extent = 'parent';
@@ -298,6 +375,11 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 onDrop={onDrop}
                 onDragOver={onDragOver}
                 nodeTypes={nodeTypes}
+                elevateEdgesOnSelect={true}
+                defaultEdgeOptions={{
+                    zIndex: 5000,
+                    style: { strokeWidth: 3, stroke: '#64748b' }
+                }}
                 onNodeClick={(_, node) => onNodeSelect(node)}
                 onEdgeClick={(_, edge) => onEdgeSelect(edge)}
                 onPaneClick={() => { onNodeSelect(null); onEdgeSelect(null); }}

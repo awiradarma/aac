@@ -35,3 +35,7 @@ macro_expansion:
               label: Passive OpenShift Cluster
               layer: Cluster
               c4Level: DeploymentNode
+display_metadata:
+  icon: Server
+  color: slate
+  category: DeploymentNode

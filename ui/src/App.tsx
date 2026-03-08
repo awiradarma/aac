@@ -180,7 +180,7 @@ export default function App() {
         const dNodes = arch.deployment?.nodes || [];
 
         // Layout algorithm
-        let xOffset = 50, yOffset = 50;
+        let yOffset = 50;
 
         const parseHierarchy = (nodeList: any[], parentId?: string, depth = 0) => {
           let internalOffsetX = 50;
@@ -191,16 +191,17 @@ export default function App() {
             const patternId = props.pattern_ref?.split('@')[0];
             const pattern = patternId ? getPatternById(patternId) : null;
 
-            let type = 'hostNode';
-            if (pattern?.type === 'Hierarchy') type = 'hierarchyNode';
-            if (pattern?.c4Level === 'InfrastructureNode') type = 'infrastructureNode';
+            let nodeType = 'hostNode';
+            if (pattern?.c4Level === 'DeploymentNode' && (pattern?.layer === 'Region' || pattern?.layer === 'Datacenter' || pattern?.id?.includes('hierarchy'))) nodeType = 'hierarchyNode';
+            if (pattern?.c4Level === 'InfrastructureNode') nodeType = 'infrastructureNode';
+            if (pattern?.c4Level === 'Container' || pattern?.c4Level === 'Component') nodeType = 'workloadNode';
 
             // Static sizing and offsets based on tier
-            let width, height, zIndex = 15;
-            if (type === 'hierarchyNode') {
+            let width, height, nodeZIndex = 15;
+            if (nodeType === 'hierarchyNode') {
               width = pattern?.default_width || 1000;
               height = pattern?.default_height || 800;
-              zIndex = (depth * 5) + 5;
+              nodeZIndex = (depth * 5) + 5;
             }
 
             const newProps = { ...props };
@@ -209,19 +210,23 @@ export default function App() {
 
             newNodes.push({
               id: dn.id,
-              type,
+              type: nodeType,
               position: { x: internalOffsetX, y: internalOffsetY },
               style: width && height ? { width, height } : undefined,
               parentNode: parentId,
               extent: parentId ? 'parent' : undefined,
-              zIndex,
+              zIndex: nodeZIndex,
               data: {
                 label: dn.name.replace(/-/g, ' '),
                 pattern_ref: props.pattern_ref || '',
                 c4Level: pattern ? pattern.c4Level : 'DeploymentNode',
                 layer: pattern?.layer,
                 properties: newProps,
-                status: props.status || 'existing'
+                status: props.status || 'existing',
+                icon: pattern?.display_metadata?.icon,
+                color: pattern?.display_metadata?.color,
+                min_width: pattern?.min_width,
+                min_height: pattern?.min_height
               }
             });
 
@@ -258,23 +263,21 @@ export default function App() {
                     c4Level: cPattern ? cPattern.c4Level : 'Container',
                     layer: cPattern?.layer,
                     properties: cleanCProps,
-                    status: 'existing'
+                    status: cProps.status || 'existing',
+                    icon: cPattern?.display_metadata?.icon,
+                    color: cPattern?.display_metadata?.color,
+                    min_width: cPattern?.min_width,
+                    min_height: cPattern?.min_height
                   }
                 });
-                containerY += 100;
+                containerY += 150;
               });
             }
 
-            if (depth === 0) xOffset += (width || 1200) + 100;
-            internalOffsetX += (width || 800) === 1000 ? 50 : 450;
-            if (internalOffsetX > 800) {
-              internalOffsetX = 50;
-              internalOffsetY += 350;
-            }
+            internalOffsetX += 450;
           });
+          yOffset += 400; // Shift down for next root level item if any
         };
-
-        parseHierarchy(dNodes);
 
         parseHierarchy(dNodes);
 
@@ -282,8 +285,6 @@ export default function App() {
         const rels = arch.model?.relationships || [];
 
         rels.forEach((r: any) => {
-          // We need to map logical connections back to canvas connections. 
-          // For simplicity, find the first occurrence of nodes mapping to these logical IDs.
           const sourceTarget = newNodes.find(n => n.type === 'workloadNode' && n.data.label.replace(/\s+/g, '-').toLowerCase() === (r.sourceId?.split('-').slice(1).join('-') || '')) || newNodes.find(n => n.id === r.sourceId);
           const destTarget = newNodes.find(n => n.type === 'workloadNode' && n.data.label.replace(/\s+/g, '-').toLowerCase() === (r.destinationId?.split('-').slice(1).join('-') || '')) || newNodes.find(n => n.id === r.destinationId);
 
@@ -293,7 +294,8 @@ export default function App() {
               source: sourceTarget.id,
               target: destTarget.id,
               animated: true,
-              zIndex: 50,
+              zIndex: 5000,
+              style: { strokeWidth: 3, stroke: '#64748b' },
               data: {
                 label: r.description || 'Uses',
                 technology: r.technology || ''
@@ -304,9 +306,10 @@ export default function App() {
 
         setNodes(newNodes);
         setEdges(newEdges);
+        alert('YAML imported successfully!');
       } catch (err) {
-        console.error("Failed to parse YAML", err);
-        alert("Failed to parse YAML file");
+        console.error('Import error', err);
+        alert('Failed to import YAML! Check the console.');
       }
     };
     reader.readAsText(file);

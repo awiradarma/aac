@@ -1,0 +1,24 @@
+registryName: Enterprise-Architecture-Hierarchies
+version: 2026.03.01
+
+hierarchies:
+  - id: on-prem-ocp
+    name: On-Prem OpenShift Deployment
+    valid_layer_chain:
+      - Region
+      - Datacenter
+      - Cluster
+      - Namespace
+  - id: cots-vm
+    name: COTS VMs Deployment
+    valid_layer_chain:
+      - Region
+      - Datacenter
+      - VirtualMachine
+  - id: azure-serverless
+    name: Azure Serverless Deployment
+    valid_layer_chain:
+      - Azure Region
+      - Resource Group
+      - App Service Plan
+      - Function

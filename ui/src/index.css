@@ -16,3 +16,154 @@ body {
   margin: 0;
   padding: 0;
 }
+
+/* Premium NodeResizer Styles */
+/* These target both the default class and our custom helper class */
+.react-flow__node-resizer__handle,
+.rf-node-resizer-handle {
+  width: 20px !important;
+  height: 20px !important;
+  border-radius: 4px !important;
+  /* Square-ish handles are often easier to grab */
+  background-color: white !important;
+  border: 3px solid #3b82f6 !important;
+  /* Default primary blue */
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+  z-index: 1000 !important;
+}
+
+.react-flow__node-resizer__handle:hover,
+.rf-node-resizer-handle:hover {
+  transform: scale(1.2) !important;
+  background-color: #f8fafc !important;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+/* Thicker, more prominent resize lines */
+.react-flow__node-resizer__line,
+.rf-node-resizer-line {
+  border-color: #3b82f6 !important;
+  border-width: 4px !important;
+  z-index: 999 !important;
+}
+
+/* Theme color overrides with SOLID backgrounds for visibility */
+.resizer-emerald {
+  border-color: #059669 !important;
+  background-color: #10b981 !important;
+}
+
+.resizer-amber {
+  border-color: #d97706 !important;
+  background-color: #f59e0b !important;
+}
+
+.resizer-blue {
+  border-color: #2563eb !important;
+  background-color: #3b82f6 !important;
+}
+
+.resizer-purple {
+  border-color: #7c3aed !important;
+  background-color: #a855f7 !important;
+}
+
+.resizer-slate {
+  border-color: #475569 !important;
+  background-color: #64748b !important;
+}
+
+.resizer-white {
+  border-color: #94a3b8 !important;
+  background-color: #f8fafc !important;
+}
+
+/* Handle icons during grab */
+.rf-node-resizer-handle:active {
+  cursor: grabbing !important;
+}
+
+/* Pulse animation for selected node handles */
+.react-flow__node.selected .rf-node-resizer-handle {
+  animation: resizer-pulse 1.5s infinite;
+}
+
+@keyframes resizer-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+  }
+
+  70% {
+    box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+}
+
+/* Premium Connection Port (Handle) Styles */
+.react-flow__handle {
+  width: 14px !important;
+  height: 14px !important;
+  background-color: #ffffff !important;
+  border: 3px solid #64748b !important;
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+  z-index: 2000 !important;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+
+.react-flow__handle:hover {
+  width: 20px !important;
+  height: 20px !important;
+  border-width: 4px !important;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+}
+
+/* Theme color ports */
+.port-emerald {
+  border-color: #059669 !important;
+}
+
+.port-amber {
+  border-color: #d97706 !important;
+}
+
+.port-blue {
+  border-color: #2563eb !important;
+}
+
+.port-purple {
+  border-color: #7c3aed !important;
+}
+
+.port-slate {
+  border-color: #475569 !important;
+}
+
+/* Visual cue for port direction */
+.react-flow__handle-target {
+  border-radius: 4px !important;
+  /* Rounded Square for Input */
+}
+
+.react-flow__handle-source {
+  border-radius: 50% !important;
+  /* Circle for Output */
+}
+
+/* Label pseudo-elements on hover would need more complex implementation or just simple titles */
+.react-flow__handle:hover::after {
+  content: "PORT";
+  font-size: 8px;
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b;
+  color: white;
+  padding: 2px 4px;
+  border-radius: 4px;
+  pointer-events: none;
+}

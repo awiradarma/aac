@@ -4,6 +4,7 @@ import type { Pattern, Registry } from '../types';
 export class ResolverEngine {
     private client: RegistryClient;
     private resolvedPatterns: Pattern[] = [];
+    private resolvedHierarchies: any[] = [];
     private resolutionComplete = false;
 
     constructor(baseUrl: string) {
@@ -15,15 +16,19 @@ export class ResolverEngine {
             return {
                 registryName: "Dynamic-Registry",
                 version: "latest",
-                patterns: this.resolvedPatterns
+                patterns: this.resolvedPatterns,
+                deployment_hierarchies: this.resolvedHierarchies
             };
         }
 
         try {
-            const [widgetIndex, patternIndex] = await Promise.all([
+            const [widgetIndex, patternIndex, hierarchyIndex] = await Promise.all([
                 this.client.getWidgetRegistry(),
-                this.client.getPatternRegistry()
+                this.client.getPatternRegistry(),
+                this.client.getHierarchyRegistry()
             ]);
+
+            this.resolvedHierarchies = hierarchyIndex.hierarchies || [];
 
             const promises: Promise<Pattern>[] = [];
 
@@ -48,7 +53,8 @@ export class ResolverEngine {
             return {
                 registryName: "Dynamic-Registry",
                 version: "latest",
-                patterns: this.resolvedPatterns
+                patterns: this.resolvedPatterns,
+                deployment_hierarchies: this.resolvedHierarchies
             };
         } catch (error) {
             console.error("ResolverEngine failed to initialize", error);

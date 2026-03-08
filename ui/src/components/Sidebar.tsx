@@ -13,15 +13,32 @@ export const Sidebar = () => {
             <h2 className="text-lg font-bold text-slate-800">Pattern Registry</h2>
             <div className="text-sm text-slate-500 mb-2">Drag elements to the canvas</div>
 
-            {['DeploymentNode', 'InfrastructureNode', 'Container', 'Component'].map(level => {
-                const patterns = getRegistry().patterns.filter(p => p.c4Level === level);
-                if (patterns.length === 0) return null;
+            {(() => {
+                const patterns = getRegistry().patterns;
+                const categories: Record<string, any[]> = {};
 
-                return (
+                patterns.forEach(p => {
+                    const cat = p.display_metadata?.category || p.c4Level;
+                    if (!categories[cat]) categories[cat] = [];
+                    categories[cat].push(p);
+                });
+
+                // Define preferred order for standard categories
+                const order = ['DeploymentNode', 'InfrastructureNode', 'Container', 'Component'];
+                const sortedCategories = Object.keys(categories).sort((a, b) => {
+                    const idxA = order.indexOf(a);
+                    const idxB = order.indexOf(b);
+                    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                    if (idxA !== -1) return -1;
+                    if (idxB !== -1) return 1;
+                    return a.localeCompare(b);
+                });
+
+                return sortedCategories.map(level => (
                     <div key={level}>
                         <h3 className="text-sm font-semibold text-slate-700 uppercase mb-2">{level}s</h3>
                         <div className="flex flex-col gap-2">
-                            {patterns.map(pattern => (
+                            {categories[level].map(pattern => (
                                 <div
                                     key={pattern.id}
                                     className="p-3 bg-blue-50 border border-blue-200 rounded cursor-grab hover:bg-blue-100 transition-colors shadow-sm"
@@ -39,8 +56,8 @@ export const Sidebar = () => {
                             ))}
                         </div>
                     </div>
-                );
-            })}
+                ));
+            })()}
         </aside>
     );
 };

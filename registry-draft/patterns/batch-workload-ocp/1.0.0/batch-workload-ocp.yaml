@@ -1,6 +1,6 @@
 id: batch-workload-ocp
 name: Autosys Batch on OpenShift
-version: 1.4.0
+version: 1.0.0
 c4Level: Container
 description: Batch job triggered by Autosys via Kubernetes Plugin.
 parameters:
@@ -11,6 +11,8 @@ infrastructure_requirements:
   host_capability: openshift-cluster-v4
   required_plugins:
     - autosys-k8s-agent
+  allowed_hierarchies:
+    - on-prem-ocp
 macro_expansion:
   nodes:
     - id_suffix: cluster
@@ -19,8 +21,13 @@ macro_expansion:
       label: Standard OpenShift Cluster Instance
       layer: Cluster
       c4Level: DeploymentNode
+      layout_hint: { x: 0, y: 0 }
   edges: []
   workload_target_suffix: cluster
+display_metadata:
+  icon: Box
+  color: blue
+  category: Container
 crossplane_mapping:
   kind: XBatchJob
   apiVersion: arch.acme.com/v1alpha1

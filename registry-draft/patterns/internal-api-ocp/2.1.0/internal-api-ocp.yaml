@@ -6,6 +6,8 @@ description: Multi-region API deployment with GSLB and API Gateway ingress.
 
 infrastructure_requirements:
   host_capability: openshift-cluster-v4
+  allowed_hierarchies:
+    - on-prem-ocp
 macro_expansion:
   nodes:
     - id_suffix: cluster
@@ -14,11 +16,15 @@ macro_expansion:
       label: Standard OpenShift Cluster Instance
       layer: Cluster
       c4Level: DeploymentNode
+      layout_hint: { x: 450, y: 80 }
+      property_mappings:
+        datacenter_id: parent.properties.dc_id
     - id_suffix: lb
       type: infrastructureNode
       pattern_ref: local-load-balancer@2.0.0
       label: Local Load Balancer Instance
       c4Level: InfrastructureNode
+      layout_hint: { x: 0, y: 80 }
       properties:
         provider: avi
     - id_suffix: gw
@@ -26,6 +32,7 @@ macro_expansion:
       pattern_ref: api-gateway@2.0.0
       label: API Gateway Instance
       c4Level: InfrastructureNode
+      layout_hint: { x: 0, y: 0 }
       properties:
         provider: apigee
   edges:
@@ -34,7 +41,10 @@ macro_expansion:
     - source_suffix: gw
       target_suffix: lb
   workload_target_suffix: cluster
+display_metadata:
+  icon: Box
+  color: blue
+  category: Container
 crossplane_mapping:
   kind: XInternalAPI
   apiVersion: arch.acme.com/v1alpha1
-
