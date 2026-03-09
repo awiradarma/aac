@@ -321,6 +321,8 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
 
                 // 3. Attach actual workload (if applicable)
                 let shouldAddWorkloadNode = false;
+                newNode.data.macro_expansion_id = expansionId; // Ensure the parent node also belongs to the expansion for validation
+
                 if (pattern.macro_expansion.workload_target_suffix) {
                     const targetHostId = nodeMap[pattern.macro_expansion.workload_target_suffix];
                     if (targetHostId) {

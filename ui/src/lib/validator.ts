@@ -35,6 +35,7 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
                     if (cn) {
                         flatDeployments.push({
                             ...cn,
+                            id: ci.id, // Use instance ID for relationship matching
                             isInstance: true,
                             instanceId: ci.id,
                             type: 'Container',
@@ -42,7 +43,8 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
                             parentLayer: layerType,
                             parentId: dn.id,
                             regionId: currentRegion,
-                            datacenterId: currentDc
+                            datacenterId: currentDc,
+                            properties: { ...cn.properties, ...ci.properties } // Merge properties for validation
                         });
                     }
                 });
@@ -355,35 +357,56 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
 
             // 4. Connectivity Assertions (Golden Paths)
             if (rule.connectivity_assertions) {
+                // Helper to check if a node is contained within another
+                const isDescendant = (childId: string, possibleParentId: string): boolean => {
+                    let curr = flatDeployments.find(n => n.id === childId);
+                    while (curr && curr.parentId) {
+                        if (curr.parentId === possibleParentId) return true;
+                        curr = flatDeployments.find(n => n.id === curr.parentId);
+                    }
+                    return false;
+                };
+
+                // Helpers to consistently read architectural metadata
+                const getExpId = (n: any) => n.properties?.macro_expansion_id || n.macro_expansion_id;
+                const getSuffix = (n: any) => n.properties?.macro_id_suffix || n.macro_id_suffix;
+
                 rule.connectivity_assertions.forEach(assertion => {
-                    // Selector: to: "id_suffix:cluster"
                     if (assertion.to && assertion.must_pass_through) {
                         const targetSuffix = assertion.to.replace('id_suffix:', '');
-                        const targetNode = flatDeployments.find(n =>
-                            n.macro_id_suffix === targetSuffix &&
-                            (n.macro_expansion_id === (node.properties?.macro_expansion_id || node.macro_expansion_id))
-                        );
+                        const targetRootNode = flatDeployments.find(n => {
+                            const nSuffix = getSuffix(n);
+                            const nExpId = getExpId(n);
+                            const nodeExpId = getExpId(node);
+                            return nSuffix === targetSuffix && nExpId === nodeExpId;
+                        });
 
-                        if (targetNode) {
-                            // Find all nodes in the system that point to this target (and their ancestors)
-                            const allEntryPoints = flatDeployments.filter(n => !flatDeployments.find(other => adjList[other.id]?.includes(n.id)));
+                        if (targetRootNode) {
+                            const myExpId = getExpId(targetRootNode);
+                            // Collect the target itself and all its nested children/containers
+                            const protectedNodes = flatDeployments.filter(n => n.id === targetRootNode.id || isDescendant(n.id, targetRootNode.id));
 
-                            allEntryPoints.forEach(entry => {
-                                const allPaths: string[][] = [];
-                                findPathsTo(targetNode.id, entry.id, new Set(), [], allPaths);
+                            // Find all nodes outside this specific expansion instance
+                            const externalNodes = flatDeployments.filter(n => getExpId(n) !== myExpId);
 
-                                allPaths.forEach(path => {
-                                    // Check if this specific path fulfills ALL mandatory waypoints
-                                    assertion.must_pass_through.forEach((waypointSuffix: string) => {
-                                        const cleanSuffix = waypointSuffix.replace('id_suffix:', '');
-                                        const waypointNode = flatDeployments.find(n =>
-                                            n.macro_id_suffix === cleanSuffix &&
-                                            (n.macro_expansion_id === targetNode.macro_expansion_id)
-                                        );
+                            externalNodes.forEach(entry => {
+                                protectedNodes.forEach(pNode => {
+                                    const allPaths: string[][] = [];
+                                    findPathsTo(pNode.id, entry.id, new Set(), [], allPaths);
 
-                                        if (waypointNode && !path.includes(waypointNode.id)) {
-                                            errors.push(`Connectivity Violation: Traffic from '${entry.name}' to '${node.name}' bypasses mandatory component '${cleanSuffix}'. All paths must pass through the approved Golden Path.`);
-                                        }
+                                    allPaths.forEach(path => {
+                                        assertion.must_pass_through.forEach((waypointSuffix: string) => {
+                                            const cleanSuffix = waypointSuffix.replace('id_suffix:', '');
+                                            const waypointNode = flatDeployments.find(n => {
+                                                const wSuffix = getSuffix(n);
+                                                const wExpId = getExpId(n);
+                                                return wSuffix === cleanSuffix && wExpId === myExpId;
+                                            });
+
+                                            if (waypointNode && !path.includes(waypointNode.id)) {
+                                                errors.push(`Connectivity Violation: Entry point '${entry.name}' reaching protected component '${pNode.name || pNode.id}' violates Golden Path. Traffic must pass through '${cleanSuffix}'.`);
+                                            }
+                                        });
                                     });
                                 });
                             });

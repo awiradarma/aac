@@ -140,7 +140,14 @@ export default function App() {
         if (containers.length > 0) {
           dNode.containerInstances = containers.map(w => ({
             id: w.id + '_instance',
-            containerId: (w as any)._logicalContainerId
+            containerId: (w as any)._logicalContainerId,
+            properties: {
+              pattern_ref: w.data.pattern_ref,
+              origin_pattern: (w.data as any).origin_pattern,
+              macro_id_suffix: (w.data as any).macro_id_suffix,
+              macro_expansion_id: (w.data as any).macro_expansion_id,
+              ...w.data.properties
+            }
           }));
         }
         return dNode;
