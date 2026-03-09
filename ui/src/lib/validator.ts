@@ -13,6 +13,19 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
     // Helper to flatten deployment tree into node objects with parent context
     const flatDeployments: any[] = [];
 
+    // Metadata Helpers
+    const getExpId = (n: any) => n.properties?.macro_expansion_id || n.macro_expansion_id;
+    const getSuffix = (n: any) => n.properties?.macro_id_suffix || n.macro_id_suffix;
+
+    const isDescendant = (childId: string, possibleParentId: string): boolean => {
+        let curr = flatDeployments.find(n => n.id === childId);
+        while (curr && curr.parentId) {
+            if (curr.parentId === possibleParentId) return true;
+            curr = flatDeployments.find(n => n.id === curr.parentId);
+        }
+        return false;
+    };
+
     const parseTree = (nodes: any[], parentLayer: string | null, parentId: string | null, regionId: string | null, datacenterId: string | null) => {
         nodes.forEach(dn => {
             let currentRegion = regionId;
@@ -223,11 +236,13 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
                     );
 
                     if (candidate) {
+                        const firstNodeExpId = getExpId(instanceNodes[0]);
                         // Smart Adoption: Mutate candidate in place so the property check loop below can see it
                         candidate.properties = {
                             ...candidate.properties,
                             macro_id_suffix: suffix,
                             origin_pattern: originPatternId,
+                            macro_expansion_id: firstNodeExpId,
                             _adopted: true
                         };
                         currentSuffixes.add(suffix);
@@ -357,20 +372,6 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
 
             // 4. Connectivity Assertions (Golden Paths)
             if (rule.connectivity_assertions) {
-                // Helper to check if a node is contained within another
-                const isDescendant = (childId: string, possibleParentId: string): boolean => {
-                    let curr = flatDeployments.find(n => n.id === childId);
-                    while (curr && curr.parentId) {
-                        if (curr.parentId === possibleParentId) return true;
-                        curr = flatDeployments.find(n => n.id === curr.parentId);
-                    }
-                    return false;
-                };
-
-                // Helpers to consistently read architectural metadata
-                const getExpId = (n: any) => n.properties?.macro_expansion_id || n.macro_expansion_id;
-                const getSuffix = (n: any) => n.properties?.macro_id_suffix || n.macro_id_suffix;
-
                 rule.connectivity_assertions.forEach(assertion => {
                     if (assertion.to && assertion.must_pass_through) {
                         const targetSuffix = assertion.to.replace('id_suffix:', '');

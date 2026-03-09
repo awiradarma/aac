@@ -76,6 +76,9 @@ export default function App() {
           id: logicalId,
           properties: {
             pattern_ref: w.data.pattern_ref,
+            origin_pattern: (w.data as any).origin_pattern,
+            macro_id_suffix: (w.data as any).macro_id_suffix,
+            macro_expansion_id: (w.data as any).macro_expansion_id,
             status: 'new',
             ...w.data.properties
           }
