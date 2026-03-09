@@ -12,6 +12,10 @@ export type PatternRule = {
     allowed_values?: Record<string, string[]>;
     else_allowed_values?: Record<string, string[]>;
     structural_assertions?: string[];
+    connectivity_assertions?: {
+        to: string;
+        must_pass_through: string[];
+    }[];
 };
 
 export type MacroExpansionNode = {

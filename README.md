@@ -87,7 +87,18 @@ Every node defined in a `macro_expansion` is considered mandatory for that patte
 
 *   **Expansion ID Tracking**: The system uses `macro_expansion_id` to track all nodes belonging to a single pattern drop. If a required component (e.g., the `lb` or `cluster`) is deleted, the validator flags an **Architecture Gap** violation.
 *   **Smart Adoption (Repair)**: You can repair an incomplete pattern in-place! If a mandatory node is missing (e.g., the Load Balancer), the validator will search its container for any manually added node of the same type and version. If found, it "adopts" that node and validates it against the pattern's **Standardization Blueprints** (e.g., if the pattern requires AVI, an adopted F5 load balancer will still trigger a violation until corrected).
+
+### 7. Connectivity Assertions (Golden Paths)
+The validator can enforce specific traffic flow patterns to prevent security bypasses. Using the `connectivity_assertions` rule, you can ensure that all paths reaching a destination must pass through specific waypoints.
+
+```yaml
+rules:
+  - id: secure-ingress
+    connectivity_assertions:
+      - to: "id_suffix:cluster"
+        must_pass_through: ["id_suffix:gw", "id_suffix:lb"]
 ```
+If a user connects an external actor directly to the `cluster`, skipping the `gw` or `lb`, a **Connectivity Violation** will be flagged.
 
 ---
 

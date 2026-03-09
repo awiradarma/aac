@@ -47,4 +47,9 @@ display_metadata:
   category: Container
 crossplane_mapping:
   kind: XInternalAPI
-  apiVersion: arch.acme.com/v1alpha1
+rules:
+  - id: secure-path
+    description: All API traffic must flow through GW and LB
+    connectivity_assertions:
+      - to: "id_suffix:cluster"
+        must_pass_through: ["id_suffix:gw", "id_suffix:lb"]

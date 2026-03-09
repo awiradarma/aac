@@ -56,6 +56,29 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
 
     parseTree(dNodes, null, null, null, null);
 
+    // Build Connectivity Graph for Path Analysis
+    const adjList: Record<string, string[]> = {};
+    const rels = arch.model?.relationships || [];
+    rels.forEach((rel: any) => {
+        if (!adjList[rel.sourceId]) adjList[rel.sourceId] = [];
+        adjList[rel.sourceId].push(rel.destinationId);
+    });
+
+    const findPathsTo = (targetId: string, current: string, visited: Set<string>, path: string[], allPaths: string[][]) => {
+        if (current === targetId) {
+            allPaths.push([...path, current]);
+            return;
+        }
+        if (visited.has(current)) return;
+
+        visited.add(current);
+        const neighbors = adjList[current] || [];
+        neighbors.forEach(neighbor => {
+            findPathsTo(targetId, neighbor, visited, [...path, current], allPaths);
+        });
+        visited.delete(current);
+    };
+
     // Validate Explicit Deployment Hierarchies
     if (registry.deployment_hierarchies && registry.deployment_hierarchies.length > 0) {
         // Build all root-to-leaf paths
@@ -325,6 +348,45 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
 
                         if (expectedParent && node.parentLayer?.toLowerCase() !== expectedParent.toLowerCase()) {
                             errors.push(`Boundary Violation: ${pattern.id} (${node.name}) must be placed inside a ${expectedParent} container! Found inside ${node.parentLayer || 'root'}.`);
+                        }
+                    }
+                });
+            }
+
+            // 4. Connectivity Assertions (Golden Paths)
+            if (rule.connectivity_assertions) {
+                rule.connectivity_assertions.forEach(assertion => {
+                    // Selector: to: "id_suffix:cluster"
+                    if (assertion.to && assertion.must_pass_through) {
+                        const targetSuffix = assertion.to.replace('id_suffix:', '');
+                        const targetNode = flatDeployments.find(n =>
+                            n.macro_id_suffix === targetSuffix &&
+                            (n.macro_expansion_id === (node.properties?.macro_expansion_id || node.macro_expansion_id))
+                        );
+
+                        if (targetNode) {
+                            // Find all nodes in the system that point to this target (and their ancestors)
+                            const allEntryPoints = flatDeployments.filter(n => !flatDeployments.find(other => adjList[other.id]?.includes(n.id)));
+
+                            allEntryPoints.forEach(entry => {
+                                const allPaths: string[][] = [];
+                                findPathsTo(targetNode.id, entry.id, new Set(), [], allPaths);
+
+                                allPaths.forEach(path => {
+                                    // Check if this specific path fulfills ALL mandatory waypoints
+                                    assertion.must_pass_through.forEach((waypointSuffix: string) => {
+                                        const cleanSuffix = waypointSuffix.replace('id_suffix:', '');
+                                        const waypointNode = flatDeployments.find(n =>
+                                            n.macro_id_suffix === cleanSuffix &&
+                                            (n.macro_expansion_id === targetNode.macro_expansion_id)
+                                        );
+
+                                        if (waypointNode && !path.includes(waypointNode.id)) {
+                                            errors.push(`Connectivity Violation: Traffic from '${entry.name}' to '${node.name}' bypasses mandatory component '${cleanSuffix}'. All paths must pass through the approved Golden Path.`);
+                                        }
+                                    });
+                                });
+                            });
                         }
                     }
                 });
