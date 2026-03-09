@@ -171,3 +171,22 @@ macro_expansion:
 2.  Install dependencies: `npm install`
 3.  Start the development server: `npm run dev`
 4.  Open the fabric in your browser (usually `http://localhost:5173`)
+
+---
+
+## Roadmap & Next Steps
+
+To move toward a production-grade governance engine, the following capabilities are planned:
+
+### 1. Stability & Versioning
+*   **Registry Immutability**: Implementing a strict enforcement that published pattern versions (e.g., `v2.1.0`) are never modified. All changes must go through a new SemVer folder.
+*   **Schema Evolution**: Developing a migration path for designs when a Major (breaking) change occurs in a pattern.
+
+### 2. Architectural Unit Testing (AUT)
+*   **Gold Samples**: Maintaining a library of "Perfect Designs" for every pattern that must always pass validation.
+*   **Poison Samples**: Maintaining a library of "Illegal Designs" (e.g., direct-bypass connection samples) to ensure the validator catches security breaches.
+*   **Headless Validation CLI**: A Node.js runner to execute the validation engine in CI/CD against these samples.
+
+### 3. Advanced Governance
+*   **Active-Active Topology Checks**: Expanding the validator to enforce multi-region and multi-datacenter quorum rules.
+*   **Component Capability Mapping**: Automatically suggesting compatible persistence or security layers based on a workload's declared requirements.
