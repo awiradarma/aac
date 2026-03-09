@@ -1,13 +1,37 @@
+# ==============================================================================
+# PATTERN SPECIFICATION: Internal API on OpenShift
+# ==============================================================================
+# This pattern serves as the primary implementation for secure internal APIs.
+# It enforces architectural governance across four major "Buckets":
+# 1. Existence (Macro Expansion)
+# 2. Technology Standardization (Property Overrides)
+# 3. Placement (Hierarchy & Structural Boundaries)
+# 4. Connectivity (Golden Paths)
+# ==============================================================================
+
 id: internal-api-ocp
 name: Internal API on OpenShift
 version: 2.1.0
 c4Level: Container
 description: Multi-region API deployment with GSLB and API Gateway ingress.
 
+# ------------------------------------------------------------------------------
+# PLACEMENT CONSTRAINTS (Bucket 3: Hierarchy Enforcement)
+# ------------------------------------------------------------------------------
+# The 'infrastructure_requirements' block ensures that this pattern can ONLY
+# be dropped or moved into specific approved infrastructure stacks.
 infrastructure_requirements:
   host_capability: openshift-cluster-v4
   allowed_hierarchies:
+    # Restricts deployment to on-prem OpenShift stacks defined in the registry.
     - on-prem-ocp
+
+# ------------------------------------------------------------------------------
+# EXISTENCE & STANDARDIZATION CONSTRAINTS (Buckets 1 & 2)
+# ------------------------------------------------------------------------------
+# The 'macro_expansion' block defines the "Atomic Architectural Unit".
+# 1. EXISTENCE: Every node here is mandatory. Deleting one triggers an "Architecture Gap".
+# 2. STANDARDIZATION: Hard-coding properties here enforces specific tech standards.
 macro_expansion:
   nodes:
     - id_suffix: cluster
@@ -19,6 +43,7 @@ macro_expansion:
       layout_hint: { x: 450, y: 80 }
       property_mappings:
         datacenter_id: parent.properties.dc_id
+    
     - id_suffix: lb
       type: infrastructureNode
       pattern_ref: local-load-balancer@2.0.0
@@ -26,7 +51,10 @@ macro_expansion:
       c4Level: InfrastructureNode
       layout_hint: { x: 0, y: 80 }
       properties:
+        # TECHNOLOGY LOCK: This pattern mandates AVI. Even an adopted manual node 
+        # will trigger a violation if the provider is changed to F5.
         provider: avi
+    
     - id_suffix: gw
       type: infrastructureNode
       pattern_ref: api-gateway@2.0.0
@@ -34,22 +62,37 @@ macro_expansion:
       c4Level: InfrastructureNode
       layout_hint: { x: 0, y: 0 }
       properties:
+        # TECHNOLOGY LOCK: Mandates Apigee for internal API management.
         provider: apigee
+
   edges:
-    - source_suffix: lb
-      target_suffix: cluster
+    # Internal routing topology for the pattern.
     - source_suffix: gw
       target_suffix: lb
+    - source_suffix: lb
+      target_suffix: cluster
+
   workload_target_suffix: cluster
+
 display_metadata:
   icon: Box
   color: blue
   category: Container
+
 crossplane_mapping:
   kind: XInternalAPI
+  apiVersion: arch.acme.com/v1alpha1
+
+# ------------------------------------------------------------------------------
+# GOVERNANCE RULES & CONNECTIVITY (Bucket 4: Path Limits)
+# ------------------------------------------------------------------------------
 rules:
   - id: secure-path
     description: All API traffic must flow through GW and LB
+    # GOLDEN PATH ENFORCEMENT:
+    # Ensures that any path from a foreign node (outside this expansion) to the 
+    # 'cluster' (or its children) MUST pass through BOTH 'gw' and 'lb'. 
+    # This renders bypassing the gateway architecturaly illegal.
     connectivity_assertions:
       - to: "id_suffix:cluster"
         must_pass_through: ["id_suffix:gw", "id_suffix:lb"]
