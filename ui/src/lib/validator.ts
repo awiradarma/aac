@@ -159,6 +159,61 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
         }
     });
 
+    // 0. Validate Pattern Completeness (Existence Requirements)
+    const expansionInstances: Record<string, any[]> = {};
+    flatDeployments.forEach(n => {
+        const expId = n.properties?.macro_expansion_id || n.macro_expansion_id;
+        if (expId) {
+            if (!expansionInstances[expId]) expansionInstances[expId] = [];
+            expansionInstances[expId].push(n);
+        }
+    });
+
+    Object.entries(expansionInstances).forEach(([_expId, instanceNodes]) => {
+        const originPatternId = instanceNodes[0].properties?.origin_pattern || instanceNodes[0].origin_pattern;
+        const originPattern = patterns.find(p => p.id === originPatternId);
+
+        if (originPattern && originPattern.macro_expansion) {
+            const requiredItems: { suffix: string; pattern_ref: string }[] = [];
+            const collectItems = (nodes: any[]) => {
+                nodes.forEach(mNode => {
+                    requiredItems.push({ suffix: mNode.id_suffix, pattern_ref: mNode.pattern_ref });
+                    if (mNode.children) collectItems(mNode.children);
+                });
+            };
+            collectItems(originPattern.macro_expansion.nodes);
+
+            const currentSuffixes = new Set(instanceNodes.map(n => n.properties?.macro_id_suffix || n.macro_id_suffix));
+            const firstNode = instanceNodes[0];
+            const pId = firstNode.parentId;
+
+            requiredItems.forEach(item => {
+                const suffix = item.suffix;
+                if (!currentSuffixes.has(suffix)) {
+                    // Smart Adoption: Search for a matching 'unbound' node in the same parent scope
+                    const candidate = flatDeployments.find(n =>
+                        n.parentId === pId &&
+                        n.properties?.pattern_ref === item.pattern_ref &&
+                        !(n.properties?.macro_expansion_id || n.macro_expansion_id)
+                    );
+
+                    if (candidate) {
+                        // Smart Adoption: Mutate candidate in place so the property check loop below can see it
+                        candidate.properties = {
+                            ...candidate.properties,
+                            macro_id_suffix: suffix,
+                            origin_pattern: originPatternId,
+                            _adopted: true
+                        };
+                        currentSuffixes.add(suffix);
+                    } else {
+                        errors.push(`Architecture Gap: The '${originPattern.name}' stack is incomplete. A mandatory component '${suffix}' of type '${item.pattern_ref.split('@')[0]}' is missing from its container. Drag a new instance into the container to repair it.`);
+                    }
+                }
+            });
+        }
+    });
+
     // Evaluate Rules against all logical nodes
     flatDeployments.forEach(node => {
         const props = node.properties || {};
@@ -189,11 +244,9 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
         }
 
         // 2. Validate Pattern Blueprints (Overriding Macro Properties)
-        // If this node came from a macro, it might have inherited specific properties that must remain fixed.
         if (props.origin_pattern && props.macro_id_suffix) {
             const originPattern = patterns.find(p => p.id === props.origin_pattern);
             if (originPattern && originPattern.macro_expansion) {
-                // Find the specific node in the macro expansion that this canvas node represents
                 const findInTree = (nodes: any[]): any | null => {
                     for (const mNode of nodes) {
                         if (mNode.id_suffix === props.macro_id_suffix) return mNode;

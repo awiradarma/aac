@@ -127,6 +127,7 @@ export default function App() {
             pattern_ref: child.data.pattern_ref,
             origin_pattern: (child.data as any).origin_pattern,
             macro_id_suffix: (child.data as any).macro_id_suffix,
+            macro_expansion_id: (child.data as any).macro_expansion_id,
             status: 'new',
             ...child.data.properties
           }
@@ -211,6 +212,7 @@ export default function App() {
             delete newProps.status;
             delete newProps.origin_pattern;
             delete newProps.macro_id_suffix;
+            delete newProps.macro_expansion_id;
 
             newNodes.push({
               id: dn.id,
@@ -232,7 +234,8 @@ export default function App() {
                 min_width: pattern?.min_width,
                 min_height: pattern?.min_height,
                 origin_pattern: props.origin_pattern,
-                macro_id_suffix: props.macro_id_suffix
+                macro_id_suffix: props.macro_id_suffix,
+                macro_expansion_id: props.macro_expansion_id
               }
             });
 
@@ -254,6 +257,7 @@ export default function App() {
                 delete cleanCProps.pattern_ref;
                 delete cleanCProps.origin_pattern;
                 delete cleanCProps.macro_id_suffix;
+                delete cleanCProps.macro_expansion_id;
 
                 // Generate a unique node ID for the React Flow canvas to prevent collisions
                 const instanceNodeId = `workload-${ci.containerId}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
@@ -277,7 +281,8 @@ export default function App() {
                     min_width: cPattern?.min_width,
                     min_height: cPattern?.min_height,
                     origin_pattern: cProps.origin_pattern,
-                    macro_id_suffix: cProps.macro_id_suffix
+                    macro_id_suffix: cProps.macro_id_suffix,
+                    macro_expansion_id: cProps.macro_expansion_id
                   }
                 });
                 containerY += 150;

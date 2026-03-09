@@ -182,6 +182,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 // Base positions relative to parent or canvas
                 const baseX = isParentExtent ? 50 : position.x - 200;
                 const baseY = isParentExtent ? 100 : position.y;
+                const expansionId = `exp-${pattern.id}-${Date.now()}`;
 
                 const processNodes = (nodeList: any[], parentId: string | undefined, depth: number, startX: number, startY: number, extent?: 'parent') => {
                     nodeList.forEach((macroNode: any, index: number) => {
@@ -262,7 +263,8 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                     min_width: nPattern?.min_width,
                                     min_height: nPattern?.min_height,
                                     origin_pattern: pattern.id,
-                                    macro_id_suffix: macroNode.id_suffix
+                                    macro_id_suffix: macroNode.id_suffix,
+                                    macro_expansion_id: expansionId
                                 }
                             };
 

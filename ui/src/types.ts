@@ -92,4 +92,5 @@ export type NodeData = {
     min_height?: number;
     origin_pattern?: string;
     macro_id_suffix?: string;
+    macro_expansion_id?: string;
 };
