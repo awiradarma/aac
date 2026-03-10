@@ -32,3 +32,8 @@ widgets:
     versions:
       - "1.0.0"
     latest: "1.0.0"
+  - id: api-container
+    name: API Container
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"

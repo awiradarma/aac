@@ -9,7 +9,7 @@ import type { Connection, Edge, Node } from 'reactflow';
 import 'reactflow/dist/style.css';
 
 import { HostNode, WorkloadNode, HierarchyNode, InfrastructureNode } from './Nodes';
-import { getPatternById } from '../lib/registry';
+import { getPatternById, getPatternByIdAndVersion } from '../lib/registry';
 import type { NodeData } from '../types';
 
 const nodeTypes = {
@@ -52,12 +52,13 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
 
             const type = event.dataTransfer.getData('application/reactflow');
             const patternId = event.dataTransfer.getData('application/patternId');
+            const version = event.dataTransfer.getData('application/patternVersion');
 
             if (typeof type === 'undefined' || !type || !patternId) {
                 return;
             }
 
-            const pattern = getPatternById(patternId);
+            const pattern = version ? getPatternByIdAndVersion(patternId, version) : getPatternById(patternId);
             if (!pattern) return;
 
             const position = reactFlowInstance.screenToFlowPosition({
@@ -68,7 +69,8 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
             // Default properties based on the pattern parameters
             const defaultProps: Record<string, any> = {};
             if (pattern.parameters) {
-                Object.entries(pattern.parameters).forEach(([key, param]) => {
+                Object.entries(pattern.parameters).forEach(([key, p]) => {
+                    const param = p as any;
                     defaultProps[key] = param.default || param.const || '';
                 });
             }
@@ -88,7 +90,8 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     icon: pattern.display_metadata?.icon,
                     color: pattern.display_metadata?.color,
                     min_width: pattern.min_width,
-                    min_height: pattern.min_height
+                    min_height: pattern.min_height,
+                    memberships: {}
                 },
             };
 
@@ -178,6 +181,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 const generatedNodes: Node<NodeData>[] = [];
                 const generatedEdges: Edge[] = [];
                 const nodeMap: Record<string, string> = {}; // maps suffix to generated id
+                const mergedNodeMetadata: Record<string, any> = {}; // Track metadata for existing nodes being 'pAdopted'
 
                 // Base positions relative to parent or canvas
                 const baseX = isParentExtent ? 50 : position.x - 200;
@@ -224,6 +228,16 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                             // Merge: node already exists in this scope
                             currentNodeId = existingNode.id;
                             nodeMap[macroNode.id_suffix] = currentNodeId;
+
+                            // Track membership for existing node without overwriting primary master
+                            const existingMemberships = existingNode.data.memberships || {};
+                            mergedNodeMetadata[currentNodeId] = {
+                                memberships: {
+                                    ...existingMemberships,
+                                    [expansionId]: macroNode.id_suffix
+                                },
+                                status: 'existing'
+                            };
                         } else {
                             currentNodeId = getId();
                             nodeMap[macroNode.id_suffix] = currentNodeId;
@@ -264,7 +278,10 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                     min_height: nPattern?.min_height,
                                     origin_pattern: pattern.id,
                                     macro_id_suffix: macroNode.id_suffix,
-                                    macro_expansion_id: expansionId
+                                    macro_expansion_id: expansionId,
+                                    memberships: {
+                                        [expansionId]: macroNode.id_suffix
+                                    }
                                 }
                             };
 
@@ -334,11 +351,23 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     }
                 }
 
-                if (shouldAddWorkloadNode) {
-                    setNodes((nds: Node[]) => nds.concat([...generatedNodes, newNode]));
-                } else {
-                    setNodes((nds: Node[]) => nds.concat([...generatedNodes]));
-                }
+                const finalNewNodes = shouldAddWorkloadNode ? [...generatedNodes, newNode] : generatedNodes;
+
+                setNodes((nds: Node[]) => {
+                    const updatedExistingNodes = nds.map(n => {
+                        if (mergedNodeMetadata[n.id]) {
+                            return {
+                                ...n,
+                                data: {
+                                    ...n.data,
+                                    ...mergedNodeMetadata[n.id]
+                                }
+                            };
+                        }
+                        return n;
+                    });
+                    return [...updatedExistingNodes, ...finalNewNodes];
+                });
 
                 if (generatedEdges.length > 0) {
                     setEdges((eds: Edge[]) => eds.concat(generatedEdges));

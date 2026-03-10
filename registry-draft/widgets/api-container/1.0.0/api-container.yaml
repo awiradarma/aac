@@ -1,0 +1,25 @@
+id: api-container
+name: API Container
+version: 1.0.0
+c4Level: Container
+capabilities:
+  - api-container
+parameters:
+  language:
+    type: string
+    options:
+      - java
+      - nodejs
+      - python
+    default: java
+  type:
+    type: string
+    options:
+      - REST API
+      - SOAP API 
+      - gRPC API
+    default: REST API
+display_metadata:
+  icon: Box
+  color: blue
+  category: Container

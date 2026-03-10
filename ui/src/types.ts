@@ -97,4 +97,5 @@ export type NodeData = {
     origin_pattern?: string;
     macro_id_suffix?: string;
     macro_expansion_id?: string;
+    memberships?: Record<string, string>; // expansionId -> suffix
 };

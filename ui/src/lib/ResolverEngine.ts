@@ -32,17 +32,21 @@ export class ResolverEngine {
 
             const promises: Promise<Pattern>[] = [];
 
-            // Fetch all latest widgets
+            // Fetch all versions of widgets
             if (widgetIndex.widgets) {
                 for (const item of widgetIndex.widgets) {
-                    promises.push(this.client.getWidget(item.id, item.latest));
+                    for (const version of item.versions) {
+                        promises.push(this.client.getWidget(item.id, version));
+                    }
                 }
             }
 
-            // Fetch all latest patterns
+            // Fetch all versions of patterns
             if (patternIndex.patterns) {
                 for (const item of patternIndex.patterns) {
-                    promises.push(this.client.getPattern(item.id, item.latest));
+                    for (const version of item.versions) {
+                        promises.push(this.client.getPattern(item.id, version));
+                    }
                 }
             }
 

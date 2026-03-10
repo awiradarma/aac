@@ -22,3 +22,7 @@ export const getPatternsByLevel = (level: string) => {
 export const getPatternById = (id: string) => {
     return getRegistry().patterns.find(p => p.id === id);
 };
+
+export const getPatternByIdAndVersion = (id: string, version: string) => {
+    return getRegistry().patterns.find(p => p.id === id && p.version === version);
+};
