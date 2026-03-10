@@ -60,12 +60,13 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
     };
     parseTree(dNodes, null, null);
 
-    // Build Connectivity
     const adjList: Record<string, string[]> = {};
     const rels = arch.model?.relationships || [];
     rels.forEach((rel: any) => {
-        if (!adjList[rel.sourceId]) adjList[rel.sourceId] = [];
-        adjList[rel.sourceId].push(rel.destinationId);
+        if (rel.sourceId && rel.destinationId) {
+            if (!adjList[rel.sourceId]) adjList[rel.sourceId] = [];
+            adjList[rel.sourceId]!.push(rel.destinationId);
+        }
     });
 
     const getCid = (n: any) => n.logicalId || n.id;

@@ -63,7 +63,7 @@ export class RegistryClient {
                 this.cache.set(url, parsed);
                 return parsed;
             } else {
-                const response = await fetch(url);
+                const response = await fetch(`${url}?v=${Date.now()}`);
                 if (!response.ok) {
                     throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
                 }
