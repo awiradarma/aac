@@ -1,0 +1,33 @@
+# Workspace-wide Sovereign AaC Fabric Ignore
+
+# Dependency directories
+node_modules/
+
+# Build and output directories
+dist/
+dist-ssr/
+build/
+.tmp/
+*.tsbuildinfo
+
+# Global build artifacts from TypeScript
+# Note: These are frequently dumped into source folders accidentally
+cli-ts/index.js
+cli-ts/index.js.map
+cli-ts/index.d.ts
+cli-ts/index.d.ts.map
+
+ui/src/**/*.js
+ui/src/**/*.d.ts
+ui/src/**/*.js.map
+ui/src/**/*.d.ts.map
+
+# Temporary logs and build outputs
+*.log
+ui/build_output.txt
+
+# Editor and OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
