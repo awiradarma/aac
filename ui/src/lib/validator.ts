@@ -135,6 +135,24 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
             }
         });
 
+        // Edge Completeness
+        if (originPattern.macro_expansion.edges) {
+            originPattern.macro_expansion.edges.forEach((edgeDef: any) => {
+                const sourceNode = instanceNodes.find(n => getSuffixForExp(n, expId) === edgeDef.source_suffix);
+                const targetNode = instanceNodes.find(n => getSuffixForExp(n, expId) === edgeDef.target_suffix);
+
+                if (sourceNode && targetNode) {
+                    const sCid = getCid(sourceNode);
+                    const tCid = getCid(targetNode);
+
+                    const hasEdge = (adjList[sCid] || []).includes(tCid);
+                    if (!hasEdge) {
+                        errors.push(`Pattern '${originPattern.name}' is incomplete: mandatory connection from '${edgeDef.source_suffix}' to '${edgeDef.target_suffix}' is missing.`);
+                    }
+                }
+            });
+        }
+
         // Rules Evaluation
         if (originPattern.rules) {
             originPattern.rules.forEach(rule => {
