@@ -369,7 +369,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col h-screen w-full bg-slate-50 font-sans">
+    <div className="flex flex-col h-[100dvh] w-full bg-slate-50 font-sans">
       <header className="h-14 bg-slate-900 flex items-center justify-between px-4 sm:px-6 text-white shrink-0 shadow-md relative z-10">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-blue-500 rounded-md flex items-center justify-center font-bold text-lg shadow-inner">
@@ -448,7 +448,7 @@ export default function App() {
           </div>
 
           {/* Floating Action Buttons for Mobile */}
-          <div className="md:hidden absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 z-30 pointer-events-auto">
+          <div className="md:hidden absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-3 z-[100] pointer-events-auto">
             <button
               onClick={() => setIsSidebarOpen(true)}
               className="flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg font-semibold text-sm transition-transform active:scale-95"
