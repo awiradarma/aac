@@ -98,12 +98,21 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
         });
     });
 
+    const getPatternFromOriginVal = (val: string | null | undefined) => {
+        if (!val) return null;
+        if (val.includes('@')) {
+            const [id, ver] = val.split('@', 2);
+            return patterns.find(p => p.id === id && p.version === ver);
+        }
+        return patterns.find(p => p.id === val);
+    };
+
     // Smart Adoption & Completeness
     Object.entries(expansionInstances).forEach(([expId, instanceNodes]) => {
         // Find origin pattern (look for MUST HAVE origin_pattern on any node in expansion)
         const master = instanceNodes.find(n => n.properties?.origin_pattern || n.origin_pattern);
-        const originId = master ? (master.properties?.origin_pattern || master.origin_pattern) : null;
-        const originPattern = patterns.find(p => p.id === originId);
+        const originVal = master ? (master.properties?.origin_pattern || master.origin_pattern) : null;
+        const originPattern = getPatternFromOriginVal(originVal);
 
         if (!originPattern || !originPattern.macro_expansion) return;
 
@@ -205,7 +214,7 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
         allExpContexts.forEach(ctx => {
             const expNodes = expansionInstances[ctx.id];
             const master = expNodes?.find(n => n.properties?.origin_pattern || n.origin_pattern);
-            const originPattern = patterns.find(p => p.id === (master?.properties?.origin_pattern || master?.origin_pattern));
+            const originPattern = getPatternFromOriginVal(master?.properties?.origin_pattern || master?.origin_pattern);
 
             if (originPattern?.macro_expansion) {
                 const findMNode = (nodes: any[]): any => {
