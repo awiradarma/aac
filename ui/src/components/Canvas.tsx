@@ -77,11 +77,13 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 });
             }
 
+            const scale = window.innerWidth < 768 ? 0.6 : 1;
+
             const newNode: Node<NodeData> = {
                 id: getId(),
                 type,
                 position,
-                style: type === 'hierarchyNode' ? { width: pattern.default_width || 800, height: pattern.default_height || 600 } : undefined,
+                style: type === 'hierarchyNode' ? { width: (pattern.default_width || 800) * scale, height: (pattern.default_height || 600) * scale } : undefined,
                 data: {
                     label: `${pattern.name} Instance`,
                     pattern_ref: `${pattern.id}@${pattern.version}`,
@@ -245,15 +247,15 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                             nodeMap[macroNode.id_suffix] = currentNodeId;
 
                             // Use layout hint if provided, else fallback to simple auto-layout
-                            let offsetX = macroNode.layout_hint?.x ?? 0;
-                            let offsetY = macroNode.layout_hint?.y ?? 0;
+                            let offsetX = (macroNode.layout_hint?.x ?? 0) * scale;
+                            let offsetY = (macroNode.layout_hint?.y ?? 0) * scale;
 
                             if (!macroNode.layout_hint) {
                                 if (depth === 0) {
-                                    offsetX = index * 450;
+                                    offsetX = index * 450 * scale;
                                 } else {
-                                    offsetX = 50 + (index * 450);
-                                    offsetY = 80;
+                                    offsetX = (50 + (index * 450)) * scale;
+                                    offsetY = 80 * scale;
                                 }
                             }
 
@@ -263,7 +265,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                 id: currentNodeId,
                                 type: checkType,
                                 position: { x: startX + offsetX, y: startY + offsetY },
-                                style: (checkType === 'hierarchyNode') ? { width: nPattern?.default_width || 500, height: nPattern?.default_height || 400 } : undefined,
+                                style: (checkType === 'hierarchyNode') ? { width: (nPattern?.default_width || 500) * scale, height: (nPattern?.default_height || 400) * scale } : undefined,
                                 parentNode: parentId,
                                 extent: extent,
                                 zIndex: 10 + depth,

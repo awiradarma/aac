@@ -80,8 +80,8 @@ export const HierarchyNode = ({ data, selected }: NodeProps<NodeData>) => {
     return (
         <div className={`w-full h-full border-2 rounded-2xl ${style.bg} backdrop-blur-sm ${selected ? `${style.borderSelected}` : `${style.border} border-dashed`} transition-all relative`}>
             <NodeResizer
-                minWidth={data.min_width || 300}
-                minHeight={data.min_height || 300}
+                minWidth={data.min_width || (window.innerWidth < 768 ? 200 : 300)}
+                minHeight={data.min_height || (window.innerWidth < 768 ? 200 : 300)}
                 isVisible={selected}
                 handleClassName={style.handle}
                 lineClassName={style.line}
@@ -110,10 +110,10 @@ export const HostNode = ({ data, selected }: NodeProps<NodeData>) => {
     const style = themedStyles(data.color || 'slate');
 
     return (
-        <div className={`w-96 min-h-[300px] border-2 rounded-xl ${style.bg.replace('/30', '/80')} backdrop-blur ${selected ? 'border-primary ring-4 ring-primary/20' : `${style.border} border-dashed`} transition-all relative`}>
+        <div className={`w-64 md:w-96 min-h-[180px] md:min-h-[300px] border-2 rounded-xl ${style.bg.replace('/30', '/80')} backdrop-blur ${selected ? 'border-primary ring-4 ring-primary/20' : `${style.border} border-dashed`} transition-all relative`}>
             <NodeResizer
-                minWidth={data.min_width || 300}
-                minHeight={data.min_height || 200}
+                minWidth={data.min_width || (window.innerWidth < 768 ? 150 : 300)}
+                minHeight={data.min_height || (window.innerWidth < 768 ? 100 : 200)}
                 isVisible={selected}
                 handleClassName={style.handle}
                 lineClassName={style.line}
@@ -137,7 +137,7 @@ export const HostNode = ({ data, selected }: NodeProps<NodeData>) => {
 export const WorkloadNode = ({ data, selected }: NodeProps<NodeData>) => {
     const style = themedStyles(data.color || 'blue');
     return (
-        <div className={`w-64 bg-white border-2 rounded-lg shadow-sm ${selected ? `${style.borderSelected}` : `${style.border.replace('300', '200')}`} transition-all`}>
+        <div className={`w-40 md:w-64 bg-white border-2 rounded-lg shadow-sm ${selected ? `${style.borderSelected}` : `${style.border.replace('300', '200')}`} transition-all`}>
             <div className={`${style.bg.replace('/30', '')} p-2 border-b ${style.border.replace('300', '100')} flex items-center gap-2 rounded-t-lg`}>
                 <DynamicIcon name={data.icon} className={`w-4 h-4 ${style.textMuted.replace('700', '600')}`} />
                 <div>
@@ -164,7 +164,7 @@ export const WorkloadNode = ({ data, selected }: NodeProps<NodeData>) => {
 export const InfrastructureNode = ({ data, selected }: NodeProps<NodeData>) => {
     const style = themedStyles(data.color || 'purple');
     return (
-        <div className={`w-52 min-h-[80px] flex flex-col items-center justify-center p-3 border-2 rounded-xl ${style.bg.replace('/30', '/90')} backdrop-blur shadow-sm ${selected ? `${style.borderSelected}` : `${style.border} border-dashed`} transition-all`}>
+        <div className={`w-36 md:w-52 min-h-[60px] md:min-h-[80px] flex flex-col items-center justify-center p-3 border-2 rounded-xl ${style.bg.replace('/30', '/90')} backdrop-blur shadow-sm ${selected ? `${style.borderSelected}` : `${style.border} border-dashed`} transition-all`}>
             <div className="flex items-center gap-2 mb-1">
                 <DynamicIcon name={data.icon} className={`w-4 h-4 ${style.textMuted.replace('700', '600')}`} />
                 <div className={`font-bold text-sm ${style.text} text-center`}>{data.label}</div>
