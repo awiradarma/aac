@@ -72,7 +72,7 @@ export const Sidebar: React.FC<Props> = ({ onAddPattern, onClose }) => {
                                         let flowType = 'workloadNode';
                                         if (pattern.c4Level === 'DeploymentNode') flowType = 'hierarchyNode';
                                         if (pattern.c4Level === 'InfrastructureNode') flowType = 'infrastructureNode';
-                                        if (onAddPattern && window.innerWidth < 768) {
+                                        if (onAddPattern) {
                                             onAddPattern(flowType, pattern.id, pattern.version);
                                         }
                                     }}

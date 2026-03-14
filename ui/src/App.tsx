@@ -8,7 +8,7 @@ import yaml from 'js-yaml';
 import { initRegistry, getPatternById, getRegistry } from './lib/registry';
 import { validateArchitecture } from './lib/validator';
 import type { Node } from 'reactflow';
-import { Download, Upload, CheckCircle, Settings2, Box } from 'lucide-react';
+import { Download, Upload, CheckCircle, Settings2, Box, Link2 } from 'lucide-react';
 
 export default function App() {
   const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>([]);
@@ -21,6 +21,8 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isPropertyPanelOpen, setIsPropertyPanelOpen] = useState(false);
   const [patternToAdd, setPatternToAdd] = useState<{ type: string; patternId: string; version: string } | null>(null);
+  const [linkingNodeId, setLinkingNodeId] = useState<string | null>(null);
+  const [validationModal, setValidationModal] = useState<{ isOpen: boolean, type: 'success' | 'error', message: string }>({ isOpen: false, type: 'success', message: '' });
 
   useEffect(() => {
     if ((selectedNodeId || selectedEdgeId) && window.innerWidth < 768) {
@@ -354,13 +356,33 @@ export default function App() {
   };
 
   const handleValidate = () => {
-    const structurizrAst = generateYamlObj();
-    const errors = validateArchitecture(structurizrAst, getRegistry() as any);
+    console.log("handleValidate called");
+    try {
+      const structurizrAst = generateYamlObj();
+      console.log("AST generated:", structurizrAst);
+      const errors = validateArchitecture(structurizrAst, getRegistry() as any);
+      console.log("Validation errors:", errors);
 
-    if (errors.length > 0) {
-      alert("⚠️ Architecture Validation Failed:\n\n" + errors.map(e => "• " + e).join("\n"));
-    } else {
-      alert("✅ Architecture Valid!\n\nAll constraints and placement boundaries conform to the Pattern Registry.");
+      if (errors.length > 0) {
+        setValidationModal({
+          isOpen: true,
+          type: 'error',
+          message: "⚠️ Architecture Validation Failed:\n\n" + errors.map(e => "• " + e).join("\n")
+        });
+      } else {
+        setValidationModal({
+          isOpen: true,
+          type: 'success',
+          message: "✅ Architecture Valid!\n\nAll constraints and placement boundaries conform to the Pattern Registry."
+        });
+      }
+    } catch (e: any) {
+      console.error("Error in handleValidate:", e);
+      setValidationModal({
+        isOpen: true,
+        type: 'error',
+        message: "❌ An unexpected error occurred during validation:\n\n" + e.message
+      });
     }
   };
 
@@ -380,6 +402,7 @@ export default function App() {
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
           <button
+            type="button"
             onClick={handleValidate}
             className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold rounded-md shadow transition-colors flex items-center gap-2"
           >
@@ -433,8 +456,30 @@ export default function App() {
             onEdgesChange={onEdgesChange}
             patternToAdd={patternToAdd}
             onPatternAdded={() => setPatternToAdd(null)}
-            onNodeSelect={(n) => { setSelectedNodeId(n?.id || null); setSelectedEdgeId(null); }}
+            onNodeSelect={(n) => {
+              if (linkingNodeId) {
+                if (n && n.id !== linkingNodeId) {
+                  const newEdge = {
+                    id: `e-${linkingNodeId}-${n.id}-${Date.now()}`,
+                    source: linkingNodeId,
+                    target: n.id,
+                    animated: true,
+                    zIndex: 5000,
+                    style: { strokeWidth: 3, stroke: '#64748b' },
+                    data: { label: 'Uses', technology: '' }
+                  };
+                  setEdges(eds => [...eds, newEdge]);
+                }
+                setLinkingNodeId(null);
+                setSelectedNodeId(n?.id || null);
+                setSelectedEdgeId(null);
+                return;
+              }
+              setSelectedNodeId(n?.id || null);
+              setSelectedEdgeId(null);
+            }}
             onEdgeSelect={(e) => { setSelectedEdgeId(e?.id || null); setSelectedNodeId(null); }}
+            selectedNodeId={selectedNodeId}
           />
 
           <div className={`fixed inset-y-0 right-0 w-80 max-w-[85vw] z-50 transform bg-white transition-transform duration-300 md:w-auto md:max-w-none md:relative md:translate-x-0 ${isPropertyPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
@@ -464,8 +509,52 @@ export default function App() {
                 <Settings2 className="w-5 h-5" />
               </button>
             )}
+            {selectedNode && (
+              <button
+                onClick={() => setLinkingNodeId(linkingNodeId === selectedNode.id ? null : selectedNode.id)}
+                className={`flex items-center justify-center w-12 h-12 rounded-full shadow-lg transition-transform active:scale-95 ${linkingNodeId === selectedNode.id ? 'bg-amber-500 hover:bg-amber-600' : 'bg-slate-800 hover:bg-slate-700'} text-white`}
+              >
+                <Link2 className="w-5 h-5" />
+              </button>
+            )}
           </div>
+
+          {linkingNodeId && (
+            <div className="md:hidden absolute bottom-24 left-1/2 -translate-x-1/2 bg-amber-500 text-white px-4 py-2 rounded-lg shadow-md font-semibold text-sm whitespace-nowrap z-[100] pointer-events-none animate-pulse">
+              Tap target node to connect!
+            </div>
+          )}
         </ReactFlowProvider>
+
+        {/* Validation Modal Overlay */}
+        {validationModal.isOpen && (
+          <div className="fixed inset-0 bg-slate-900/60 z-[200] flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[80vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              <div className={`p-4 border-b flex items-center justify-between ${validationModal.type === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-red-50 border-red-100 text-red-800'}`}>
+                <h3 className="font-bold text-lg">Architecture Validation</h3>
+                <button
+                  onClick={() => setValidationModal(prev => ({ ...prev, isOpen: false }))}
+                  className="p-1 hover:bg-black/5 rounded-md transition-colors"
+                  type="button"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto whitespace-pre-wrap text-sm text-slate-700 bg-white">
+                {validationModal.message}
+              </div>
+              <div className="p-4 border-t bg-slate-50 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setValidationModal(prev => ({ ...prev, isOpen: false }))}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-semibold rounded-md shadow transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

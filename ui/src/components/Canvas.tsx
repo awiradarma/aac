@@ -33,9 +33,10 @@ interface Props {
     onEdgesChange: any;
     patternToAdd?: { type: string, patternId: string, version: string } | null;
     onPatternAdded?: () => void;
+    selectedNodeId?: string | null;
 }
 
-export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange, onNodeSelect, onEdgeSelect, patternToAdd, onPatternAdded }) => {
+export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange, onNodeSelect, onEdgeSelect, patternToAdd, onPatternAdded, selectedNodeId }) => {
     const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
 
     const onConnect = useCallback((params: Edge | Connection) => {
@@ -55,6 +56,8 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
             const type = event.dataTransfer.getData('application/reactflow');
             const patternId = event.dataTransfer.getData('application/patternId');
             const version = event.dataTransfer.getData('application/patternVersion');
+            const mockTargetId = event.dataTransfer.getData('application/mockTargetId');
+            let isMockTarget = false;
 
             if (typeof type === 'undefined' || !type || !patternId) {
                 return;
@@ -122,8 +125,8 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 if (n.type !== 'hierarchyNode' && n.type !== 'hostNode' && n.type !== 'infrastructureNode') return false;
                 const pos = getAbsolutePosition(n);
                 const nPattern = getPatternById(n.data.pattern_ref?.split('@')[0]);
-                const width = n.style?.width ? Number(n.style.width) : (nPattern?.default_width || 500);
-                const height = n.style?.height ? Number(n.style.height) : (nPattern?.default_height || 400);
+                const width = n.width ?? (n.style?.width ? Number(n.style.width) : (nPattern?.default_width || 500));
+                const height = n.height ?? (n.style?.height ? Number(n.style.height) : (nPattern?.default_height || 400));
 
                 return position.x >= pos.x && position.x <= pos.x + width &&
                     position.y >= pos.y && position.y <= pos.y + height;
@@ -133,14 +136,22 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
             possibleParents.sort((a, b) => {
                 const aPattern = getPatternById(a.data.pattern_ref?.split('@')[0]);
                 const bPattern = getPatternById(b.data.pattern_ref?.split('@')[0]);
-                const aArea = (a.style?.width ? Number(a.style.width) : (aPattern?.default_width || 500)) *
-                    (a.style?.height ? Number(a.style.height) : (aPattern?.default_height || 400));
-                const bArea = (b.style?.width ? Number(b.style.width) : (bPattern?.default_width || 500)) *
-                    (b.style?.height ? Number(b.style.height) : (bPattern?.default_height || 400));
+                const aArea = (a.width ?? (a.style?.width ? Number(a.style.width) : (aPattern?.default_width || 500))) *
+                    (a.height ?? (a.style?.height ? Number(a.style.height) : (aPattern?.default_height || 400)));
+                const bArea = (b.width ?? (b.style?.width ? Number(b.style.width) : (bPattern?.default_width || 500))) *
+                    (b.height ?? (b.style?.height ? Number(b.style.height) : (bPattern?.default_height || 400)));
                 return aArea - bArea;
             });
 
-            const closestParent = possibleParents.length > 0 ? possibleParents[0] : null;
+            let closestParent = possibleParents.length > 0 ? possibleParents[0] : null;
+
+            if (mockTargetId) {
+                const targetNode = nodes.find(n => n.id === mockTargetId);
+                if (targetNode && (targetNode.type === 'hierarchyNode' || targetNode.type === 'hostNode' || targetNode.type === 'infrastructureNode')) {
+                    closestParent = targetNode;
+                    isMockTarget = true;
+                }
+            }
 
             // Dynamic Macro Expansion
             if (pattern.macro_expansion) {
@@ -188,8 +199,8 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 const mergedNodeMetadata: Record<string, any> = {}; // Track metadata for existing nodes being 'pAdopted'
 
                 // Base positions relative to parent or canvas
-                const baseX = isParentExtent ? 50 : position.x - 200;
-                const baseY = isParentExtent ? 100 : position.y;
+                const baseX = isParentExtent ? (isMockTarget ? 50 * scale : 50) : position.x - 200;
+                const baseY = isParentExtent ? (isMockTarget ? 80 * scale : 100) : position.y;
                 const expansionId = `exp-${pattern.id}-${Date.now()}`;
 
                 const processNodes = (nodeList: any[], parentId: string | undefined, depth: number, startX: number, startY: number, extent?: 'parent') => {
@@ -385,10 +396,14 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 newNode.parentNode = closestParent.id;
                 newNode.extent = 'parent';
                 newNode.zIndex = (closestParent.zIndex || 5) + 5; // Stack layer
-                newNode.position = {
-                    x: position.x - parentAbs.x,
-                    y: position.y - parentAbs.y,
-                };
+                if (isMockTarget) {
+                    newNode.position = { x: 50 * scale, y: 80 * scale };
+                } else {
+                    newNode.position = {
+                        x: position.x - parentAbs.x,
+                        y: position.y - parentAbs.y,
+                    };
+                }
             } else if (type === 'workloadNode') {
                 alert(`Governance Violation: A ${pattern.name} must be placed inside a valid Infrastructure Host.`);
                 return;
@@ -415,6 +430,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                         if (key === 'application/reactflow') return patternToAdd.type;
                         if (key === 'application/patternId') return patternToAdd.patternId;
                         if (key === 'application/patternVersion') return patternToAdd.version;
+                        if (key === 'application/mockTargetId') return selectedNodeId || '';
                         return '';
                     }
                 }
@@ -422,7 +438,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
             onDrop(mockEvent);
             onPatternAdded?.();
         }
-    }, [patternToAdd, reactFlowInstance, onDrop, onPatternAdded]);
+    }, [patternToAdd, reactFlowInstance, onDrop, onPatternAdded, selectedNodeId]);
 
     return (
         <div className="flex-1 h-full relative">
