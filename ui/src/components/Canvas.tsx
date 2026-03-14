@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import ReactFlow, {
     Background,
     Controls,
@@ -31,9 +31,11 @@ interface Props {
     setEdges: any;
     onNodesChange: any;
     onEdgesChange: any;
+    patternToAdd?: { type: string, patternId: string, version: string } | null;
+    onPatternAdded?: () => void;
 }
 
-export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange, onNodeSelect, onEdgeSelect }) => {
+export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange, onNodeSelect, onEdgeSelect, patternToAdd, onPatternAdded }) => {
     const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
 
     const onConnect = useCallback((params: Edge | Connection) => {
@@ -398,6 +400,28 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
         [reactFlowInstance, setNodes, nodes]
     );
 
+    // Effect to programmatically add patterns (useful for mobile touch devices)
+    useEffect(() => {
+        if (patternToAdd && reactFlowInstance) {
+            const mockEvent: any = {
+                preventDefault: () => { },
+                clientX: window.innerWidth / 2,
+                clientY: window.innerHeight / 2,
+                dataTransfer: {
+                    dropEffect: 'move',
+                    getData: (key: string) => {
+                        if (key === 'application/reactflow') return patternToAdd.type;
+                        if (key === 'application/patternId') return patternToAdd.patternId;
+                        if (key === 'application/patternVersion') return patternToAdd.version;
+                        return '';
+                    }
+                }
+            };
+            onDrop(mockEvent);
+            onPatternAdded?.();
+        }
+    }, [patternToAdd, reactFlowInstance, onDrop, onPatternAdded]);
+
     return (
         <div className="flex-1 h-full relative">
             <ReactFlow
@@ -423,7 +447,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
             >
                 <Background color="#cbd5e1" gap={16} />
                 <Controls />
-                <MiniMap />
+                <MiniMap className="hidden md:block" />
             </ReactFlow>
         </div>
     );

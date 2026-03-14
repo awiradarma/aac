@@ -3,30 +3,38 @@ import { getPatternById } from '../lib/registry';
 import { useReactFlow } from 'reactflow';
 import type { Edge, Node } from 'reactflow';
 import type { NodeData } from '../types';
-import { Trash2 } from 'lucide-react';
+import { Trash2, X } from 'lucide-react';
 
 interface Props {
     selectedNode: Node<NodeData> | null;
     selectedEdge?: Edge | null;
     onUpdateNodeData: (id: string, newData: any) => void;
     onUpdateEdgeData?: (id: string, newData: any) => void;
+    onClose?: () => void;
 }
 
-export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, onUpdateNodeData, onUpdateEdgeData }) => {
+export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, onUpdateNodeData, onUpdateEdgeData, onClose }) => {
     const { deleteElements, getNodes } = useReactFlow();
 
     if (selectedEdge) {
         return (
-            <div className="w-80 border-l border-slate-200 bg-white p-4 h-full overflow-y-auto">
+            <div className="w-full h-full border-l border-slate-200 bg-white p-4 overflow-y-auto">
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-bold text-slate-800">Edge Properties</h2>
-                    <button
-                        onClick={() => deleteElements({ edges: [{ id: selectedEdge.id }] })}
-                        className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors flex items-center gap-1"
-                        title="Delete Edge"
-                    >
-                        <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => deleteElements({ edges: [{ id: selectedEdge.id }] })}
+                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors flex items-center gap-1"
+                            title="Delete Edge"
+                        >
+                            <Trash2 className="w-5 h-5" />
+                        </button>
+                        {onClose && (
+                            <button onClick={onClose} className="md:hidden p-1.5 text-slate-400 hover:bg-slate-100 rounded-md transition-colors">
+                                <X className="w-5 h-5" />
+                            </button>
+                        )}
+                    </div>
                 </div>
                 <div className="mb-6 p-3 bg-slate-50 rounded border border-slate-100 flex flex-col gap-3">
                     <div>
@@ -55,7 +63,12 @@ export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, onU
 
     if (!selectedNode) {
         return (
-            <div className="w-80 border-l border-slate-200 bg-white p-4 h-full flex items-center justify-center text-slate-400">
+            <div className="w-full h-full border-l border-slate-200 bg-white p-4 flex flex-col items-center justify-center text-slate-400 relative">
+                {onClose && (
+                    <button onClick={onClose} className="md:hidden absolute top-4 right-4 p-2 text-slate-400 hover:bg-slate-100 rounded-full">
+                        <X className="w-5 h-5" />
+                    </button>
+                )}
                 Select a node to view properties
             </div>
         );
@@ -98,16 +111,23 @@ export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, onU
     };
 
     return (
-        <div className="w-80 border-l border-slate-200 bg-white p-4 h-full overflow-y-auto">
+        <div className="w-full h-full border-l border-slate-200 bg-white p-4 overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-slate-800">Properties</h2>
-                <button
-                    onClick={handleDelete}
-                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors flex items-center gap-1"
-                    title="Delete Node"
-                >
-                    <Trash2 className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handleDelete}
+                        className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors flex items-center gap-1"
+                        title="Delete Node"
+                    >
+                        <Trash2 className="w-5 h-5" />
+                    </button>
+                    {onClose && (
+                        <button onClick={onClose} className="md:hidden p-1.5 text-slate-400 hover:bg-slate-100 rounded-md transition-colors">
+                            <X className="w-5 h-5" />
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div className="mb-6 p-3 bg-slate-50 rounded border border-slate-100 flex flex-col gap-3">

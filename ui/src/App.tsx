@@ -8,6 +8,7 @@ import yaml from 'js-yaml';
 import { initRegistry, getPatternById, getRegistry } from './lib/registry';
 import { validateArchitecture } from './lib/validator';
 import type { Node } from 'reactflow';
+import { Download, Upload, CheckCircle, Settings2, Box } from 'lucide-react';
 
 export default function App() {
   const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>([]);
@@ -15,6 +16,17 @@ export default function App() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [isRegistryLoaded, setIsRegistryLoaded] = useState(false);
+
+  // Mobile UI states
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isPropertyPanelOpen, setIsPropertyPanelOpen] = useState(false);
+  const [patternToAdd, setPatternToAdd] = useState<{ type: string; patternId: string; version: string } | null>(null);
+
+  useEffect(() => {
+    if ((selectedNodeId || selectedEdgeId) && window.innerWidth < 768) {
+      setIsPropertyPanelOpen(true);
+    }
+  }, [selectedNodeId, selectedEdgeId]);
 
   useEffect(() => {
     initRegistry('').then(() => {
@@ -358,53 +370,100 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen w-full bg-slate-50 font-sans">
-      <header className="h-14 bg-slate-900 flex items-center justify-between px-6 text-white shrink-0 shadow-md relative z-10">
+      <header className="h-14 bg-slate-900 flex items-center justify-between px-4 sm:px-6 text-white shrink-0 shadow-md relative z-10">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-blue-500 rounded-md flex items-center justify-center font-bold text-lg shadow-inner">
             A
           </div>
-          <h1 className="text-xl font-bold tracking-tight">Sovereign AaC Fabric</h1>
+          <h1 className="text-xl font-bold tracking-tight hidden sm:block">Sovereign AaC Fabric</h1>
+          <h1 className="text-xl font-bold tracking-tight sm:hidden">AaC</h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={handleValidate}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold rounded-md shadow transition-colors"
+            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold rounded-md shadow transition-colors flex items-center gap-2"
           >
-            Validate Design
+            <CheckCircle className="w-4 h-4" />
+            <span className="hidden sm:inline">Validate Design</span>
           </button>
-          <label className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-sm font-semibold rounded-md shadow transition-colors cursor-pointer ml-4 border-l border-slate-500 pl-6">
-            Import YAML
+
+          <div className="w-px h-6 bg-slate-700 mx-1 sm:mx-2 hidden sm:block"></div>
+
+          <label className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-sm font-semibold rounded-md shadow transition-colors cursor-pointer flex items-center gap-2">
+            <Upload className="w-4 h-4 text-slate-300" />
+            <span className="hidden sm:inline">Import</span>
             <input type="file" accept=".yaml,.yml" className="hidden" onChange={handleImportYaml} />
           </label>
           <button
             onClick={handleExportYaml}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-sm font-semibold rounded-md shadow transition-colors"
+            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-sm font-semibold rounded-md shadow transition-colors flex items-center gap-2"
           >
-            Export YAML
+            <Download className="w-4 h-4 text-slate-300" />
+            <span className="hidden sm:inline">Export</span>
           </button>
         </div>
       </header>
 
-      <main className="flex-1 w-full flex overflow-hidden">
+      <main className="flex-1 w-full flex overflow-hidden relative">
         <ReactFlowProvider>
-          <div className="flex w-full h-full">
-            <Sidebar />
-            <CanvasArea
-              nodes={nodes}
-              edges={edges}
-              setNodes={setNodes}
-              setEdges={setEdges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onNodeSelect={(n) => { setSelectedNodeId(n?.id || null); setSelectedEdgeId(null); }}
-              onEdgeSelect={(e) => { setSelectedEdgeId(e?.id || null); setSelectedNodeId(null); }}
+          {/* Mobile Overlay Scrims */}
+          {isSidebarOpen && (
+            <div className="fixed inset-0 bg-slate-900/40 z-40 md:hidden backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)} />
+          )}
+          {isPropertyPanelOpen && (
+            <div className="fixed inset-0 bg-slate-900/40 z-40 md:hidden backdrop-blur-sm" onClick={() => setIsPropertyPanelOpen(false)} />
+          )}
+
+          <div className={`fixed inset-y-0 left-0 z-50 transform bg-white transition-transform duration-300 md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            <Sidebar
+              onAddPattern={(type, id, version) => {
+                setPatternToAdd({ type, patternId: id, version });
+                setIsSidebarOpen(false);
+              }}
+              onClose={() => setIsSidebarOpen(false)}
             />
+          </div>
+
+          <CanvasArea
+            nodes={nodes}
+            edges={edges}
+            setNodes={setNodes}
+            setEdges={setEdges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            patternToAdd={patternToAdd}
+            onPatternAdded={() => setPatternToAdd(null)}
+            onNodeSelect={(n) => { setSelectedNodeId(n?.id || null); setSelectedEdgeId(null); }}
+            onEdgeSelect={(e) => { setSelectedEdgeId(e?.id || null); setSelectedNodeId(null); }}
+          />
+
+          <div className={`fixed inset-y-0 right-0 w-80 max-w-[85vw] z-50 transform bg-white transition-transform duration-300 md:w-auto md:max-w-none md:relative md:translate-x-0 ${isPropertyPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
             <PropertyPanel
               selectedNode={selectedNode}
               selectedEdge={selectedEdge}
               onUpdateNodeData={handleUpdateNodeData}
               onUpdateEdgeData={handleUpdateEdgeData}
+              onClose={() => setIsPropertyPanelOpen(false)}
             />
+          </div>
+
+          {/* Floating Action Buttons for Mobile */}
+          <div className="md:hidden absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 z-30 pointer-events-auto">
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg font-semibold text-sm transition-transform active:scale-95"
+            >
+              <Box className="w-5 h-5" />
+              Patterns
+            </button>
+            {(selectedNode || selectedEdge) && (
+              <button
+                onClick={() => setIsPropertyPanelOpen(true)}
+                className="flex items-center justify-center w-12 h-12 bg-slate-800 hover:bg-slate-700 text-white rounded-full shadow-lg transition-transform active:scale-95"
+              >
+                <Settings2 className="w-5 h-5" />
+              </button>
+            )}
           </div>
         </ReactFlowProvider>
       </main>
