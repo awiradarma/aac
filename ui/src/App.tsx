@@ -423,9 +423,15 @@ export default function App() {
         Object.entries(res.matchedNodes).forEach(([alias, matchedNode]) => {
           // Find the exact react-flow node ID using the flat AST id
           const targetId = matchedNode.id;
+          const logicalId = matchedNode.logicalId;
 
           nextNodes = nextNodes.map(n => {
-            if (n.id === targetId || (n.type === 'workloadNode' && (n as any)._logicalContainerId === targetId)) {
+            const isMatch = n.id === targetId ||
+              n.id + '_instance' === targetId ||
+              (n.type === 'workloadNode' && (n as any)._logicalContainerId === targetId) ||
+              (n.type === 'workloadNode' && logicalId && (n as any)._logicalContainerId === logicalId);
+
+            if (isMatch) {
               return {
                 ...n,
                 data: {
