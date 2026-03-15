@@ -11,6 +11,11 @@ import { detectPatterns, type DiscoveryResult } from './lib/detector';
 import type { Node } from 'reactflow';
 import { Download, Upload, CheckCircle, Settings2, Box, Link2, Wand2 } from 'lucide-react';
 
+/**
+ * The core Application component encapsulating the entire AaC Fabric UI.
+ * Coordinates React Flow canvas interaction, property mutations, pattern discovery, 
+ * and generation of valid YAML conforming to the Sovereign Fabric schemas.
+ */
 export default function App() {
   const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<any>([]);
@@ -65,6 +70,10 @@ export default function App() {
     );
   }, [setEdges]);
 
+  /**
+   * Generates the structured architecture YAML representation conforming to the 
+   * C4/Structurizr hierarchical schema (e.g., deployments nested under datacenters)
+   */
   const generateYamlObj = () => {
     const structurizr: any = {
       model: {
@@ -421,9 +430,13 @@ export default function App() {
                 ...n,
                 data: {
                   ...n.data,
-                  origin_pattern: res.targetPattern,
+                  origin_pattern: res.targetPattern, // Technically origin_pattern only needs to be on one node, but fine here
                   macro_expansion_id: expId,
-                  macro_id_suffix: alias
+                  macro_id_suffix: alias,
+                  memberships: {
+                    ...(n.data.memberships || {}),
+                    [expId]: alias
+                  }
                 }
               };
             }

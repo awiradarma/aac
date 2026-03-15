@@ -1,3 +1,9 @@
+# =========================================================================================
+# PATTERN REGISTRY (MACRO EXPANSIONS)
+# =========================================================================================
+# This registry maps governed composite architecture patterns. 
+# When a user drags one of these patterns into the canvas, they "explode" into multiple
+# mandatory sub-components dictated by the specific version schema referenced inside the `/patterns` directory.
 registryName: Enterprise-Architecture-Patterns
 version: 2026.03.01
 

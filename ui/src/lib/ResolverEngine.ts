@@ -1,6 +1,12 @@
 import { RegistryClient } from './RegistryClient';
 import type { Pattern, Registry } from '../types';
 
+/**
+ * The ResolverEngine orchestrates fetching and piecing together the architecture catalog.
+ * Since the registry is dispersed over multiple index files (widget-registry.yaml, pattern-registry.yaml)
+ * and deep recursive folders (e.g., `/patterns/internal-api-ocp/3.0.0/`), this engine queries
+ * the indexes, resolves all valid child versions, and downloads the full set to memory.
+ */
 export class ResolverEngine {
     private client: RegistryClient;
     private resolvedPatterns: Pattern[] = [];
@@ -8,6 +14,9 @@ export class ResolverEngine {
     private resolvedDetectors: any[] = [];
     private resolutionComplete = false;
 
+    /**
+     * @param baseUrl Used to direct the underlying `RegistryClient` to the root `registry-draft` location
+     */
     constructor(baseUrl: string) {
         this.client = new RegistryClient(baseUrl);
     }

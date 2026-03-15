@@ -6,6 +6,7 @@ import type { NodeData } from '../types';
 import * as LucideIcons from 'lucide-react';
 import { Box } from 'lucide-react';
 
+/** Dynamically resolves Lucide React icons by string name provided flexibly by yaml definition */
 const DynamicIcon = ({ name, className }: { name?: string, className?: string }) => {
     if (!name) return <Box className={className} />;
     const Icon = (LucideIcons as any)[name];
@@ -13,6 +14,7 @@ const DynamicIcon = ({ name, className }: { name?: string, className?: string })
     return <Icon className={className} />;
 };
 
+/** Shared Tailwind tokens for translating YAML pattern colors into gorgeous glassmorphism UI */
 const themedStyles = (color: string) => {
     const themes: Record<string, any> = {
         emerald: {

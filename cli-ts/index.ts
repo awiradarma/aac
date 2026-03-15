@@ -5,6 +5,11 @@ import { validateArchitecture } from '../ui/src/lib/validator';
 import { ResolverEngine } from '../ui/src/lib/ResolverEngine';
 import type { Pattern } from '../ui/src/types';
 
+/**
+ * Headless CLI integration for the Sovereign Architecture-as-Code Fabric.
+ * Uses the exact same `validateArchitecture` engine as the React frontend, allowing 
+ * architecture definitions to be validated in CI/CD pipelines before provisioning.
+ */
 program
     .name('arch-cli')
     .description('Sovereign AaC Fabric Governance CLI')

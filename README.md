@@ -100,6 +100,17 @@ rules:
 ```
 If a user connects an external actor directly to the `cluster`, skipping the `gw` or `lb`, a **Connectivity Violation** will be flagged.
 
+### 8. Brownfield Pattern Discovery & Auto-Detection
+For documenting existing "brownfield" designs, the governance engine is capable of reverse-engineering patterns directly out of free-form diagrams.
+
+The `registry-draft/detectors.yaml` file maintains heuristic conditions that search for specific component aliases on the canvas. 
+
+*   **Node Matches**: The discovery engine can fuzzy-match components based on their `c4Level`, `pattern_ref` (widget type), or even flexible regex evaluation of the user's `name` string (e.g. `name_regex: "batch|job|cron|autosys"`).
+*   **Relationship Conditions**: The discovery engine evaluates sub-graphs based on topological placement (`hosted_on` for hierarchical nesting) and connectivity (`connects_to` for drawn edges).
+*   **Combinatorial Search**: The engine uses an advanced recursive backtracking algorithm to check all possible combinations of candidate nodes to see if they satisfy the rigorous connectivity constraints required for adoption.
+
+If a pattern is discovered, the user is prompted to officially "Adopt" it, wherein the generic components get wrapped in official governance blueprints and are fully validated against the standard.
+
 ---
 
 ## Authoring Guide

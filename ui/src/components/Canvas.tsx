@@ -153,7 +153,13 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 }
             }
 
-            // Dynamic Macro Expansion
+            // =========================================================================================
+            // DYNAMIC MACRO EXPANSION ENGINE
+            // =========================================================================================
+            // When a governed pattern is dropped onto the canvas, it isn't just one node. It's a "macro" 
+            // that expands out into multiple required infrastructure components.
+            // This function recursively parses `pattern.macro_expansion.nodes` and creates literal Canvas nodes, 
+            // correctly sizing, placing, and wiring lines between them.
             if (pattern.macro_expansion) {
                 const targetNode = closestParent;
                 const isHierarchyParent = targetNode && targetNode.type === 'hierarchyNode';

@@ -1,20 +1,31 @@
 detectors:
+  # ---------------------------------------------------------------------------------------------------------
+  # AUTOSYS BATCH ON OPENSHIFT
+  # ---------------------------------------------------------------------------------------------------------
+  # This detector looks for a generic 'Batch Container' placed physically inside an 'OpenShift Cluster'
   - id: detect-batch-on-ocp
     target_pattern: batch-workload-ocp@1.0.0
     name: Autosys Batch Discovery
     description: Identifies batch/job containers running on OpenShift clusters.
     conditions:
+      # We define aliases (arbitrary string keys) to map to literal nodes on the canvas
       - node_match:
           alias: "workload"
           pattern_ref: "batch-container"
       - node_match:
           alias: "cluster"
           pattern_ref: "openshift-cluster-v4"
+      
+      # We define relationship constraints between the aliases matched above
       - relationship:
-          type: "hosted_on"
+          type: "hosted_on" # 'hosted_on' means 'source' is geometrically inside 'target'
           source: "workload"
           target: "cluster"
 
+  # ---------------------------------------------------------------------------------------------------------
+  # INTERNAL API ON OPENSHIFT (APIGEE + LB)
+  # ---------------------------------------------------------------------------------------------------------
+  # This detector relies heavily on regex to find ambiguously named boxes, and explicit 'connects_to' lines
   - id: detect-internal-api-v3
     target_pattern: internal-api-ocp@3.0.0
     name: Internal API (Apigee + LB) Discovery
@@ -22,8 +33,8 @@ detectors:
     conditions:
       - node_match:
           alias: "api"
-          c4Level: "Container"
-          name_regex: "api|endpoint|web"
+          c4Level: "Container"  # Any generic container component
+          name_regex: "api|endpoint|web" # Whose user-defined name matches these keywords
       - node_match:
           alias: "lb"
           pattern_ref: "local-load-balancer"
@@ -33,15 +44,18 @@ detectors:
       - node_match:
           alias: "cluster"
           pattern_ref: "openshift-cluster-v4"
+      - node_match:
+          alias: "datacenter"
+          pattern_ref: "datacenter"
       - relationship:
           type: "hosted_on"
           source: "api"
           target: "cluster"
       - relationship:
-          type: "connects_to"
+          type: "hosted_on"
           source: "gw"
-          target: "lb"
+          target: "datacenter"
       - relationship:
-          type: "connects_to"
+          type: "hosted_on"
           source: "lb"
-          target: "api"
+          target: "datacenter"

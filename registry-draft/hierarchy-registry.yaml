@@ -1,3 +1,9 @@
+# =========================================================================================
+# HIERARCHY REGISTRY (STRUCTURAL GOVERNANCE)
+# =========================================================================================
+# Defines "legal" stacking orders of deployment layers. 
+# Used by the validator to flag "Architecture Boundary/Structural Violations" 
+# (e.g. dragging a Namespace directly into a Region instead of a Cluster).
 registryName: Enterprise-Architecture-Hierarchies
 version: 2026.03.01
 

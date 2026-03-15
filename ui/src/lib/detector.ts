@@ -1,12 +1,20 @@
 import type { Registry } from '../types';
 
+// DiscoveryResult tracks what pattern the algorithm discovered and which nodes map to its required aliases
 export interface DiscoveryResult {
     detectorId: string;
     detectorName: string;
-    targetPattern: string;
-    matchedNodes: Record<string, any>;
+    targetPattern: string;    // The pattern this discovery maps to (e.g. batch-workload-ocp@1.0.0)
+    matchedNodes: Record<string, any>; // How the detected nodes map to the pattern's node aliases
 }
 
+/**
+ * Core Pattern Auto-Detection Engine
+ * This engine takes the flat canvas/diagram representation (arch) and evaluates it against
+ * a set of 'detector' rules (from detectors.yaml). 
+ * If a detector's node and relationship conditions are met by free-floating or generic elements
+ * on the canvas, it returns a DiscoveryResult allowing those nodes to be governed by the standard pattern.
+ */
 export function detectPatterns(arch: any, registry: Registry): DiscoveryResult[] {
     const detectors = registry.detectors || [];
     if (!detectors.length) return [];
@@ -14,10 +22,15 @@ export function detectPatterns(arch: any, registry: Registry): DiscoveryResult[]
     const flatDeployments: any[] = [];
     const containerMap: Record<string, any> = {};
     const cNodes = arch.model?.containers || [];
+
+    // 1. Build a quick lookup map of containers
     cNodes.forEach((cn: any) => { containerMap[cn.id] = cn; });
 
+    // 2. Parse the hierarchical Deployment Nodes into a flat Abstract Syntax Tree (AST)
+    // This makes it easy to traverse parent-child relationships via `parentId`
     const parseTree = (nodes: any[], parentId: string | null) => {
         nodes.forEach(dn => {
+            // Push the deployment node itself (Cluster, Datacenter, Region, etc)
             flatDeployments.push({ ...dn, type: 'DeploymentNode', c4Level: 'DeploymentNode', parentId });
             if (dn.containerInstances) {
                 dn.containerInstances.forEach((ci: any) => {
@@ -41,6 +54,8 @@ export function detectPatterns(arch: any, registry: Registry): DiscoveryResult[]
     };
     parseTree(arch.deployment?.nodes || [], null);
 
+    // 3. Build Adjacency List for 'connects_to' generic relationship searches
+    // Enables O(1) lookups for line connections between nodes
     const adjList: Record<string, string[]> = {};
     const rels = arch.model?.relationships || [];
     rels.forEach((rel: any) => {
@@ -50,6 +65,7 @@ export function detectPatterns(arch: any, registry: Registry): DiscoveryResult[]
         }
     });
 
+    // Helper to determine if a node is geometrically placed inside another node
     const isDescendant = (childId: string, possibleParentId: string): boolean => {
         let curr = flatDeployments.find(n => n.id === childId);
         while (curr && curr.parentId) {
@@ -61,35 +77,50 @@ export function detectPatterns(arch: any, registry: Registry): DiscoveryResult[]
 
     const results: DiscoveryResult[] = [];
 
+    // 4. Run the Engine! Evaluate each detector rule against the canvas.
     detectors.forEach(detector => {
         const nodeMatchConds = detector.conditions.filter((c: any) => c.node_match);
         const relConds = detector.conditions.filter((c: any) => c.relationship);
 
+        // a. Candidate Selection
+        // For each required alias (e.g. 'workload', 'cluster'), find ALL nodes on the canvas that fit the rule.
         const aliasCandidates: Record<string, any[]> = {};
         for (const cond of nodeMatchConds) {
             const rules = cond.node_match;
             const alias = rules.alias;
             aliasCandidates[alias] = flatDeployments.filter(n => {
+                // If this node is already part of THIS specific pattern officially, don't re-detect it.
+                // We only want to detect loose/ungoverned components or those governed by something else.
                 if (n.properties?.origin_pattern === detector.target_pattern) return false;
 
+                // Match C4 Level if specified
                 if (rules.c4Level && n.c4Level !== rules.c4Level && n.type !== rules.c4Level) return false;
+
+                // Match specific blueprint reference if requested (e.g. 'batch-container' widget)
                 if (rules.pattern_ref) {
                     const id = n.properties?.pattern_ref?.split('@')[0] || n.pattern_ref?.split('@')[0];
                     if (id !== rules.pattern_ref) return false;
                 }
+
+                // Flexible regex matching for wild-west brownfield discovery
                 if (rules.name_regex) {
                     const rx = new RegExp(rules.name_regex, 'i');
                     if (!rx.test(n.name || '')) return false;
                 }
                 return true;
             });
-            if (aliasCandidates[alias].length === 0) return; // No matches for this
+            if (aliasCandidates[alias].length === 0) return; // If any required actor is completely absent, this pattern isn't here.
         }
 
         const aliases = Object.keys(aliasCandidates);
 
+        // b. Combinatorial Backtracking Algorithm (Subgraph Isomorphism Search)
+        // Since there might be multiple 'clusters' and multiple 'workloads', we have to
+        // test every combination to see if they specifically connect in the way the pattern demands.
         const backtrack = (idx: number, currentCombo: Record<string, any>) => {
             if (idx === aliases.length) {
+                // We have a full candidate set (e.g. 1 gw, 1 lb, 1 api, 1 cluster).
+                // Now test relationships!
                 let valid = true;
                 for (const cond of relConds) {
                     const r = cond.relationship;
@@ -98,15 +129,17 @@ export function detectPatterns(arch: any, registry: Registry): DiscoveryResult[]
                     if (!src || !tgt) { valid = false; break; }
 
                     if (r.type === 'hosted_on') {
+                        // Is the source physically inside the target container?
                         if (!isDescendant(src.id, tgt.id)) valid = false;
                     } else if (r.type === 'connects_to') {
+                        // Is there a line drawn from source to target?
                         const sId = src.logicalId || src.id;
                         const tId = tgt.logicalId || tgt.id;
                         if (!adjList[sId] || !adjList[sId].includes(tId)) valid = false;
                     }
                 }
                 if (valid) {
-                    // Check if identical combo already pushed (could happen if generic nodes)
+                    // Success! Check if identical combo already pushed (deduplication)
                     const isDup = results.some(r => r.detectorId === detector.id && Object.keys(currentCombo).every(k => r.matchedNodes[k].id === currentCombo[k].id));
                     if (!isDup) {
                         results.push({

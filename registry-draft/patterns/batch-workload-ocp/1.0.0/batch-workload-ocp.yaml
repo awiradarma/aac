@@ -1,3 +1,9 @@
+# ==============================================================================
+# PATTERN SPECIFICATION: Autosys Batch on OpenShift
+# ==============================================================================
+# Defines an asynchronous batch processing job triggered externally by Autosys.
+# Mandates the presence of the `batch-container` widget physically hosted inside
+# a compliant `openshift-cluster-v4` instance.
 id: batch-workload-ocp
 name: Autosys Batch on OpenShift
 version: 1.0.0

@@ -13,6 +13,12 @@ interface Props {
     onClose?: () => void;
 }
 
+/**
+ * Renders the context-aware sidebar on the right side of the canvas.
+ * This panel dynamically loads parameter schemas (`const`, `options`, `type`) from the respective 
+ * YAML registries based on the currently selected node (`pattern_ref`). 
+ * It manages the local instance state without mutating the global registry template.
+ */
 export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, onUpdateNodeData, onUpdateEdgeData, onClose }) => {
     const { deleteElements, getNodes } = useReactFlow();
 

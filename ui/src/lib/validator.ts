@@ -12,6 +12,8 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
     const flatDeployments: any[] = [];
 
     const getMemberships = (n: any) => n.properties?.memberships || n.memberships || {};
+    // Helper to find what alias a node might have map to in a given expansion instance
+    // Important because the same generic node might be 'pAdopted' into multiple patterns (e.g. cluster)
     const getSuffixForExp = (n: any, expId: string) => {
         const memberships = getMemberships(n);
         if (memberships[expId]) return memberships[expId];
@@ -107,7 +109,13 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
         return patterns.find(p => p.id === val);
     };
 
-    // Smart Adoption & Completeness
+    // -------------------------------------------------------------------------------------------------
+    // 1. SMART ADOPTION & COMPLETENESS CHECKING
+    // -------------------------------------------------------------------------------------------------
+    // Pattern macro expansions require very specific nodes to exist to be considered 'complete' (e.g. cluster AND lb).
+    // This evaluates a tracked drop session, checks the registry for what *should* be there, and finds gaps.
+    // However, if a user deleted a required component, but manually recreated a generic component of the exact same type/version nearby,
+    // this auto-adopts it into the logical grouping so it can be verified for architectural constraints.
     Object.entries(expansionInstances).forEach(([expId, instanceNodes]) => {
         // Find origin pattern (look for MUST HAVE origin_pattern on any node in expansion)
         const master = instanceNodes.find(n => n.properties?.origin_pattern || n.origin_pattern);
@@ -128,7 +136,8 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
         needed.forEach(item => {
             const hasIt = instanceNodes.some(n => getSuffixForExp(n, expId) === item.suffix);
             if (!hasIt) {
-                // Adoption search
+                // Feature: Smart Adoption search
+                // Find ANY free-floating node in the same parent vicinity that matches the required blueprint reference
                 const parentIds = Array.from(new Set(instanceNodes.map(n => n.parentId)));
                 const candidate = flatDeployments.find(n =>
                     parentIds.includes(n.parentId) &&
@@ -136,6 +145,7 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
                     !getSuffixForExp(n, expId)
                 );
                 if (candidate) {
+                    // Update state to bind the orphan back into this pattern instance
                     candidate.memberships = { ...getMemberships(candidate), [expId]: item.suffix };
                     instanceNodes.push(candidate);
                 } else {
