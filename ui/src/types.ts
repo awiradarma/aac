@@ -80,6 +80,7 @@ export type Registry = {
     version: string;
     deployment_hierarchies?: DeploymentHierarchy[];
     patterns: Pattern[];
+    detectors?: any[];
 };
 
 export type NodeData = {

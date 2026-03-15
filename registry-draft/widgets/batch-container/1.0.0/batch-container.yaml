@@ -1,0 +1,21 @@
+id: batch-container
+name: Batch Container
+version: 1.0.0
+c4Level: Container
+capabilities:
+  - batch-workload
+parameters:
+  language:
+    type: string
+    options:
+      - java
+      - python
+      - go
+    default: python
+  schedule:
+    type: string
+    default: "0 0 * * *"
+display_metadata:
+  icon: Box
+  color: blue
+  category: Container

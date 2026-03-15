@@ -7,8 +7,9 @@ import type { NodeData } from './types';
 import yaml from 'js-yaml';
 import { initRegistry, getPatternById, getRegistry } from './lib/registry';
 import { validateArchitecture } from './lib/validator';
+import { detectPatterns, type DiscoveryResult } from './lib/detector';
 import type { Node } from 'reactflow';
-import { Download, Upload, CheckCircle, Settings2, Box, Link2 } from 'lucide-react';
+import { Download, Upload, CheckCircle, Settings2, Box, Link2, Wand2 } from 'lucide-react';
 
 export default function App() {
   const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>([]);
@@ -23,6 +24,7 @@ export default function App() {
   const [patternToAdd, setPatternToAdd] = useState<{ type: string; patternId: string; version: string } | null>(null);
   const [linkingNodeId, setLinkingNodeId] = useState<string | null>(null);
   const [validationModal, setValidationModal] = useState<{ isOpen: boolean, type: 'success' | 'error', message: string }>({ isOpen: false, type: 'success', message: '' });
+  const [discoveryResults, setDiscoveryResults] = useState<DiscoveryResult[] | null>(null);
 
   useEffect(() => {
     if ((selectedNodeId || selectedEdgeId) && window.innerWidth < 768) {
@@ -386,6 +388,60 @@ export default function App() {
     }
   };
 
+  const handleDiscover = () => {
+    try {
+      const ast = generateYamlObj();
+      const results = detectPatterns(ast, getRegistry());
+      setDiscoveryResults(results);
+    } catch (e: any) {
+      console.error("Discovery error:", e);
+      setValidationModal({
+        isOpen: true,
+        type: 'error',
+        message: "❌ Error during pattern discovery:\n\n" + e.message
+      });
+    }
+  };
+
+  const applyDiscoveries = (results: DiscoveryResult[]) => {
+    if (results.length === 0) return;
+
+    setNodes(nds => {
+      let nextNodes = [...nds];
+      results.forEach((res, i) => {
+        const expId = `auto-exp-${Date.now()}-${i}`;
+
+        Object.entries(res.matchedNodes).forEach(([alias, matchedNode]) => {
+          // Find the exact react-flow node ID using the flat AST id
+          const targetId = matchedNode.id;
+
+          nextNodes = nextNodes.map(n => {
+            if (n.id === targetId || (n.type === 'workloadNode' && (n as any)._logicalContainerId === targetId)) {
+              return {
+                ...n,
+                data: {
+                  ...n.data,
+                  origin_pattern: res.targetPattern,
+                  macro_expansion_id: expId,
+                  macro_id_suffix: alias
+                }
+              };
+            }
+            return n;
+          });
+        });
+      });
+      return nextNodes;
+    });
+
+    setDiscoveryResults(null);
+    setValidationModal({
+      isOpen: true,
+      type: 'success',
+      message: `✅ Successfully applied ${results.length} discovered pattern(s)! Click Validate Design to check for gaps.`
+    });
+  };
+
   if (!isRegistryLoaded) {
     return <div className="flex h-screen items-center justify-center font-bold text-xl text-slate-600">Loading Registry...</div>;
   }
@@ -401,6 +457,14 @@ export default function App() {
           <h1 className="text-xl font-bold tracking-tight sm:hidden">AaC</h1>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={handleDiscover}
+            className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-sm font-semibold rounded-md shadow transition-colors flex items-center gap-2"
+          >
+            <Wand2 className="w-4 h-4" />
+            <span className="hidden sm:inline">Auto-Detect</span>
+          </button>
           <button
             type="button"
             onClick={handleValidate}
@@ -551,6 +615,72 @@ export default function App() {
                 >
                   Close
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Discovery Modal Overlay */}
+        {discoveryResults !== null && (
+          <div className="fixed inset-0 bg-slate-900/60 z-[200] flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              <div className="p-4 border-b bg-indigo-50 border-indigo-100 flex items-center justify-between text-indigo-900">
+                <div className="flex items-center gap-2">
+                  <Wand2 className="w-5 h-5" />
+                  <h3 className="font-bold text-lg">Pattern Discovery Results</h3>
+                </div>
+                <button
+                  onClick={() => setDiscoveryResults(null)}
+                  className="p-1 hover:bg-indigo-100 rounded-md transition-colors"
+                  type="button"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto bg-white flex-1 flex flex-col gap-4">
+                {discoveryResults.length === 0 ? (
+                  <div className="text-center text-slate-500 py-8">
+                    No new patterns detected in the current architecture graph.
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm text-slate-600 mb-2">We analyzed your architecture and found {discoveryResults.length} known pattern(s). Would you like to adopt them and enforce their validation rules?</p>
+                    {discoveryResults.map((res, i) => (
+                      <div key={i} className="border border-slate-200 rounded-lg p-4 bg-slate-50 relative">
+                        <h4 className="font-semibold text-slate-800 mb-1">{res.detectorName}</h4>
+                        <div className="text-xs font-mono text-slate-500 mb-3 bg-slate-200 px-2 py-1 rounded w-fit">{res.targetPattern}</div>
+                        <div className="flex flex-col gap-1">
+                          {Object.entries(res.matchedNodes).map(([alias, n]) => (
+                            <div key={alias} className="text-sm flex items-center gap-2">
+                              <span className="font-semibold text-indigo-600 min-w-[80px] text-right">{alias}</span>
+                              <span className="text-slate-400">→</span>
+                              <span className="truncate" title={n.name || n.id}>{n.name || n.id}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+              <div className="p-4 border-t bg-slate-50 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDiscoveryResults(null)}
+                  className="px-4 py-2 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-md transition-colors"
+                >
+                  Cancel
+                </button>
+                {discoveryResults.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => applyDiscoveries(discoveryResults)}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-md shadow transition-colors flex items-center gap-2"
+                  >
+                    <Wand2 className="w-4 h-4" />
+                    Apply Discovered Patterns
+                  </button>
+                )}
               </div>
             </div>
           </div>

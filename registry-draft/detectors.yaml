@@ -1,0 +1,47 @@
+detectors:
+  - id: detect-batch-on-ocp
+    target_pattern: batch-workload-ocp@1.0.0
+    name: Autosys Batch Discovery
+    description: Identifies batch/job containers running on OpenShift clusters.
+    conditions:
+      - node_match:
+          alias: "workload"
+          pattern_ref: "batch-container"
+      - node_match:
+          alias: "cluster"
+          pattern_ref: "openshift-cluster-v4"
+      - relationship:
+          type: "hosted_on"
+          source: "workload"
+          target: "cluster"
+
+  - id: detect-internal-api-v3
+    target_pattern: internal-api-ocp@3.0.0
+    name: Internal API (Apigee + LB) Discovery
+    description: Identifies Apigee Gateway -> LB -> API Container pattern on OpenShift.
+    conditions:
+      - node_match:
+          alias: "api"
+          c4Level: "Container"
+          name_regex: "api|endpoint|web"
+      - node_match:
+          alias: "lb"
+          pattern_ref: "local-load-balancer"
+      - node_match:
+          alias: "gw"
+          pattern_ref: "api-gateway"
+      - node_match:
+          alias: "cluster"
+          pattern_ref: "openshift-cluster-v4"
+      - relationship:
+          type: "hosted_on"
+          source: "api"
+          target: "cluster"
+      - relationship:
+          type: "connects_to"
+          source: "gw"
+          target: "lb"
+      - relationship:
+          type: "connects_to"
+          source: "lb"
+          target: "api"

@@ -22,6 +22,13 @@ macro_expansion:
       layer: Cluster
       c4Level: DeploymentNode
       layout_hint: { x: 0, y: 0 }
+      children:
+        - id_suffix: workload
+          type: workloadNode
+          pattern_ref: batch-container@1.0.0
+          label: Autosys Batch Job
+          c4Level: Container
+          layout_hint: { x: 50, y: 80 }
   edges: []
   workload_target_suffix: cluster
 display_metadata:

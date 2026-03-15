@@ -37,3 +37,8 @@ widgets:
     versions:
       - "1.0.0"
     latest: "1.0.0"
+  - id: batch-container
+    name: Batch Container
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"

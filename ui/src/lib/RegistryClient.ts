@@ -35,6 +35,10 @@ export class RegistryClient {
         return this.fetchYaml(`${this.baseUrl}/hierarchy-registry.yaml`);
     }
 
+    async getDetectorsRegistry(): Promise<any> {
+        return this.fetchYaml(`${this.baseUrl}/detectors.yaml`);
+    }
+
     async getWidget(id: string, version: string): Promise<any> {
         const path = `${this.baseUrl}/widgets/${id}/${version}/${id}.yaml`;
         return this.fetchYaml(path);

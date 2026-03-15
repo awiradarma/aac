@@ -5,6 +5,7 @@ export class ResolverEngine {
     private client: RegistryClient;
     private resolvedPatterns: Pattern[] = [];
     private resolvedHierarchies: any[] = [];
+    private resolvedDetectors: any[] = [];
     private resolutionComplete = false;
 
     constructor(baseUrl: string) {
@@ -17,18 +18,21 @@ export class ResolverEngine {
                 registryName: "Dynamic-Registry",
                 version: "latest",
                 patterns: this.resolvedPatterns,
-                deployment_hierarchies: this.resolvedHierarchies
+                deployment_hierarchies: this.resolvedHierarchies,
+                detectors: this.resolvedDetectors
             };
         }
 
         try {
-            const [widgetIndex, patternIndex, hierarchyIndex] = await Promise.all([
+            const [widgetIndex, patternIndex, hierarchyIndex, detectorsObj] = await Promise.all([
                 this.client.getWidgetRegistry(),
                 this.client.getPatternRegistry(),
-                this.client.getHierarchyRegistry()
+                this.client.getHierarchyRegistry(),
+                this.client.getDetectorsRegistry().catch(() => ({ detectors: [] }))
             ]);
 
             this.resolvedHierarchies = hierarchyIndex.hierarchies || [];
+            this.resolvedDetectors = detectorsObj.detectors || [];
 
             const promises: Promise<Pattern>[] = [];
 
@@ -58,7 +62,8 @@ export class ResolverEngine {
                 registryName: "Dynamic-Registry",
                 version: "latest",
                 patterns: this.resolvedPatterns,
-                deployment_hierarchies: this.resolvedHierarchies
+                deployment_hierarchies: this.resolvedHierarchies,
+                detectors: this.resolvedDetectors
             };
         } catch (error) {
             console.error("ResolverEngine failed to initialize", error);
