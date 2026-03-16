@@ -138,14 +138,15 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
             if (!hasIt) {
                 // Feature: Smart Adoption search
                 // Find ANY free-floating node in the same parent vicinity that matches the required blueprint reference
-                const parentIds = Array.from(new Set(instanceNodes.map(n => n.parentId)));
                 const candidate = flatDeployments.find(n =>
-                    parentIds.includes(n.parentId) &&
-                    n.properties?.pattern_ref === item.pattern_ref &&
+                    (n.properties?.pattern_ref === item.pattern_ref || n.pattern_ref === item.pattern_ref) &&
                     !getSuffixForExp(n, expId)
                 );
                 if (candidate) {
-                    // Update state to bind the orphan back into this pattern instance
+                    // Update state to bind the orphan back into this pattern instance. Validated temporarily.
+                    if (!candidate.properties) candidate.properties = {};
+                    if (!candidate.properties.memberships) candidate.properties.memberships = {};
+                    candidate.properties.memberships[expId] = item.suffix;
                     candidate.memberships = { ...getMemberships(candidate), [expId]: item.suffix };
                     instanceNodes.push(candidate);
                 } else {

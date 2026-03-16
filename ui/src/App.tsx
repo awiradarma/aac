@@ -9,7 +9,7 @@ import { initRegistry, getPatternById, getRegistry } from './lib/registry';
 import { validateArchitecture } from './lib/validator';
 import { detectPatterns, type DiscoveryResult } from './lib/detector';
 import type { Node } from 'reactflow';
-import { Download, Upload, CheckCircle, Settings2, Box, Link2, Wand2 } from 'lucide-react';
+import { Download, Upload, CheckCircle, Settings2, Box, Link2, Wand2, Trash2 } from 'lucide-react';
 
 /**
  * The core Application component encapsulating the entire AaC Fabric UI.
@@ -493,6 +493,24 @@ export default function App() {
             <span className="hidden sm:inline">Validate Design</span>
           </button>
 
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm('Are you sure you want to clear the canvas and start a new design?')) {
+                setNodes([]);
+                setEdges([]);
+                setSelectedNodeId(null);
+                setSelectedEdgeId(null);
+                setValidationModal({ isOpen: false, type: 'success', message: '' });
+                setDiscoveryResults(null);
+              }
+            }}
+            className="px-3 py-2 bg-red-600 hover:bg-red-500 text-sm font-semibold rounded-md shadow transition-colors flex items-center gap-2"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span className="hidden sm:inline">Clear Canvas</span>
+          </button>
+
           <div className="w-px h-6 bg-slate-700 mx-1 sm:mx-2 hidden sm:block"></div>
 
           <label className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-sm font-semibold rounded-md shadow transition-colors cursor-pointer flex items-center gap-2">
@@ -584,14 +602,13 @@ export default function App() {
               <Box className="w-5 h-5" />
               Patterns
             </button>
-            {(selectedNode || selectedEdge) && (
-              <button
-                onClick={() => setIsPropertyPanelOpen(true)}
-                className="flex items-center justify-center w-12 h-12 bg-slate-800 hover:bg-slate-700 text-white rounded-full shadow-lg transition-transform active:scale-95"
-              >
-                <Settings2 className="w-5 h-5" />
-              </button>
-            )}
+            <button
+              onClick={() => setIsPropertyPanelOpen(true)}
+              className="flex items-center justify-center w-12 h-12 bg-slate-800 hover:bg-slate-700 text-white rounded-full shadow-lg transition-transform active:scale-95"
+              title={selectedNode || selectedEdge ? "Properties" : "Design Overview"}
+            >
+              <Settings2 className="w-5 h-5" />
+            </button>
             {selectedNode && (
               <button
                 onClick={() => setLinkingNodeId(linkingNodeId === selectedNode.id ? null : selectedNode.id)}

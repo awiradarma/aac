@@ -4,6 +4,7 @@ import ReactFlow, {
     Controls,
     MiniMap,
     addEdge,
+    BackgroundVariant
 } from 'reactflow';
 import type { Connection, Edge, Node } from 'reactflow';
 import 'reactflow/dist/style.css';
@@ -469,7 +470,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 fitView
                 className="bg-slate-50"
             >
-                <Background color="#cbd5e1" gap={16} />
+                <Background variant={BackgroundVariant.Lines} color="#e2e8f0" gap={24} />
                 <Controls />
                 <MiniMap className="hidden md:block" />
             </ReactFlow>
