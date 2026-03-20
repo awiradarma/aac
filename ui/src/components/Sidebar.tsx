@@ -10,12 +10,15 @@ const DynamicIcon = ({ name, className }: { name?: string, className?: string })
     return <Icon className={className} />;
 };
 
+import type { DiagramView } from '../types';
+
 interface Props {
+    activeView?: DiagramView;
     onAddPattern?: (nodeType: string, patternId: string, version: string) => void;
     onClose?: () => void;
 }
 
-export const Sidebar: React.FC<Props> = ({ onAddPattern, onClose }) => {
+export const Sidebar: React.FC<Props> = ({ activeView, onAddPattern, onClose }) => {
     const onDragStart = (event: React.DragEvent, nodeType: string, patternId: string, version: string) => {
         event.dataTransfer.setData('application/reactflow', nodeType);
         event.dataTransfer.setData('application/patternId', patternId);
@@ -23,7 +26,24 @@ export const Sidebar: React.FC<Props> = ({ onAddPattern, onClose }) => {
         event.dataTransfer.effectAllowed = 'move';
     };
 
-    const patterns = getRegistry().patterns;
+    let patterns = getRegistry().patterns;
+
+    // Filter patterns based on the currently active view type
+    if (activeView) {
+        const allowedLevelsByView: Record<string, string[]> = {
+            'SystemLandscape': ['Person', 'SoftwareSystem'],
+            'SystemContext': ['Person', 'SoftwareSystem'],
+            'Container': ['Person', 'SoftwareSystem', 'Container'],
+            'Component': ['Person', 'SoftwareSystem', 'Container', 'Component'],
+            'Deployment': ['DeploymentNode', 'InfrastructureNode', 'Container', 'SoftwareSystem']
+        };
+
+        const allowed = allowedLevelsByView[activeView.type];
+        if (allowed) {
+            patterns = patterns.filter(p => allowed.includes(p.c4Level));
+        }
+    }
+
     const categories: Record<string, any[]> = {};
 
     patterns.forEach(p => {
@@ -47,7 +67,9 @@ export const Sidebar: React.FC<Props> = ({ onAddPattern, onClose }) => {
         <aside className="w-72 border-r border-slate-200 bg-white flex flex-col h-full shadow-sm">
             <div className="p-5 border-b border-slate-100 shrink-0 relative">
                 <h2 className="text-xl font-bold text-slate-900 tracking-tight pr-8">Pattern Registry</h2>
-                <div className="text-xs text-slate-400 mt-1 font-medium uppercase tracking-wider">Catalog of Assets</div>
+                <div className="text-xs text-slate-400 mt-1 font-medium uppercase tracking-wider">
+                    {activeView ? `Filtered for ${activeView.type}` : 'Catalog of Assets'}
+                </div>
                 {onClose && (
                     <button onClick={onClose} className="md:hidden absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
                         <X className="w-5 h-5" />

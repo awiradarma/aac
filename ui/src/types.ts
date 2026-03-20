@@ -67,12 +67,12 @@ export type Pattern = {
     min_height?: number;
     parameters?: Record<string, PatternParameter>;
     rules?: PatternRule[];
-    infrastructure_requirements?: {
+    deployment_constraints?: {
         allowed_hierarchies?: string[]; // Governs legal environments (e.g. AWS vs On-Prem)
         [key: string]: any;
     };
     capabilities?: string[];
-    crossplane_mapping?: any; // Infrastructure as code mapping definitions
+    custom_properties?: Record<string, string>; // User-defined key-value properties aligned with Structurizr DSL
     composition?: Composition;
     display_metadata?: {
         icon?: string;
@@ -113,4 +113,13 @@ export type NodeData = {
     composition_alias?: string; // If this is an expanded node, what alias was it? (e.g. 'lb')
     composition_id?: string; // The specific drop session ID to group expanded components together
     memberships?: Record<string, string>; // Sub-graph relationships if adopted by multiple patterns (expansionId -> suffix)
+    layoutMap?: Record<string, { x: number, y: number, width?: number, height?: number, parentNode?: string }>; // Per-view layout configurations
+};
+
+export type DiagramView = {
+    id: string;
+    name: string;
+    type: string; // 'SystemLandscape' | 'SystemContext' | 'Container' | 'Component' | 'Deployment'
+    include: string[]; // List of IDs or ['*']
+    exclude: string[]; // List of IDs to hide
 };

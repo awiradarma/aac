@@ -1,0 +1,18 @@
+id: software-system
+name: Software System
+version: 1.0.0
+c4Level: SoftwareSystem
+capabilities:
+  - software-system
+parameters:
+  system_type:
+    type: string
+    options:
+      - Internal System
+      - External System
+      - SaaS Provider
+    default: Internal System
+display_metadata:
+  icon: Server
+  color: slate
+  category: SoftwareSystem

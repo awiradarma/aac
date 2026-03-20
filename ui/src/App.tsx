@@ -1,27 +1,57 @@
 import { useState, useCallback, useEffect } from 'react';
-import { ReactFlowProvider, useNodesState, useEdgesState } from 'reactflow';
+import { ReactFlowProvider, useEdgesState, applyNodeChanges } from 'reactflow';
 import { Sidebar } from './components/Sidebar';
 import { CanvasArea } from './components/Canvas';
 import { PropertyPanel } from './components/PropertyPanel';
-import type { NodeData } from './types';
+import type { NodeData, DiagramView } from './types';
 import yaml from 'js-yaml';
 import { initRegistry, getPatternById, getRegistry } from './lib/registry';
 import { validateArchitecture } from './lib/validator';
 import { detectPatterns, type DiscoveryResult } from './lib/detector';
 import type { Node } from 'reactflow';
-import { Download, Upload, CheckCircle, Settings2, Box, Link2, Wand2, Trash2 } from 'lucide-react';
+import { Download, Upload, CheckCircle, Settings2, Box, Link2, Wand2, Trash2, Edit2 } from 'lucide-react';
 
 /**
  * The core Application component encapsulating the entire AaC Fabric UI.
  * Coordinates React Flow canvas interaction, property mutations, pattern discovery, 
  * and generation of valid YAML conforming to the Sovereign Fabric schemas.
  */
+
+const initialNodes: Node<NodeData>[] = [
+  {
+    id: 'default-system',
+    type: 'systemNode',
+    position: { x: window.innerWidth / 2 - 150, y: window.innerHeight / 2 - 100 },
+    zIndex: 5,
+    style: { width: 300, height: 200 },
+    data: {
+      label: 'Core Software System',
+      widget_ref: 'software-system@1.0.0',
+      c4Level: 'SoftwareSystem',
+      layer: 'SoftwareSystem',
+      properties: { system_type: 'Internal System' },
+      status: 'existing',
+      icon: 'Server',
+      color: 'slate',
+      min_width: 300,
+      min_height: 200,
+      memberships: {}
+    }
+  }
+];
+
+const initialViews: DiagramView[] = [
+  { id: 'default', name: 'Main System Context', type: 'SystemContext', include: ['default-system'], exclude: [] }
+];
+
 export default function App() {
-  const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>([]);
+  const [nodes, setNodes] = useState<Node<NodeData>[]>(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<any>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [isRegistryLoaded, setIsRegistryLoaded] = useState(false);
+  const [views, setViews] = useState<DiagramView[]>(initialViews);
+  const [activeViewId, setActiveViewId] = useState<string>('default');
 
   // Mobile UI states
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -29,7 +59,58 @@ export default function App() {
   const [patternToAdd, setPatternToAdd] = useState<{ type: string; patternId: string; version: string } | null>(null);
   const [linkingNodeId, setLinkingNodeId] = useState<string | null>(null);
   const [validationModal, setValidationModal] = useState<{ isOpen: boolean, type: 'success' | 'error', message: string }>({ isOpen: false, type: 'success', message: '' });
+  const [viewModal, setViewModal] = useState<{ isOpen: boolean, mode: 'create' | 'edit', viewId?: string }>({ isOpen: false, mode: 'create' });
+  const [viewModalForm, setViewModalForm] = useState({ name: '', type: 'Container' });
   const [discoveryResults, setDiscoveryResults] = useState<DiscoveryResult[] | null>(null);
+
+  // Custom node changes to track per-view coordinates dynamically
+  const onNodesChange = useCallback((changes: any[]) => {
+    setNodes((nds) => {
+      // Use reactflow's utility internally
+      const updatedNodes = applyNodeChanges(changes, nds);
+
+      return updatedNodes.map((n: Node, i: number) => {
+        const originalNode = nds[i];
+        if (n.position.x !== originalNode.position.x || n.position.y !== originalNode.position.y || n.style?.width !== originalNode.style?.width || n.parentNode !== originalNode.parentNode) {
+          const currentLayouts = n.data.layoutMap || {};
+          return {
+            ...n,
+            data: {
+              ...n.data,
+              layoutMap: {
+                ...currentLayouts,
+                [activeViewId]: {
+                  x: n.position.x,
+                  y: n.position.y,
+                  width: n.style?.width,
+                  height: n.style?.height,
+                  parentNode: n.parentNode
+                }
+              }
+            }
+          };
+        }
+        return n;
+      });
+    });
+  }, [activeViewId]);
+
+  // When activeViewId changes, swap the physical layout of all nodes to that view's saved snapshot
+  useEffect(() => {
+    setNodes((currentNodes) => currentNodes.map(n => {
+      const layout = n.data.layoutMap?.[activeViewId];
+      if (layout) {
+        return {
+          ...n,
+          position: { x: layout.x, y: layout.y },
+          style: layout.width ? { ...n.style, width: layout.width, height: layout.height } : n.style,
+          parentNode: layout.parentNode
+        };
+      }
+      return n;
+    }));
+  }, [activeViewId]);
+
 
   useEffect(() => {
     if ((selectedNodeId || selectedEdgeId) && window.innerWidth < 768) {
@@ -63,7 +144,14 @@ export default function App() {
     setEdges(eds =>
       eds.map(e => {
         if (e.id === id) {
-          return { ...e, data: { ...e.data, ...newData } };
+          const finalData = { ...e.data, ...newData };
+          return {
+            ...e,
+            data: finalData,
+            label: finalData.technology ? `${finalData.label}\n[${finalData.technology}]` : finalData.label,
+            labelStyle: { fill: '#475569', fontWeight: 700, fontSize: 11, whiteSpace: 'pre-wrap', textAlign: 'center' as any },
+            labelBgStyle: { fill: '#f8fafc', color: '#f8fafc', fillOpacity: 0.9, stroke: '#e2e8f0', strokeWidth: 1 }
+          };
         }
         return e;
       })
@@ -183,6 +271,7 @@ export default function App() {
     };
 
     structurizr.deployment.nodes = buildTree(undefined);
+    structurizr.views = views.map(v => ({ key: v.id, name: v.name, type: v.type, include: v.include, exclude: v.exclude }));
     return structurizr;
   };
 
@@ -216,6 +305,14 @@ export default function App() {
         cNodes.forEach((cn: any) => { containerMap[cn.id] = cn; });
 
         const dNodes = arch.deployment?.nodes || [];
+        const importedViews = arch.views || [];
+        if (importedViews.length > 0) {
+          setViews(importedViews.map((v: any) => ({ id: v.key || `v-${Date.now()}`, name: v.name || 'Imported View', type: v.type || 'Container', include: v.include || ['*'], exclude: v.exclude || [] })));
+          setActiveViewId(importedViews[0].key || importedViews[0].id);
+        } else {
+          setViews([{ ...initialViews[0], include: ['*'] }]);
+          setActiveViewId('default');
+        }
 
         // Layout algorithm
         let yOffset = 50;
@@ -346,6 +443,9 @@ export default function App() {
               animated: true,
               zIndex: 5000,
               style: { strokeWidth: 3, stroke: '#64748b' },
+              label: r.technology ? `${r.description || 'Uses'}\n[${r.technology}]` : (r.description || 'Uses'),
+              labelStyle: { fill: '#475569', fontWeight: 700, fontSize: 11, whiteSpace: 'pre-wrap', textAlign: 'center' as any },
+              labelBgStyle: { fill: '#f8fafc', color: '#f8fafc', fillOpacity: 0.9, stroke: '#e2e8f0', strokeWidth: 1 },
               data: {
                 label: r.description || 'Uses',
                 technology: r.technology || ''
@@ -461,6 +561,14 @@ export default function App() {
     });
   };
 
+  const activeView = views.find(v => v.id === activeViewId) || views[0];
+  const visibleNodes = nodes.map(n => {
+    let isHidden = false;
+    if (activeView.exclude.includes(n.id)) isHidden = true;
+    else if (!activeView.include.includes('*') && !activeView.include.includes(n.id)) isHidden = true;
+    return { ...n, hidden: isHidden };
+  });
+
   if (!isRegistryLoaded) {
     return <div className="flex h-screen items-center justify-center font-bold text-xl text-slate-600">Loading Registry...</div>;
   }
@@ -475,6 +583,37 @@ export default function App() {
           <h1 className="text-xl font-bold tracking-tight hidden sm:block">Sovereign AaC Fabric</h1>
           <h1 className="text-xl font-bold tracking-tight sm:hidden">AaC</h1>
         </div>
+        <div className="flex items-center gap-2 sm:gap-3 ml-4 border-l border-slate-700 pl-4 hidden md:flex">
+          <select
+            value={activeViewId}
+            onChange={(e) => setActiveViewId(e.target.value)}
+            className="bg-slate-800 text-white text-sm rounded border border-slate-700 p-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {views.map(v => (
+              <option key={v.id} value={v.id}>{v.name} ({v.type})</option>
+            ))}
+          </select>
+          <button
+            onClick={() => {
+              setViewModalForm({ name: activeView.name, type: activeView.type });
+              setViewModal({ isOpen: true, mode: 'edit', viewId: activeViewId });
+            }}
+            className="p-1.5 text-slate-400 hover:text-white transition-colors"
+            title="Edit View"
+          >
+            <Edit2 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => {
+              setViewModalForm({ name: 'New View', type: 'Container' });
+              setViewModal({ isOpen: true, mode: 'create' });
+            }}
+            className="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-sm font-semibold text-white transition-colors"
+          >
+            + View
+          </button>
+        </div>
+
         <div className="flex items-center gap-2 sm:gap-3">
           <button
             type="button"
@@ -497,10 +636,12 @@ export default function App() {
             type="button"
             onClick={() => {
               if (window.confirm('Are you sure you want to clear the canvas and start a new design?')) {
-                setNodes([]);
+                setNodes(initialNodes);
                 setEdges([]);
                 setSelectedNodeId(null);
                 setSelectedEdgeId(null);
+                setViews(initialViews);
+                setActiveViewId('default');
                 setValidationModal({ isOpen: false, type: 'success', message: '' });
                 setDiscoveryResults(null);
               }
@@ -540,6 +681,7 @@ export default function App() {
 
           <div className={`fixed inset-y-0 left-0 z-50 transform bg-white transition-transform duration-300 md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
             <Sidebar
+              activeView={activeView}
               onAddPattern={(type, id, version) => {
                 setPatternToAdd({ type, patternId: id, version });
                 setIsSidebarOpen(false);
@@ -549,9 +691,20 @@ export default function App() {
           </div>
 
           <CanvasArea
-            nodes={nodes}
+            nodes={visibleNodes}
             edges={edges}
-            setNodes={setNodes}
+            setNodes={(action: any) => {
+              setNodes((prevNodes) => {
+                const result = typeof action === 'function' ? action(prevNodes) : action;
+                // Deep hook: if new nodes were added, officially append them to the active view if it is not a wildcard
+                const newIds = result.filter((n: Node) => !prevNodes.some(p => p.id === n.id)).map((n: Node) => n.id);
+                const activeV = views.find(v => v.id === activeViewId);
+                if (newIds.length > 0 && activeV && !activeV.include.includes('*')) {
+                  setViews(cvs => cvs.map(v => v.id === activeViewId ? { ...v, include: [...v.include, ...newIds] } : v));
+                }
+                return result;
+              });
+            }}
             setEdges={setEdges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
@@ -567,6 +720,9 @@ export default function App() {
                     animated: true,
                     zIndex: 5000,
                     style: { strokeWidth: 3, stroke: '#64748b' },
+                    label: 'Uses',
+                    labelStyle: { fill: '#475569', fontWeight: 700, fontSize: 11, whiteSpace: 'pre-wrap', textAlign: 'center' as any },
+                    labelBgStyle: { fill: '#f8fafc', color: '#f8fafc', fillOpacity: 0.9, stroke: '#e2e8f0', strokeWidth: 1 },
                     data: { label: 'Uses', technology: '' }
                   };
                   setEdges(eds => [...eds, newEdge]);
@@ -585,6 +741,8 @@ export default function App() {
 
           <div className={`fixed inset-y-0 right-0 w-80 max-w-[85vw] z-50 transform bg-white transition-transform duration-300 md:w-auto md:max-w-none md:relative md:translate-x-0 ${isPropertyPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
             <PropertyPanel
+              activeView={activeView}
+              onUpdateView={(v) => setViews(vs => vs.map(existing => existing.id === v.id ? v : existing))}
               selectedNode={selectedNode}
               selectedEdge={selectedEdge}
               onUpdateNodeData={handleUpdateNodeData}
@@ -717,6 +875,73 @@ export default function App() {
                     Apply Discovered Patterns
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* View Modal Overlay */}
+        {viewModal.isOpen && (
+          <div className="fixed inset-0 bg-slate-900/60 z-[200] flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              <div className="p-4 border-b bg-slate-50 border-slate-100 flex items-center justify-between text-slate-800">
+                <h3 className="font-bold text-lg">{viewModal.mode === 'create' ? 'Create New View' : 'Edit View'}</h3>
+                <button
+                  onClick={() => setViewModal({ isOpen: false, mode: 'create' })}
+                  className="p-1 hover:bg-slate-200 rounded-md transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="p-6 bg-white flex flex-col gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">View Name</label>
+                  <input
+                    type="text"
+                    value={viewModalForm.name}
+                    onChange={(e) => setViewModalForm({ ...viewModalForm, name: e.target.value })}
+                    className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="e.g. Core Banking Container View"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Diagram Level (C4)</label>
+                  <select
+                    value={viewModalForm.type}
+                    onChange={(e) => setViewModalForm({ ...viewModalForm, type: e.target.value })}
+                    className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="SystemLandscape">System Landscape</option>
+                    <option value="SystemContext">System Context</option>
+                    <option value="Container">Container</option>
+                    <option value="Component">Component</option>
+                    <option value="Deployment">Deployment</option>
+                  </select>
+                  <p className="text-xs text-slate-500 mt-2">This dictates the available patterns and validation rules applied to the canvas.</p>
+                </div>
+              </div>
+              <div className="p-4 border-t bg-slate-50 flex justify-end gap-3">
+                <button
+                  onClick={() => setViewModal({ isOpen: false, mode: 'create' })}
+                  className="px-4 py-2 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-md transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (viewModal.mode === 'create') {
+                      const newId = 'v-' + Date.now();
+                      setViews([...views, { id: newId, name: viewModalForm.name, type: viewModalForm.type, include: [], exclude: [] }]);
+                      setActiveViewId(newId);
+                    } else {
+                      setViews(views.map(v => v.id === viewModal.viewId ? { ...v, name: viewModalForm.name, type: viewModalForm.type } : v));
+                    }
+                    setViewModal({ isOpen: false, mode: 'create' });
+                  }}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-md shadow transition-colors"
+                >
+                  Save View
+                </button>
               </div>
             </div>
           </div>

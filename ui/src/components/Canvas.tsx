@@ -9,7 +9,7 @@ import ReactFlow, {
 import type { Connection, Edge, Node } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-import { DeploymentNode, ContainerNode, InfrastructureNode } from './Nodes';
+import { DeploymentNode, ContainerNode, InfrastructureNode, PersonNode, SystemNode } from './Nodes';
 import { getPatternById, getPatternByIdAndVersion } from '../lib/registry';
 import type { NodeData } from '../types';
 
@@ -17,6 +17,8 @@ const nodeTypes = {
     deploymentNode: DeploymentNode,
     containerNode: ContainerNode,
     infrastructureNode: InfrastructureNode,
+    personNode: PersonNode,
+    systemNode: SystemNode,
 };
 
 let id = 0;
@@ -40,7 +42,17 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
     const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
 
     const onConnect = useCallback((params: Edge | Connection) => {
-        const edge = { ...params, id: `e-${params.source}-${params.target}-${Date.now()}`, animated: true, zIndex: 5000, style: { strokeWidth: 3, stroke: '#64748b' }, data: { label: 'Uses', technology: '' } };
+        const edge = {
+            ...params,
+            id: `e-${params.source}-${params.target}-${Date.now()}`,
+            animated: true,
+            zIndex: 5000,
+            style: { strokeWidth: 3, stroke: '#64748b' },
+            label: 'Uses',
+            labelStyle: { fill: '#475569', fontWeight: 700, fontSize: 11, whiteSpace: 'pre-wrap', textAlign: 'center' as any },
+            labelBgStyle: { fill: '#f8fafc', color: '#f8fafc', fillOpacity: 0.9, stroke: '#e2e8f0', strokeWidth: 1 },
+            data: { label: 'Uses', technology: '' }
+        };
         setEdges((eds: Edge[]) => addEdge(edge, eds));
     }, [setEdges]);
 
@@ -82,11 +94,15 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
 
             const scale = window.innerWidth < 768 ? 0.6 : 1;
 
+            let nodeType = type;
+            if (pattern.c4Level === 'SoftwareSystem') nodeType = 'systemNode';
+            if (pattern.c4Level === 'Person') nodeType = 'personNode';
+
             const newNode: Node<NodeData> = {
                 id: getId(),
-                type,
+                type: nodeType,
                 position,
-                style: type === 'deploymentNode' ? { width: (pattern.default_width || 800) * scale, height: (pattern.default_height || 600) * scale } : undefined,
+                style: nodeType === 'deploymentNode' ? { width: (pattern.default_width || 800) * scale, height: (pattern.default_height || 600) * scale } : undefined,
                 data: {
                     label: `${pattern.name} Instance`,
                     widget_ref: `${pattern.id}@${pattern.version}`,
@@ -397,7 +413,10 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
             }
 
             // Standard Relationship Resolution based on geometric boundaries
-            if (closestParent && (closestParent.type === 'deploymentNode' || closestParent.type === 'deploymentNode')) {
+            if (pattern.c4Level === 'SoftwareSystem' || pattern.c4Level === 'Person') {
+                // Top-level C4 constructs sit directly on the root canvas, never strictly enforced into infrastructure boxes
+                newNode.zIndex = 5;
+            } else if (closestParent && (closestParent.type === 'deploymentNode' || closestParent.type === 'deploymentNode')) {
                 const parentAbs = getAbsolutePosition(closestParent);
                 newNode.parentNode = closestParent.id;
                 newNode.extent = 'parent';

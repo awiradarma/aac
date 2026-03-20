@@ -23,9 +23,12 @@
         "c4Level": {
             "type": "string",
             "enum": [
+                "SoftwareSystem",
+                "Person",
                 "Container",
                 "Component",
-                "DeploymentNode"
+                "DeploymentNode",
+                "InfrastructureNode"
             ]
         },
         "description": {
@@ -49,35 +52,6 @@
                     "type"
                 ]
             }
-        },
-        "infrastructure_requirements": {
-            "type": "object",
-            "properties": {
-                "host_capability": {
-                    "type": "string"
-                },
-                "required_plugins": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "crossplane_mapping": {
-            "type": "object",
-            "properties": {
-                "kind": {
-                    "type": "string"
-                },
-                "apiVersion": {
-                    "type": "string"
-                }
-            },
-            "required": [
-                "kind",
-                "apiVersion"
-            ]
         },
         "constraints": {
             "type": "array",
@@ -137,6 +111,27 @@
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/nodeExpansion"
+                    }
+                }
+            }
+        },
+        "custom_properties": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string"
+            },
+            "description": "User-defined key-value properties aligned with Structurizr DSL."
+        },
+        "deployment_constraints": {
+            "type": "object",
+            "properties": {
+                "host_capability": {
+                    "type": "string"
+                },
+                "required_plugins": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
                     }
                 }
             }

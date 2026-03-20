@@ -15,7 +15,7 @@ description: Enterprise API deployment using standardized API Container on OCP.
 # ------------------------------------------------------------------------------
 # PLACEMENT CONSTRAINTS
 # ------------------------------------------------------------------------------
-infrastructure_requirements:
+deployment_constraints:
   host_capability: openshift-cluster-v4
   allowed_hierarchies:
     - on-prem-ocp

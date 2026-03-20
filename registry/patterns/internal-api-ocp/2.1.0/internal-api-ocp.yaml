@@ -20,7 +20,7 @@ description: Multi-region API deployment with GSLB and API Gateway ingress.
 # ------------------------------------------------------------------------------
 # The 'infrastructure_requirements' block ensures that this pattern can ONLY
 # be dropped or moved into specific approved infrastructure stacks.
-infrastructure_requirements:
+deployment_constraints:
   host_capability: openshift-cluster-v4
   allowed_hierarchies:
     # Restricts deployment to on-prem OpenShift stacks defined in the registry.
@@ -78,10 +78,6 @@ display_metadata:
   icon: Box
   color: blue
   category: Container
-
-crossplane_mapping:
-  kind: XInternalAPI
-  apiVersion: arch.acme.com/v1alpha1
 
 # ------------------------------------------------------------------------------
 # GOVERNANCE RULES & CONNECTIVITY (Bucket 4: Path Limits)

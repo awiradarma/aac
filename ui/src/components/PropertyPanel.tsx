@@ -2,11 +2,14 @@ import React from 'react';
 import { getPatternById } from '../lib/registry';
 import { useReactFlow } from 'reactflow';
 import type { Edge, Node } from 'reactflow';
-import type { NodeData } from '../types';
+import type { NodeData, DiagramView } from '../types';
+import { Eye, EyeOff } from 'lucide-react';
 import { Trash2, X, Box } from 'lucide-react';
 
 interface Props {
     selectedNode: Node<NodeData> | null;
+    activeView?: DiagramView;
+    onUpdateView?: (v: DiagramView) => void;
     selectedEdge?: Edge | null;
     onUpdateNodeData: (id: string, newData: any) => void;
     onUpdateEdgeData?: (id: string, newData: any) => void;
@@ -19,7 +22,7 @@ interface Props {
  * YAML registries based on the currently selected node (`widget_ref`). 
  * It manages the local instance state without mutating the global registry template.
  */
-export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, onUpdateNodeData, onUpdateEdgeData, onClose }) => {
+export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, activeView, onUpdateView, onUpdateNodeData, onUpdateEdgeData, onClose }) => {
     const { deleteElements, getNodes } = useReactFlow();
 
     if (selectedEdge) {
@@ -53,7 +56,7 @@ export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, onU
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Technology</label>
+                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Technology <span className="text-slate-400 lowercase font-normal">(optional)</span></label>
                         <input
                             type="text"
                             value={selectedEdge.data?.technology || ''}
@@ -191,6 +194,45 @@ export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, onU
                     )}
                 </div>
             </div>
+
+
+            {activeView && onUpdateView && (
+                <div className="mb-6 p-4 bg-slate-100 rounded-lg flex items-center justify-between">
+                    <div className="flex flex-col">
+                        <span className="text-sm font-bold text-slate-800">View Visibility</span>
+                        <span className="text-xs text-slate-500">Hide from {activeView.name}</span>
+                    </div>
+                    <button
+                        onClick={() => {
+                            const v = { ...activeView };
+                            const isExcluded = v.exclude.includes(selectedNode.id) || (!v.include.includes('*') && !v.include.includes(selectedNode.id));
+                            if (isExcluded) {
+                                v.exclude = v.exclude.filter(id => id !== selectedNode.id);
+                                if (!v.include.includes('*') && !v.include.includes(selectedNode.id)) {
+                                    v.include = [...v.include, selectedNode.id];
+                                }
+                            } else {
+                                if (v.include.includes('*')) {
+                                    v.exclude = [...v.exclude, selectedNode.id];
+                                } else {
+                                    v.include = v.include.filter(id => id !== selectedNode.id);
+                                }
+                            }
+                            onUpdateView(v);
+                        }}
+                        className={`p-2 rounded-md transition-colors flex items-center gap-1 ${(activeView.exclude.includes(selectedNode.id) || (!activeView.include.includes('*') && !activeView.include.includes(selectedNode.id)))
+                            ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                            : 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200'
+                            }`}
+                    >
+                        {(activeView.exclude.includes(selectedNode.id) || (!activeView.include.includes('*') && !activeView.include.includes(selectedNode.id))) ? (
+                            <><EyeOff className="w-4 h-4" /> <span className="text-xs font-bold">Hidden</span></>
+                        ) : (
+                            <><Eye className="w-4 h-4" /> <span className="text-xs font-bold">Visible</span></>
+                        )}
+                    </button>
+                </div>
+            )}
 
             <div className="mb-6 p-3 bg-slate-50 rounded border border-slate-100 flex flex-col gap-3">
                 <div>

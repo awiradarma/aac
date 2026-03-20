@@ -73,6 +73,13 @@
                     "type"
                 ]
             }
+        },
+        "custom_properties": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string"
+            },
+            "description": "User-defined key-value properties aligned with Structurizr DSL."
         }
     }
 }

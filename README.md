@@ -38,7 +38,7 @@ Patterns can declare specific requirements for the infrastructure they are dropp
 *   **`host_capability`**: Rejects placement if the parent container does not provide the required tag.
 
 ```yaml
-infrastructure_requirements:
+deployment_constraints:
   allowed_hierarchies: ["on-prem-ocp"]
   host_capability: ["openshift-cluster-v4"]
 ```

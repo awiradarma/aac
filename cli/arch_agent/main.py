@@ -115,7 +115,7 @@ def validate(file: str, registry_file: str = "../registry/patterns.json"):
             continue
             
         pattern = patterns[pattern_id]
-        allowed_hierarchies = pattern.get("infrastructure_requirements", {}).get("allowed_hierarchies", [])
+        allowed_hierarchies = pattern.get("deployment_constraints", {}).get("allowed_hierarchies", [])
         
         if allowed_hierarchies and deployment_hierarchies:
             context = container_deployments.get(container.get("id"), [[]])[0]
@@ -215,71 +215,7 @@ def validate(file: str, registry_file: str = "../registry/patterns.json"):
         
     typer.secho("✅ Validation passed. Architecture conforms to registry policies.", fg=typer.colors.GREEN)
 
-@app.command()
-def render(file: str, outdir: str = "./crossplane_out", registry_file: str = "../registry/patterns.json"):
-    """Render the architecture into Crossplane Compositions."""
-    path = Path(file)
-    if not path.exists():
-        typer.secho(f"Error: {file} not found.", fg=typer.colors.RED)
-        raise typer.Exit(1)
 
-    with open(path, "r") as f:
-        arch = yaml.safe_load(f)
-        
-    registry = load_registry(registry_file)
-    patterns = {p["id"]: p for p in registry["patterns"]}
-    
-    outpath = Path(outdir)
-    outpath.mkdir(exist_ok=True)
-    
-    claims = []
-    
-    def flatten_nodes(node_list):
-        result = []
-        for n in node_list:
-            result.append(n)
-            if "nodes" in n:
-                result.extend(flatten_nodes(n["nodes"]))
-        return result
-
-    # Build XR claims for Nodes
-    root_nodes = arch.get("deployment", {}).get("nodes", [])
-    all_nodes = flatten_nodes(root_nodes)
-    
-    for node in all_nodes:
-        props = node.get("properties", {})
-        pattern_id = props.get("pattern_ref", "").split("@")[0]
-        if pattern_id in patterns:
-            mapping = patterns[pattern_id].get("crossplane_mapping")
-            if mapping:
-                claims.append({
-                    "apiVersion": mapping.get("apiVersion"),
-                    "kind": mapping.get("kind"),
-                    "metadata": {"name": node.get("name")},
-                    "spec": {"parameters": {k:v for k,v in props.items() if k != "pattern_ref" and k != "status"}}
-                })
-                
-    # Build XR claims for Containers
-    containers = arch.get("model", {}).get("containers", [])
-    for container in containers:
-        props = container.get("properties", {})
-        pattern_id = props.get("pattern_ref", "").split("@")[0]
-        if pattern_id in patterns:
-            mapping = patterns[pattern_id].get("crossplane_mapping")
-            if mapping:
-                claims.append({
-                    "apiVersion": mapping.get("apiVersion"),
-                    "kind": mapping.get("kind"),
-                    "metadata": {"name": container.get("name")},
-                    "spec": {"parameters": {k:v for k,v in props.items() if k != "pattern_ref"}}
-                })
-
-    for i, claim in enumerate(claims):
-        claim_file = outpath / f"{claim['metadata']['name'].lower()}-xr.yaml"
-        with open(claim_file, "w") as f:
-            yaml.dump(claim, f)
-            
-    typer.secho(f"✅ Rendered {len(claims)} Crossplane XR claims to {outdir}/", fg=typer.colors.GREEN)
 
 if __name__ == "__main__":
     app()

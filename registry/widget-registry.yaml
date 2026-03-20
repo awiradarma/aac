@@ -47,3 +47,13 @@ widgets:
     versions:
       - "1.0.0"
     latest: "1.0.0"
+  - id: person
+    name: Person / User
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: software-system
+    name: Software System
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"

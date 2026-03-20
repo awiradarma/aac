@@ -13,7 +13,7 @@ parameters:
   scheduler:
     type: string
     const: autosys
-infrastructure_requirements:
+deployment_constraints:
   host_capability: openshift-cluster-v4
   required_plugins:
     - autosys-k8s-agent
@@ -41,6 +41,3 @@ display_metadata:
   icon: Box
   color: blue
   category: Container
-crossplane_mapping:
-  kind: XBatchJob
-  apiVersion: arch.acme.com/v1alpha1

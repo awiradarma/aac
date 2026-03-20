@@ -129,8 +129,8 @@ export const ContainerNode = ({ data, selected }: NodeProps<NodeData>) => {
                     ))}
                 </div>
             </div>
-            <Handle type="target" position={Position.Top} className={style.port} data-port-label="INPUT" />
-            <Handle type="source" position={Position.Bottom} className={style.port} data-port-label="OUTPUT" />
+            <Handle type="target" position={Position.Left} className={style.port} data-port-label="INPUT" />
+            <Handle type="source" position={Position.Right} className={style.port} data-port-label="OUTPUT" />
         </div>
     );
 };
@@ -146,6 +146,46 @@ export const InfrastructureNode = ({ data, selected }: NodeProps<NodeData>) => {
             <div className={`text-[10px] ${style.textMuted.replace('700', '600')} font-mono text-center`}>{data.widget_ref}</div>
             <Handle type="target" position={Position.Top} className={style.port} data-port-label="INPUT" />
             <Handle type="source" position={Position.Bottom} className={style.port} data-port-label="OUTPUT" />
+        </div>
+    );
+};
+
+export const PersonNode = ({ data, selected }: NodeProps<NodeData>) => {
+    const style = themedStyles(data.color || 'amber');
+    return (
+        <div className={`w-36 h-36 md:w-44 md:h-44 flex flex-col items-center justify-center bg-white border-2 rounded-full shadow-md ${selected ? `${style.borderSelected}` : `${style.border.replace('300', '200')} border-slate-300`} transition-all relative`}>
+            <div className={`w-14 h-14 md:w-16 md:h-16 flex items-center justify-center rounded-full bg-slate-50 mb-1 border border-slate-200 shadow-inner`}>
+                <DynamicIcon name={data.icon} className={`w-8 h-8 md:w-10 md:h-10 ${style.textMuted.replace('700', '600')}`} />
+            </div>
+            <div className={`font-bold text-xs md:text-sm text-center px-4 ${style.text} leading-tight`}>{data.label}</div>
+            <div className={`text-[9.px] md:text-[10px] text-slate-500 font-mono tracking-wider mt-1`}>[Person]</div>
+
+            <Handle type="target" position={Position.Left} className={style.port} />
+            <Handle type="source" position={Position.Right} className={style.port} />
+        </div>
+    );
+};
+
+export const SystemNode = ({ data, selected }: NodeProps<NodeData>) => {
+    const style = themedStyles(data.color || 'slate');
+    return (
+        <div className={`w-48 md:w-64 bg-slate-50 border-2 rounded-xl shadow-md ${selected ? `${style.borderSelected}` : `${style.border.replace('300', '300')}`} transition-all overflow-hidden flex flex-col`}>
+            <div className={`${style.bg} p-4 flex flex-col items-center justify-center text-center gap-1.5`}>
+                <DynamicIcon name={data.icon} className={`w-7 h-7 ${style.textMuted}`} />
+                <div className="font-bold text-[14px] md:text-base text-slate-800 leading-tight">{data.label}</div>
+                <div className="text-[10px] text-slate-500 font-mono tracking-wider">[Software System]</div>
+            </div>
+            {Object.keys(data.properties).length > 0 && (
+                <div className="p-3 bg-white border-t border-slate-200 flex flex-col gap-1 items-center justify-center text-center">
+                    {Object.entries(data.properties).map(([key, value]) => (
+                        <div key={key} className="text-[11px] text-slate-600 font-medium whitespace-nowrap overflow-hidden text-ellipsis w-full">
+                            {String(value)}
+                        </div>
+                    ))}
+                </div>
+            )}
+            <Handle type="target" position={Position.Left} className={style.port} />
+            <Handle type="source" position={Position.Right} className={style.port} />
         </div>
     );
 };
