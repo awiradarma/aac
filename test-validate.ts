@@ -8,7 +8,7 @@ const testAst = {
         containers: [
             {
                 id: "api1",
-                properties: { pattern_ref: "internal-api-ocp@2.1.0", topology: "active-active", database_type: "yugabyte" }
+                properties: { widget_ref: "internal-api-ocp@2.1.0", topology: "active-active", database_type: "yugabyte" }
             }
         ]
     },

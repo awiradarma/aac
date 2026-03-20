@@ -3,7 +3,7 @@ model:
     - name: Internal-API-on-OpenShift-Instance
       id: internal-api-ocp-internal-api-on-openshift-instance
       properties:
-        pattern_ref: internal-api-ocp@2.1.0
+        widget_ref: internal-api-ocp@2.1.0
         status: new
   relationships:
     - sourceId: node_8
@@ -27,19 +27,19 @@ deployment:
     - name: Primary-Region
       id: node_1
       properties:
-        pattern_ref: region@1.0.0
+        widget_ref: region@1.0.0
         status: new
       nodes:
         - name: Primary-Datacenter
           id: node_2
           properties:
-            pattern_ref: datacenter@1.0.0
+            widget_ref: datacenter@1.0.0
             status: new
           nodes:
             - name: Primary-OpenShift-Cluster
               id: node_3
               properties:
-                pattern_ref: openshift-cluster-v4@4.12.0
+                widget_ref: openshift-cluster-v4@4.12.0
                 status: new
               containerInstances:
                 - id: node_11_instance
@@ -47,25 +47,25 @@ deployment:
             - name: Local-Load-Balancer-Instance
               id: node_12
               properties:
-                pattern_ref: local-load-balancer@2.0.0
+                widget_ref: local-load-balancer@2.0.0
                 status: new
                 provider: avi
             - name: API-Gateway-Instance
               id: node_13
               properties:
-                pattern_ref: api-gateway@2.0.0
+                widget_ref: api-gateway@2.0.0
                 status: new
                 provider: apigee
         - name: Passive-Datacenter
           id: node_4
           properties:
-            pattern_ref: datacenter@1.0.0
+            widget_ref: datacenter@1.0.0
             status: new
           nodes:
             - name: Passive-OpenShift-Cluster
               id: node_5
               properties:
-                pattern_ref: openshift-cluster-v4@4.12.0
+                widget_ref: openshift-cluster-v4@4.12.0
                 status: new
               containerInstances:
                 - id: node_7_instance
@@ -73,17 +73,17 @@ deployment:
             - name: Virtual-Machine-Instance
               id: node_6
               properties:
-                pattern_ref: virtual-machine@1.0.0
+                widget_ref: virtual-machine@1.0.0
                 status: new
             - name: Local-Load-Balancer-Instance
               id: node_8
               properties:
-                pattern_ref: local-load-balancer@2.0.0
+                widget_ref: local-load-balancer@2.0.0
                 status: new
                 provider: avi
             - name: API-Gateway-Instance
               id: node_9
               properties:
-                pattern_ref: api-gateway@2.0.0
+                widget_ref: api-gateway@2.0.0
                 status: new
                 provider: apigee

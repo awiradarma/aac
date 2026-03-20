@@ -5,7 +5,7 @@ The Sovereign AaC Fabric is a next-generation architecture design and governance
 ## Core Concepts
 
 ### 1. The Registry-Driven Design
-The entire system is powered by a modular registry located in `registry-draft/`. This directory contains the definitions for all architectural components, separated into three primary categories:
+The entire system is powered by a modular registry located in `registry/`. This directory contains the definitions for all architectural components, separated into three primary categories:
 
 *   **Widgets**: Atomic infrastructure building blocks (Regions, Datacenters, Clusters, Virtual Machines).
 *   **Patterns**: Composite workloads that can automatically expand into multiple infrastructure components (e.g., an Internal API requiring a Load Balancer and a Cluster).
@@ -18,7 +18,7 @@ The entire system is powered by a modular registry located in `registry-draft/`.
 The AaC Fabric enforces architecture standards through a multi-layered constraint system defined in the YAML registry.
 
 ### 1. Structural Constraints (Hierarchies)
-Defined in `registry-draft/hierarchy-registry.yaml`, these define the "legal" stacking order of deployment layers.
+Defined in `registry/hierarchy-registry.yaml`, these define the "legal" stacking order of deployment layers.
 
 ```yaml
 hierarchies:
@@ -74,18 +74,18 @@ When a complex pattern (Macro Expansion) defines specific `properties` for its n
 
 ```yaml
 # In internal-api-ocp.yaml
-macro_expansion:
+composition:
   nodes:
     - id_suffix: lb
-      pattern_ref: local-load-balancer@2.0.0
+      widget_ref: local-load-balancer@2.0.0
       properties:
         provider: avi  # AVI is now mandatory for the LB in this specific pattern
 ```
 
 ### 6. Pattern Completeness (Existence & Repair)
-Every node defined in a `macro_expansion` is considered mandatory for that pattern's architectural integrity. 
+Every node defined in a `composition` is considered mandatory for that pattern's architectural integrity. 
 
-*   **Expansion ID Tracking**: The system uses `macro_expansion_id` to track all nodes belonging to a single pattern drop. If a required component (e.g., the `lb` or `cluster`) is deleted, the validator flags an **Architecture Gap** violation.
+*   **Expansion ID Tracking**: The system uses `composition_id` to track all nodes belonging to a single pattern drop. If a required component (e.g., the `lb` or `cluster`) is deleted, the validator flags an **Architecture Gap** violation.
 *   **Smart Adoption (Repair)**: You can repair an incomplete pattern in-place! If a mandatory node is missing (e.g., the Load Balancer), the validator will search its container for any manually added node of the same type and version. If found, it "adopts" that node and validates it against the pattern's **Standardization Blueprints** (e.g., if the pattern requires AVI, an adopted F5 load balancer will still trigger a violation until corrected).
 
 ### 7. Connectivity Assertions (Golden Paths)
@@ -103,9 +103,9 @@ If a user connects an external actor directly to the `cluster`, skipping the `gw
 ### 8. Brownfield Pattern Discovery & Auto-Detection
 For documenting existing "brownfield" designs, the governance engine is capable of reverse-engineering patterns directly out of free-form diagrams.
 
-The `registry-draft/detectors.yaml` file maintains heuristic conditions that search for specific component aliases on the canvas. 
+The `registry/detectors.yaml` file maintains heuristic conditions that search for specific component aliases on the canvas. 
 
-*   **Node Matches**: The discovery engine can fuzzy-match components based on their `c4Level`, `pattern_ref` (widget type), or even flexible regex evaluation of the user's `name` string (e.g. `name_regex: "batch|job|cron|autosys"`).
+*   **Node Matches**: The discovery engine can fuzzy-match components based on their `c4Level`, `widget_ref` (widget type), or even flexible regex evaluation of the user's `name` string (e.g. `name_regex: "batch|job|cron|autosys"`).
 *   **Relationship Conditions**: The discovery engine evaluates sub-graphs based on topological placement (`hosted_on` for hierarchical nesting) and connectivity (`connects_to` for drawn edges).
 *   **Combinatorial Search**: The engine uses an advanced recursive backtracking algorithm to check all possible combinations of candidate nodes to see if they satisfy the rigorous connectivity constraints required for adoption.
 
@@ -118,7 +118,7 @@ If a pattern is discovered, the user is prompted to officially "Adopt" it, where
 ### A. Creating a New Widget
 Widgets are the simplest units of infrastructure. To add a new one (e.g., `postgresql-instance`):
 
-1.  Create a folder: `registry-draft/widgets/postgresql-instance/1.0.0/`.
+1.  Create a folder: `registry/widgets/postgresql-instance/1.0.0/`.
 2.  Create `postgresql-instance.yaml`:
 ```yaml
 id: postgresql-instance
@@ -137,16 +137,16 @@ parameters:
     type: string
     default: "15"
 ```
-3.  Add the reference to `registry-draft/widget-registry.yaml`.
+3.  Add the reference to `registry/widget-registry.yaml`.
 
 ### B. Creating a New Pattern (Macro Expansion)
 Patterns allow you to define "opinionated" deployments. When a pattern is dragged to the canvas, it can automatically create and link multiple dependencies.
 
 ```yaml
-macro_expansion:
+composition:
   nodes:
     - id_suffix: cluster
-      pattern_ref: openshift-cluster-v4@4.12.0
+      widget_ref: openshift-cluster-v4@4.12.0
       c4Level: DeploymentNode
       layer: Cluster
       layout_hint: { x: 400, y: 0 }
@@ -154,7 +154,7 @@ macro_expansion:
         # Resolve 'datacenter_id' from the parent context
         datacenter_id: parent.properties.dc_id 
     - id_suffix: lb
-      pattern_ref: local-load-balancer@2.0.0
+      widget_ref: local-load-balancer@2.0.0
       c4Level: InfrastructureNode
       layout_hint: { x: 0, y: 0 }
   edges:
@@ -169,8 +169,8 @@ macro_expansion:
 
 Several recent capabilities have been added to improve architect experience and design troubleshooting:
 
-*   **Design Overview Panel**: When no component is selected, the properties panel now displays a high-level summary of all "Known Patterns" (Macro Patterns) currently active in the design.
-*   **Macro Pattern Memberships**: Selecting a component displays its connection to higher-level macro patterns. If a component is part of multiple expansions, it is clearly tagged with a **Shared Resource** badge.
+*   **Design Overview Panel**: When no component is selected, the properties panel now displays a high-level summary of all "Known Patterns" (Patterns) currently active in the design.
+*   **Pattern Memberships**: Selecting a component displays its connection to higher-level patterns. If a component is part of multiple expansions, it is clearly tagged with a **Shared Resource** badge.
 *   **Enhanced Smart Adoption**: The validation engine's Smart Adoption logic now searches the entire flat deployment graph (across nested hierarchies) to find and repair orphaned required components, eliminating false positives in complex architectures.
 *   **Canvas Workflow**: Added a distinct **Clear Canvas** button, improved gridline visibility for alignment, and forced the properties action button on mobile screens to ensure the Design Overview is always accessible.
 
@@ -182,8 +182,8 @@ Several recent capabilities have been added to improve architect experience and 
 *   **Design Tokens**: Custom CSS in `ui/src/index.css` manages "high-visibility" resizers and ports.
 *   **Relationship Layer**: All edges are elevated to `zIndex: 5000` to prevent occlusion by large containers.
 *   **Validation Engine**: A custom Datalog-inspired validator (`ui/src/lib/validator.ts`) verifies structural integrity, parameter constraints, and pattern standardization.
-*   **Ancestry Tracking**: Every node preserves its origin via `origin_pattern` and `macro_id_suffix`, ensuring governance is maintained even after design exports.
-*   **Registry Client**: Dynamically resolves and fetches YAML assets from the `registry-draft` public directory.
+*   **Ancestry Tracking**: Every node preserves its origin via `origin_pattern` and `composition_alias`, ensuring governance is maintained even after design exports.
+*   **Registry Client**: Dynamically resolves and fetches YAML assets from the `registry` public directory.
 
 ---
 

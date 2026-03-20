@@ -8,7 +8,7 @@ let resolverEngine: ResolverEngine | null = null;
 /**
  * Initializes the global architecture registry by pulling down the index and 
  * resolving all nested version paths. Must be called before accessing any patterns.
- * @param baseUrl URL pointing to the `registry-draft` directory.
+ * @param baseUrl URL pointing to the `registry` directory.
  */
 export const initRegistry = async (baseUrl: string = '') => {
     resolverEngine = new ResolverEngine(baseUrl);

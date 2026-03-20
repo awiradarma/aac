@@ -11,10 +11,10 @@ detectors:
       # We define aliases (arbitrary string keys) to map to literal nodes on the canvas
       - node_match:
           alias: "workload"
-          pattern_ref: "batch-container"
+          widget_ref: "batch-container"
       - node_match:
           alias: "cluster"
-          pattern_ref: "openshift-cluster-v4"
+          widget_ref: "openshift-cluster-v4"
       
       # We define relationship constraints between the aliases matched above
       - relationship:
@@ -37,16 +37,16 @@ detectors:
           name_regex: "api|endpoint|web" # Whose user-defined name matches these keywords
       - node_match:
           alias: "lb"
-          pattern_ref: "local-load-balancer"
+          widget_ref: "local-load-balancer"
       - node_match:
           alias: "gw"
-          pattern_ref: "api-gateway"
+          widget_ref: "api-gateway"
       - node_match:
           alias: "cluster"
-          pattern_ref: "openshift-cluster-v4"
+          widget_ref: "openshift-cluster-v4"
       - node_match:
           alias: "datacenter"
-          pattern_ref: "datacenter"
+          widget_ref: "datacenter"
       - relationship:
           type: "hosted_on"
           source: "api"

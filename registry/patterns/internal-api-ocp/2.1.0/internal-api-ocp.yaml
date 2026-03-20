@@ -29,14 +29,14 @@ infrastructure_requirements:
 # ------------------------------------------------------------------------------
 # EXISTENCE & STANDARDIZATION CONSTRAINTS (Buckets 1 & 2)
 # ------------------------------------------------------------------------------
-# The 'macro_expansion' block defines the "Atomic Architectural Unit".
+# The 'composition' block defines the "Atomic Architectural Unit".
 # 1. EXISTENCE: Every node here is mandatory. Deleting one triggers an "Architecture Gap".
 # 2. STANDARDIZATION: Hard-coding properties here enforces specific tech standards.
-macro_expansion:
+composition:
   nodes:
     - id_suffix: cluster
-      type: hostNode
-      pattern_ref: openshift-cluster-v4@4.12.0
+      type: deploymentNode
+      widget_ref: openshift-cluster-v4@4.12.0
       label: Standard OpenShift Cluster Instance
       layer: Cluster
       c4Level: DeploymentNode
@@ -46,7 +46,7 @@ macro_expansion:
     
     - id_suffix: lb
       type: infrastructureNode
-      pattern_ref: local-load-balancer@2.0.0
+      widget_ref: local-load-balancer@2.0.0
       label: Local Load Balancer Instance
       c4Level: InfrastructureNode
       layout_hint: { x: 0, y: 80 }
@@ -57,7 +57,7 @@ macro_expansion:
     
     - id_suffix: gw
       type: infrastructureNode
-      pattern_ref: api-gateway@2.0.0
+      widget_ref: api-gateway@2.0.0
       label: API Gateway Instance
       c4Level: InfrastructureNode
       layout_hint: { x: 0, y: 0 }

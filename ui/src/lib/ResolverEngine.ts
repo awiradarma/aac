@@ -15,7 +15,7 @@ export class ResolverEngine {
     private resolutionComplete = false;
 
     /**
-     * @param baseUrl Used to direct the underlying `RegistryClient` to the root `registry-draft` location
+     * @param baseUrl Used to direct the underlying `RegistryClient` to the root `registry` location
      */
     constructor(baseUrl: string) {
         this.client = new RegistryClient(baseUrl);

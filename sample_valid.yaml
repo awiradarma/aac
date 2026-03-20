@@ -2,7 +2,7 @@ model:
   containers:
     - name: "Claims-Processing-API"
       properties:
-        pattern_ref: "internal-api-ocp@2.1.0"
+        widget_ref: "internal-api-ocp@2.1.0"
         topology: "active-active"
         gateway_type: "apigee"
         database_type: "yugabyte"
@@ -13,6 +13,6 @@ deployment:
     - name: "prod-cluster-dc1"
       id: "prod-cluster-dc1"
       properties:
-        pattern_ref: "openshift-cluster-v4@4.12.0"
+        widget_ref: "openshift-cluster-v4@4.12.0"
         status: "existing"
         datacenter_id: "DC1"

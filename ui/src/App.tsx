@@ -85,14 +85,14 @@ export default function App() {
       }
     };
 
-    const allNodes = nodes.filter(n => n.type === 'hierarchyNode' || n.type === 'hostNode' || n.type === 'infrastructureNode');
-    const workloadNodes = nodes.filter(n => n.type === 'workloadNode');
+    const allNodes = nodes.filter(n => n.type === 'deploymentNode' || n.type === 'deploymentNode' || n.type === 'infrastructureNode');
+    const containerNodes = nodes.filter(n => n.type === 'containerNode');
 
     const uniqueContainers = new Map<string, any>();
 
-    // Group workloads into unique Model Containers based on pattern_ref and label
-    workloadNodes.forEach(w => {
-      const patternId = w.data.pattern_ref?.split('@')[0] || 'unknown';
+    // Group workloads into unique Model Containers based on widget_ref and label
+    containerNodes.forEach(w => {
+      const patternId = w.data.widget_ref?.split('@')[0] || 'unknown';
       const logicalId = `${patternId}-${w.data.label.replace(/\s+/g, '-')}`.toLowerCase();
 
       if (!uniqueContainers.has(logicalId)) {
@@ -100,10 +100,10 @@ export default function App() {
           name: w.data.label.replace(/\s+/g, '-'),
           id: logicalId,
           properties: {
-            pattern_ref: w.data.pattern_ref,
+            widget_ref: w.data.widget_ref,
             origin_pattern: (w.data as any).origin_pattern,
-            macro_id_suffix: (w.data as any).macro_id_suffix,
-            macro_expansion_id: (w.data as any).macro_expansion_id,
+            composition_alias: (w.data as any).composition_alias,
+            composition_id: (w.data as any).composition_id,
             status: 'new',
             ...w.data.properties
           }
@@ -122,13 +122,13 @@ export default function App() {
 
     edges.forEach(e => {
       // Find source and target containers logically
-      const sourceNode = allNodes.find(n => n.id === e.source) || workloadNodes.find(n => n.id === e.source);
-      const targetNode = allNodes.find(n => n.id === e.target) || workloadNodes.find(n => n.id === e.target);
+      const sourceNode = allNodes.find(n => n.id === e.source) || containerNodes.find(n => n.id === e.source);
+      const targetNode = allNodes.find(n => n.id === e.target) || containerNodes.find(n => n.id === e.target);
 
       if (sourceNode && targetNode) {
         // Use logical container ID if workload, else fallback to visual id for infrastructure nodes
-        const sourceLogicId = sourceNode.type === 'workloadNode' ? (sourceNode as any)._logicalContainerId : sourceNode.id;
-        const targetLogicId = targetNode.type === 'workloadNode' ? (targetNode as any)._logicalContainerId : targetNode.id;
+        const sourceLogicId = sourceNode.type === 'containerNode' ? (sourceNode as any)._logicalContainerId : sourceNode.id;
+        const targetLogicId = targetNode.type === 'containerNode' ? (targetNode as any)._logicalContainerId : targetNode.id;
 
         const relId = `${sourceLogicId}-${targetLogicId}`;
         if (!relTracker.has(relId)) {
@@ -152,10 +152,10 @@ export default function App() {
           name: child.data.label.replace(/\s+/g, '-'),
           id: child.id,
           properties: {
-            pattern_ref: child.data.pattern_ref,
+            widget_ref: child.data.widget_ref,
             origin_pattern: (child.data as any).origin_pattern,
-            macro_id_suffix: (child.data as any).macro_id_suffix,
-            macro_expansion_id: (child.data as any).macro_expansion_id,
+            composition_alias: (child.data as any).composition_alias,
+            composition_id: (child.data as any).composition_id,
             status: 'new',
             ...child.data.properties
           }
@@ -164,16 +164,16 @@ export default function App() {
         if (nestedNodes.length > 0) dNode.nodes = nestedNodes;
 
         // Find containers linked to this deployment node
-        const containers = workloadNodes.filter(w => w.parentNode === child.id);
+        const containers = containerNodes.filter(w => w.parentNode === child.id);
         if (containers.length > 0) {
           dNode.containerInstances = containers.map(w => ({
             id: w.id + '_instance',
             containerId: (w as any)._logicalContainerId,
             properties: {
-              pattern_ref: w.data.pattern_ref,
+              widget_ref: w.data.widget_ref,
               origin_pattern: (w.data as any).origin_pattern,
-              macro_id_suffix: (w.data as any).macro_id_suffix,
-              macro_expansion_id: (w.data as any).macro_expansion_id,
+              composition_alias: (w.data as any).composition_alias,
+              composition_id: (w.data as any).composition_id,
               ...w.data.properties
             }
           }));
@@ -226,28 +226,28 @@ export default function App() {
 
           nodeList.forEach((dn: any) => {
             const props = dn.properties || {};
-            const patternId = props.pattern_ref?.split('@')[0];
+            const patternId = props.widget_ref?.split('@')[0];
             const pattern = patternId ? getPatternById(patternId) : null;
 
-            let nodeType = 'hostNode';
-            if (pattern?.c4Level === 'DeploymentNode' && (pattern?.layer === 'Region' || pattern?.layer === 'Datacenter' || pattern?.id?.includes('hierarchy'))) nodeType = 'hierarchyNode';
+            let nodeType = 'deploymentNode';
+            if (pattern?.c4Level === 'DeploymentNode' && (pattern?.layer === 'Region' || pattern?.layer === 'Datacenter' || pattern?.id?.includes('hierarchy'))) nodeType = 'deploymentNode';
             if (pattern?.c4Level === 'InfrastructureNode') nodeType = 'infrastructureNode';
-            if (pattern?.c4Level === 'Container' || pattern?.c4Level === 'Component') nodeType = 'workloadNode';
+            if (pattern?.c4Level === 'Container' || pattern?.c4Level === 'Component') nodeType = 'containerNode';
 
             // Static sizing and offsets based on tier
             let width, height, nodeZIndex = 15;
-            if (nodeType === 'hierarchyNode') {
+            if (nodeType === 'deploymentNode') {
               width = pattern?.default_width || 1000;
               height = pattern?.default_height || 800;
               nodeZIndex = (depth * 5) + 5;
             }
 
             const newProps = { ...props };
-            delete newProps.pattern_ref;
+            delete newProps.widget_ref;
             delete newProps.status;
             delete newProps.origin_pattern;
-            delete newProps.macro_id_suffix;
-            delete newProps.macro_expansion_id;
+            delete newProps.composition_alias;
+            delete newProps.composition_id;
 
             newNodes.push({
               id: dn.id,
@@ -259,7 +259,7 @@ export default function App() {
               zIndex: nodeZIndex,
               data: {
                 label: dn.name.replace(/-/g, ' '),
-                pattern_ref: props.pattern_ref || '',
+                widget_ref: props.widget_ref || '',
                 c4Level: pattern ? pattern.c4Level : 'DeploymentNode',
                 layer: pattern?.layer,
                 properties: newProps,
@@ -269,8 +269,8 @@ export default function App() {
                 min_width: pattern?.min_width,
                 min_height: pattern?.min_height,
                 origin_pattern: props.origin_pattern,
-                macro_id_suffix: props.macro_id_suffix,
-                macro_expansion_id: props.macro_expansion_id
+                composition_alias: props.composition_alias,
+                composition_id: props.composition_id
               }
             });
 
@@ -287,26 +287,26 @@ export default function App() {
                 if (!cn) return;
 
                 const cProps = cn.properties || {};
-                const cPattern = cProps.pattern_ref ? getPatternById(cProps.pattern_ref.split('@')[0]) : null;
+                const cPattern = cProps.widget_ref ? getPatternById(cProps.widget_ref.split('@')[0]) : null;
                 const cleanCProps = { ...cProps };
-                delete cleanCProps.pattern_ref;
+                delete cleanCProps.widget_ref;
                 delete cleanCProps.origin_pattern;
-                delete cleanCProps.macro_id_suffix;
-                delete cleanCProps.macro_expansion_id;
+                delete cleanCProps.composition_alias;
+                delete cleanCProps.composition_id;
 
                 // Generate a unique node ID for the React Flow canvas to prevent collisions
                 const instanceNodeId = `workload-${ci.containerId}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 
                 newNodes.push({
                   id: instanceNodeId,
-                  type: 'workloadNode',
+                  type: 'containerNode',
                   position: { x: 50, y: containerY },
                   parentNode: dn.id,
                   extent: 'parent',
                   zIndex: 20,
                   data: {
                     label: cn.name.replace(/-/g, ' '),
-                    pattern_ref: cProps.pattern_ref || '',
+                    widget_ref: cProps.widget_ref || '',
                     c4Level: cPattern ? cPattern.c4Level : 'Container',
                     layer: cPattern?.layer,
                     properties: cleanCProps,
@@ -316,8 +316,8 @@ export default function App() {
                     min_width: cPattern?.min_width,
                     min_height: cPattern?.min_height,
                     origin_pattern: cProps.origin_pattern,
-                    macro_id_suffix: cProps.macro_id_suffix,
-                    macro_expansion_id: cProps.macro_expansion_id
+                    composition_alias: cProps.composition_alias,
+                    composition_id: cProps.composition_id
                   }
                 });
                 containerY += 150;
@@ -335,8 +335,8 @@ export default function App() {
         const rels = arch.model?.relationships || [];
 
         rels.forEach((r: any) => {
-          const sourceTarget = newNodes.find(n => n.type === 'workloadNode' && n.data.label.replace(/\s+/g, '-').toLowerCase() === (r.sourceId?.split('-').slice(1).join('-') || '')) || newNodes.find(n => n.id === r.sourceId);
-          const destTarget = newNodes.find(n => n.type === 'workloadNode' && n.data.label.replace(/\s+/g, '-').toLowerCase() === (r.destinationId?.split('-').slice(1).join('-') || '')) || newNodes.find(n => n.id === r.destinationId);
+          const sourceTarget = newNodes.find(n => n.type === 'containerNode' && n.data.label.replace(/\s+/g, '-').toLowerCase() === (r.sourceId?.split('-').slice(1).join('-') || '')) || newNodes.find(n => n.id === r.sourceId);
+          const destTarget = newNodes.find(n => n.type === 'containerNode' && n.data.label.replace(/\s+/g, '-').toLowerCase() === (r.destinationId?.split('-').slice(1).join('-') || '')) || newNodes.find(n => n.id === r.destinationId);
 
           if (sourceTarget && destTarget) {
             newEdges.push({
@@ -428,8 +428,8 @@ export default function App() {
           nextNodes = nextNodes.map(n => {
             const isMatch = n.id === targetId ||
               n.id + '_instance' === targetId ||
-              (n.type === 'workloadNode' && (n as any)._logicalContainerId === targetId) ||
-              (n.type === 'workloadNode' && logicalId && (n as any)._logicalContainerId === logicalId);
+              (n.type === 'containerNode' && (n as any)._logicalContainerId === targetId) ||
+              (n.type === 'containerNode' && logicalId && (n as any)._logicalContainerId === logicalId);
 
             if (isMatch) {
               return {
@@ -437,8 +437,8 @@ export default function App() {
                 data: {
                   ...n.data,
                   origin_pattern: res.targetPattern, // Technically origin_pattern only needs to be on one node, but fine here
-                  macro_expansion_id: expId,
-                  macro_id_suffix: alias,
+                  composition_id: expId,
+                  composition_alias: alias,
                   memberships: {
                     ...(n.data.memberships || {}),
                     [expId]: alias

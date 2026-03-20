@@ -69,16 +69,16 @@ export const Sidebar: React.FC<Props> = ({ onAddPattern, onClose }) => {
                                     key={`${pattern.id}-${pattern.version}`}
                                     className="px-3 py-2 bg-white border border-slate-200 rounded-lg cursor-grab hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all group active:cursor-grabbing flex items-center gap-3"
                                     onClick={() => {
-                                        let flowType = 'workloadNode';
-                                        if (pattern.c4Level === 'DeploymentNode') flowType = 'hierarchyNode';
+                                        let flowType = 'containerNode';
+                                        if (pattern.c4Level === 'DeploymentNode') flowType = 'deploymentNode';
                                         if (pattern.c4Level === 'InfrastructureNode') flowType = 'infrastructureNode';
                                         if (onAddPattern) {
                                             onAddPattern(flowType, pattern.id, pattern.version);
                                         }
                                     }}
                                     onDragStart={(e) => {
-                                        let flowType = 'workloadNode';
-                                        if (pattern.c4Level === 'DeploymentNode') flowType = 'hierarchyNode';
+                                        let flowType = 'containerNode';
+                                        if (pattern.c4Level === 'DeploymentNode') flowType = 'deploymentNode';
                                         if (pattern.c4Level === 'InfrastructureNode') flowType = 'infrastructureNode';
                                         onDragStart(e, flowType, pattern.id, pattern.version);
                                     }}

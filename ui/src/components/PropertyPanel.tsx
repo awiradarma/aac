@@ -16,7 +16,7 @@ interface Props {
 /**
  * Renders the context-aware sidebar on the right side of the canvas.
  * This panel dynamically loads parameter schemas (`const`, `options`, `type`) from the respective 
- * YAML registries based on the currently selected node (`pattern_ref`). 
+ * YAML registries based on the currently selected node (`widget_ref`). 
  * It manages the local instance state without mutating the global registry template.
  */
 export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, onUpdateNodeData, onUpdateEdgeData, onClose }) => {
@@ -73,14 +73,14 @@ export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, onU
         const expOrigins = new Map<string, string>(); // expId -> originPattern
 
         nodes.forEach(n => {
-            // Track primary macro patterns applied
-            if (n.data?.origin_pattern && n.data?.macro_expansion_id) {
+            // Track primary patterns applied
+            if (n.data?.origin_pattern && n.data?.composition_id) {
                 const originId = n.data.origin_pattern.split('@')[0];
-                expOrigins.set(n.data.macro_expansion_id, originId);
+                expOrigins.set(n.data.composition_id, originId);
             }
         });
 
-        // Add applied macro patterns to the active count
+        // Add applied patterns to the active count
         expOrigins.forEach((macroId) => {
             activePatterns.set(macroId, (activePatterns.get(macroId) || 0) + 1);
         });
@@ -137,7 +137,7 @@ export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, onU
     }
 
     const { data } = selectedNode;
-    const pattern = getPatternById(data.pattern_ref.split('@')[0]);
+    const pattern = getPatternById(data.widget_ref.split('@')[0]);
 
     if (!pattern) return null;
 
@@ -204,7 +204,7 @@ export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, onU
                 </div>
                 <div>
                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Pattern Ref</label>
-                    <div className="text-xs text-slate-500 font-mono p-1.5 bg-slate-200/50 rounded">{data.pattern_ref}</div>
+                    <div className="text-xs text-slate-500 font-mono p-1.5 bg-slate-200/50 rounded">{data.widget_ref}</div>
                 </div>
                 <div>
                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Description</label>
@@ -221,7 +221,7 @@ export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, onU
             {data.memberships && Object.keys(data.memberships).length > 0 && (
                 <div className="mb-6 p-4 bg-indigo-50/50 rounded-lg border border-indigo-100 flex flex-col gap-3">
                     <div className="flex items-center justify-between">
-                        <label className="block text-xs font-bold text-indigo-800 uppercase tracking-wider">Macro Pattern Memberships</label>
+                        <label className="block text-xs font-bold text-indigo-800 uppercase tracking-wider">Pattern Memberships</label>
                         {Object.keys(data.memberships).length > 1 && (
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">Shared Resource</span>
                         )}

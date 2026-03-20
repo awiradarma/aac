@@ -7,7 +7,7 @@
         "name",
         "version",
         "c4Level",
-        "macro_expansion"
+        "composition"
     ],
     "properties": {
         "id": {
@@ -106,7 +106,7 @@
                 ]
             }
         },
-        "macro_expansion": {
+        "composition": {
             "type": "object",
             "required": [
                 "nodes"
@@ -148,7 +148,7 @@
             "required": [
                 "id_suffix",
                 "type",
-                "pattern_ref",
+                "widget_ref",
                 "label",
                 "c4Level"
             ],
@@ -159,7 +159,7 @@
                 "type": {
                     "type": "string"
                 },
-                "pattern_ref": {
+                "widget_ref": {
                     "type": "string",
                     "pattern": "^.*@\\d+\\.\\d+\\.\\d+$"
                 },

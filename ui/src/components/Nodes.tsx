@@ -76,7 +76,7 @@ const themedStyles = (color: string) => {
     return themes[color] || themes.blue;
 };
 
-export const HierarchyNode = ({ data, selected }: NodeProps<NodeData>) => {
+export const DeploymentNode = ({ data, selected }: NodeProps<NodeData>) => {
     const style = themedStyles(data.color || 'emerald');
 
     return (
@@ -93,7 +93,7 @@ export const HierarchyNode = ({ data, selected }: NodeProps<NodeData>) => {
                 <DynamicIcon name={data.icon} className={`w-5 h-5 ${style.textMuted}`} />
                 <div>
                     <div className={`font-bold text-sm ${style.text}`}>{data.label}</div>
-                    <div className={`text-xs ${style.textMuted} font-mono mt-0.5`}>{data.pattern_ref}</div>
+                    <div className={`text-xs ${style.textMuted} font-mono mt-0.5`}>{data.widget_ref}</div>
                 </div>
             </div>
 
@@ -108,35 +108,7 @@ export const HierarchyNode = ({ data, selected }: NodeProps<NodeData>) => {
     );
 };
 
-export const HostNode = ({ data, selected }: NodeProps<NodeData>) => {
-    const style = themedStyles(data.color || 'slate');
-
-    return (
-        <div className={`w-64 md:w-96 min-h-[180px] md:min-h-[300px] border-2 rounded-xl ${style.bg.replace('/30', '/80')} backdrop-blur ${selected ? 'border-primary ring-4 ring-primary/20' : `${style.border} border-dashed`} transition-all relative`}>
-            <NodeResizer
-                minWidth={data.min_width || (window.innerWidth < 768 ? 150 : 300)}
-                minHeight={data.min_height || (window.innerWidth < 768 ? 100 : 200)}
-                isVisible={selected}
-                handleClassName={style.handle}
-                lineClassName={style.line}
-            />
-            <div className={`${style.bgHeader.replace('/80', '/50')} p-3 rounded-t-xl border-b ${style.border} flex items-center gap-2`}>
-                <DynamicIcon name={data.icon || 'Server'} className={`w-5 h-5 ${style.textMuted.replace('700', '600')}`} />
-                <div>
-                    <div className={`font-bold text-sm ${style.text.replace('900', '800')}`}>{data.label}</div>
-                    <div className={`text-xs ${style.textMuted.replace('700', '500')} font-mono mt-0.5`}>{data.pattern_ref}</div>
-                </div>
-            </div>
-            <div className="p-4 flex flex-col gap-2">
-                <div className="text-xs text-slate-400 font-medium uppercase tracking-wider">Nested Workloads</div>
-            </div>
-            <Handle type="target" position={Position.Top} className={style.port} data-port-label="INPUT" />
-            <Handle type="source" position={Position.Bottom} className={style.port} data-port-label="OUTPUT" />
-        </div>
-    );
-};
-
-export const WorkloadNode = ({ data, selected }: NodeProps<NodeData>) => {
+export const ContainerNode = ({ data, selected }: NodeProps<NodeData>) => {
     const style = themedStyles(data.color || 'blue');
     return (
         <div className={`w-40 md:w-64 bg-white border-2 rounded-lg shadow-sm ${selected ? `${style.borderSelected}` : `${style.border.replace('300', '200')}`} transition-all`}>
@@ -144,7 +116,7 @@ export const WorkloadNode = ({ data, selected }: NodeProps<NodeData>) => {
                 <DynamicIcon name={data.icon} className={`w-4 h-4 ${style.textMuted.replace('700', '600')}`} />
                 <div>
                     <div className="font-semibold text-sm text-slate-800">{data.label}</div>
-                    <div className={`text-[10px] ${style.textMuted.replace('700', '500')} font-mono`}>{data.pattern_ref}</div>
+                    <div className={`text-[10px] ${style.textMuted.replace('700', '500')} font-mono`}>{data.widget_ref}</div>
                 </div>
             </div>
             <div className="p-2">
@@ -171,7 +143,7 @@ export const InfrastructureNode = ({ data, selected }: NodeProps<NodeData>) => {
                 <DynamicIcon name={data.icon} className={`w-4 h-4 ${style.textMuted.replace('700', '600')}`} />
                 <div className={`font-bold text-sm ${style.text} text-center`}>{data.label}</div>
             </div>
-            <div className={`text-[10px] ${style.textMuted.replace('700', '600')} font-mono text-center`}>{data.pattern_ref}</div>
+            <div className={`text-[10px] ${style.textMuted.replace('700', '600')} font-mono text-center`}>{data.widget_ref}</div>
             <Handle type="target" position={Position.Top} className={style.port} data-port-label="INPUT" />
             <Handle type="source" position={Position.Bottom} className={style.port} data-port-label="OUTPUT" />
         </div>

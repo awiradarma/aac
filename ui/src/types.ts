@@ -27,10 +27,10 @@ export type PatternRule = {
 };
 
 /** A placeholder template for a child component generated when dropped via a Macro Expansion. */
-export type MacroExpansionNode = {
+export type CompositionNode = {
     id_suffix: string; // The alias mapped across the macro (e.g. 'lb', 'cluster')
     type: string; // Canvas node type reference
-    pattern_ref: string; // Underlying actual blueprint versioned ID
+    widget_ref: string; // Underlying actual blueprint versioned ID
     label: string;
     layer?: string;
     c4Level: string;
@@ -40,16 +40,16 @@ export type MacroExpansionNode = {
 };
 
 /** A preset networking path defined inside a Blueprint */
-export type MacroExpansionEdge = {
+export type CompositionEdge = {
     source_suffix: string;
     target_suffix: string;
     style?: Record<string, any>;
 };
 
 /** Defines composite architecture structures that spawn multiple sub-components when dropped on the canvas */
-export type MacroExpansion = {
-    nodes: MacroExpansionNode[];
-    edges: MacroExpansionEdge[];
+export type Composition = {
+    nodes: CompositionNode[];
+    edges: CompositionEdge[];
     workload_target_suffix: string; // Defines where generic compute drops inside this pattern should land
 };
 
@@ -58,7 +58,7 @@ export type Pattern = {
     id: string; // e.g. "openshift-cluster-v4"
     name: string; // e.g. "OpenShift v4 Architecture"
     version: string; // SemVer
-    c4Level: "System" | "Container" | "DeploymentNode" | "InfrastructureNode" | "Component";
+    c4Level: "SoftwareSystem" | "Person" | "Container" | "Component" | "DeploymentNode" | "InfrastructureNode";
     description?: string;
     layer?: string;
     default_width?: number;
@@ -73,7 +73,7 @@ export type Pattern = {
     };
     capabilities?: string[];
     crossplane_mapping?: any; // Infrastructure as code mapping definitions
-    macro_expansion?: MacroExpansion;
+    composition?: Composition;
     display_metadata?: {
         icon?: string;
         color?: string; // e.g. "blue", "amber", "emerald"
@@ -100,7 +100,7 @@ export type Registry = {
 export type NodeData = {
     label: string;
     description?: string;
-    pattern_ref: string; // Link to blueprint schema
+    widget_ref: string; // Link to blueprint schema
     c4Level: string;
     layer?: string;
     properties: Record<string, any>;
@@ -110,7 +110,7 @@ export type NodeData = {
     min_width?: number;
     min_height?: number;
     origin_pattern?: string; // If this node was spawned from a macro expansion, track original ID
-    macro_id_suffix?: string; // If this is an expanded node, what alias was it? (e.g. 'lb')
-    macro_expansion_id?: string; // The specific drop session ID to group expanded components together
+    composition_alias?: string; // If this is an expanded node, what alias was it? (e.g. 'lb')
+    composition_id?: string; // The specific drop session ID to group expanded components together
     memberships?: Record<string, string>; // Sub-graph relationships if adopted by multiple patterns (expansionId -> suffix)
 };

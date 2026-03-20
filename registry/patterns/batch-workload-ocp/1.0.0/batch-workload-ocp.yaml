@@ -19,19 +19,19 @@ infrastructure_requirements:
     - autosys-k8s-agent
   allowed_hierarchies:
     - on-prem-ocp
-macro_expansion:
+composition:
   nodes:
     - id_suffix: cluster
-      type: hostNode
-      pattern_ref: openshift-cluster-v4@4.12.0
+      type: deploymentNode
+      widget_ref: openshift-cluster-v4@4.12.0
       label: Standard OpenShift Cluster Instance
       layer: Cluster
       c4Level: DeploymentNode
       layout_hint: { x: 0, y: 0 }
       children:
         - id_suffix: workload
-          type: workloadNode
-          pattern_ref: batch-container@1.0.0
+          type: containerNode
+          widget_ref: batch-container@1.0.0
           label: Autosys Batch Job
           c4Level: Container
           layout_hint: { x: 50, y: 80 }

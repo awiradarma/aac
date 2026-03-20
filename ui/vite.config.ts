@@ -15,5 +15,5 @@ export default defineConfig({
       strict: false,
     },
   },
-  publicDir: path.resolve(__dirname, '../registry-draft')
+  publicDir: path.resolve(__dirname, '../registry')
 })

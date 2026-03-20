@@ -24,8 +24,8 @@ program
             const yamlContent = fs.readFileSync(file, 'utf8');
             const archObj: any = yaml.load(yamlContent);
 
-            // Initialize ResolverEngine targeting the local registry-draft directory for CLI
-            const registryBasePath = __dirname + '/../registry-draft';
+            // Initialize ResolverEngine targeting the local registry directory for CLI
+            const registryBasePath = __dirname + '/../registry';
             const resolver = new ResolverEngine(registryBasePath);
 
             console.log("Fetching registry and resolving dependencies...");

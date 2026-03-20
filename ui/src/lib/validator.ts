@@ -17,8 +17,8 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
     const getSuffixForExp = (n: any, expId: string) => {
         const memberships = getMemberships(n);
         if (memberships[expId]) return memberships[expId];
-        const primaryExpId = n.properties?.macro_expansion_id || n.macro_expansion_id;
-        if (primaryExpId === expId) return n.properties?.macro_id_suffix || n.macro_id_suffix;
+        const primaryExpId = n.properties?.composition_id || n.composition_id;
+        if (primaryExpId === expId) return n.properties?.composition_alias || n.composition_alias;
         return null;
     };
 
@@ -33,7 +33,7 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
 
     const parseTree = (nodes: any[], parentLayer: string | null, parentId: string | null) => {
         nodes.forEach(dn => {
-            const patternId = dn.properties?.pattern_ref?.split('@')[0];
+            const patternId = dn.properties?.widget_ref?.split('@')[0];
             const pattern = patternId ? patterns.find(p => p.id === patternId) : null;
             const layerType = pattern?.layer || 'Unknown';
 
@@ -90,7 +90,7 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
     const expansionInstances: Record<string, any[]> = {};
     flatDeployments.forEach(n => {
         const memberships = getMemberships(n);
-        const primaryExpId = n.properties?.macro_expansion_id || n.macro_expansion_id;
+        const primaryExpId = n.properties?.composition_id || n.composition_id;
         const allIds = new Set(Object.keys(memberships));
         if (primaryExpId) allIds.add(primaryExpId);
 
@@ -122,16 +122,16 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
         const originVal = master ? (master.properties?.origin_pattern || master.origin_pattern) : null;
         const originPattern = getPatternFromOriginVal(originVal);
 
-        if (!originPattern || !originPattern.macro_expansion) return;
+        if (!originPattern || !originPattern.composition) return;
 
-        const needed: { suffix: string, pattern_ref: string }[] = [];
+        const needed: { suffix: string, widget_ref: string }[] = [];
         const collect = (nodes: any[]) => {
             nodes.forEach(m => {
-                needed.push({ suffix: m.id_suffix, pattern_ref: m.pattern_ref });
+                needed.push({ suffix: m.id_suffix, widget_ref: m.widget_ref });
                 if (m.children) collect(m.children);
             });
         };
-        collect(originPattern.macro_expansion.nodes);
+        collect(originPattern.composition.nodes);
 
         needed.forEach(item => {
             const hasIt = instanceNodes.some(n => getSuffixForExp(n, expId) === item.suffix);
@@ -139,7 +139,7 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
                 // Feature: Smart Adoption search
                 // Find ANY free-floating node in the same parent vicinity that matches the required blueprint reference
                 const candidate = flatDeployments.find(n =>
-                    (n.properties?.pattern_ref === item.pattern_ref || n.pattern_ref === item.pattern_ref) &&
+                    (n.properties?.widget_ref === item.widget_ref || n.widget_ref === item.widget_ref) &&
                     !getSuffixForExp(n, expId)
                 );
                 if (candidate) {
@@ -156,8 +156,8 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
         });
 
         // Edge Completeness
-        if (originPattern.macro_expansion.edges) {
-            originPattern.macro_expansion.edges.forEach((edgeDef: any) => {
+        if (originPattern.composition.edges) {
+            originPattern.composition.edges.forEach((edgeDef: any) => {
                 const sourceNode = instanceNodes.find(n => getSuffixForExp(n, expId) === edgeDef.source_suffix);
                 const targetNode = instanceNodes.find(n => getSuffixForExp(n, expId) === edgeDef.target_suffix);
 
@@ -215,9 +215,9 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
     // Standardization check
     flatDeployments.forEach(node => {
         const memberships = getMemberships(node);
-        const primaryExpId = node.properties?.macro_expansion_id || node.macro_expansion_id;
+        const primaryExpId = node.properties?.composition_id || node.composition_id;
         const allExpContexts: { id: string, suffix: string }[] = [];
-        if (primaryExpId) allExpContexts.push({ id: primaryExpId, suffix: node.properties?.macro_id_suffix || node.macro_id_suffix });
+        if (primaryExpId) allExpContexts.push({ id: primaryExpId, suffix: node.properties?.composition_alias || node.composition_alias });
         Object.entries(memberships).forEach(([id, suffix]) => {
             if (id !== primaryExpId) allExpContexts.push({ id, suffix: suffix as string });
         });
@@ -227,7 +227,7 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
             const master = expNodes?.find(n => n.properties?.origin_pattern || n.origin_pattern);
             const originPattern = getPatternFromOriginVal(master?.properties?.origin_pattern || master?.origin_pattern);
 
-            if (originPattern?.macro_expansion) {
+            if (originPattern?.composition) {
                 const findMNode = (nodes: any[]): any => {
                     for (const m of nodes) {
                         if (m.id_suffix === ctx.suffix) return m;
@@ -238,7 +238,7 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
                     }
                     return null;
                 };
-                const mDef = findMNode(originPattern.macro_expansion.nodes);
+                const mDef = findMNode(originPattern.composition.nodes);
                 if (mDef?.properties) {
                     Object.entries(mDef.properties).forEach(([k, v]) => {
                         if (node.properties[k] !== v) {

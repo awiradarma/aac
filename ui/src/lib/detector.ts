@@ -97,9 +97,9 @@ export function detectPatterns(arch: any, registry: Registry): DiscoveryResult[]
                 if (rules.c4Level && n.c4Level !== rules.c4Level && n.type !== rules.c4Level) return false;
 
                 // Match specific blueprint reference if requested (e.g. 'batch-container' widget)
-                if (rules.pattern_ref) {
-                    const id = n.properties?.pattern_ref?.split('@')[0] || n.pattern_ref?.split('@')[0];
-                    if (id !== rules.pattern_ref) return false;
+                if (rules.widget_ref) {
+                    const id = n.properties?.widget_ref?.split('@')[0] || n.widget_ref?.split('@')[0];
+                    if (id !== rules.widget_ref) return false;
                 }
 
                 // Flexible regex matching for wild-west brownfield discovery

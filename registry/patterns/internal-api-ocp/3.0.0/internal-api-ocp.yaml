@@ -23,11 +23,11 @@ infrastructure_requirements:
 # ------------------------------------------------------------------------------
 # EXISTENCE & STANDARDIZATION (Pure Macro Composition)
 # ------------------------------------------------------------------------------
-macro_expansion:
+composition:
   nodes:
     - id_suffix: cluster
-      type: hostNode
-      pattern_ref: openshift-cluster-v4@4.12.0
+      type: deploymentNode
+      widget_ref: openshift-cluster-v4@4.12.0
       label: API Hosting Cluster
       layer: Cluster
       c4Level: DeploymentNode
@@ -36,15 +36,15 @@ macro_expansion:
         datacenter_id: parent.properties.dc_id
       children:
         - id_suffix: api
-          type: workloadNode
-          pattern_ref: api-container@1.0.0
+          type: containerNode
+          widget_ref: api-container@1.0.0
           label: Application Endpoint
           c4Level: Container
           layout_hint: { x: 50, y: 80 }
     
     - id_suffix: lb
       type: infrastructureNode
-      pattern_ref: local-load-balancer@2.0.0
+      widget_ref: local-load-balancer@2.0.0
       label: LB
       c4Level: InfrastructureNode
       layout_hint: { x: 0, y: 80 }
@@ -53,7 +53,7 @@ macro_expansion:
     
     - id_suffix: gw
       type: infrastructureNode
-      pattern_ref: api-gateway@2.0.0
+      widget_ref: api-gateway@2.0.0
       label: Gateway
       c4Level: InfrastructureNode
       layout_hint: { x: 0, y: 0 }

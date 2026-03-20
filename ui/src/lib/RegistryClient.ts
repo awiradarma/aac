@@ -65,7 +65,7 @@ export class RegistryClient {
         return this.fetchYaml(path);
     }
 
-    /** Retrieves the specific YAML definition (including its macro_expansion logic) corresponding to a requested Pattern version. */
+    /** Retrieves the specific YAML definition (including its composition logic) corresponding to a requested Pattern version. */
     async getPattern(id: string, version: string): Promise<any> {
         const path = `${this.baseUrl}/patterns/${id}/${version}/${id}.yaml`;
         return this.fetchYaml(path);
