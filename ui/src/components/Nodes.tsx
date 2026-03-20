@@ -153,12 +153,17 @@ export const InfrastructureNode = ({ data, selected }: NodeProps<NodeData>) => {
 export const PersonNode = ({ data, selected }: NodeProps<NodeData>) => {
     const style = themedStyles(data.color || 'amber');
     return (
-        <div className={`w-36 h-36 md:w-44 md:h-44 flex flex-col items-center justify-center bg-white border-2 rounded-full shadow-md ${selected ? `${style.borderSelected}` : `${style.border.replace('300', '200')} border-slate-300`} transition-all relative`}>
-            <div className={`w-14 h-14 md:w-16 md:h-16 flex items-center justify-center rounded-full bg-slate-50 mb-1 border border-slate-200 shadow-inner`}>
-                <DynamicIcon name={data.icon} className={`w-8 h-8 md:w-10 md:h-10 ${style.textMuted.replace('700', '600')}`} />
+        <div className="flex flex-col items-center relative transition-all">
+            {/* Person Head (Circle) */}
+            <div className={`w-14 h-14 md:w-16 md:h-16 flex items-center justify-center bg-slate-50 border-2 rounded-full shadow-sm z-10 ${selected ? `${style.borderSelected}` : `${style.border.replace('300', '200')} border-slate-300`}`}>
+                <DynamicIcon name={data.icon || 'User'} className={`w-7 h-7 md:w-8 md:h-8 ${style.textMuted.replace('700', '600')}`} />
             </div>
-            <div className={`font-bold text-xs md:text-sm text-center px-4 ${style.text} leading-tight`}>{data.label}</div>
-            <div className={`text-[9.px] md:text-[10px] text-slate-500 font-mono tracking-wider mt-1`}>[Person]</div>
+
+            {/* Person Body (Rectangle) */}
+            <div className={`w-36 md:w-48 flex flex-col items-center justify-center bg-white border-2 rounded-2xl shadow-md p-4 pt-6 -mt-5 ${selected ? `${style.borderSelected}` : `${style.border.replace('300', '200')} border-slate-300`} relative`}>
+                <div className={`font-bold text-xs md:text-sm text-center px-1 ${style.text} leading-tight`}>{data.label}</div>
+                <div className={`text-[9px] md:text-[10px] text-slate-500 font-mono tracking-wider mt-1`}>[Person]</div>
+            </div>
 
             <Handle type="target" position={Position.Left} className={style.port} />
             <Handle type="source" position={Position.Right} className={style.port} />

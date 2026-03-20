@@ -114,6 +114,7 @@ export type NodeData = {
     composition_id?: string; // The specific drop session ID to group expanded components together
     memberships?: Record<string, string>; // Sub-graph relationships if adopted by multiple patterns (expansionId -> suffix)
     layoutMap?: Record<string, { x: number, y: number, width?: number, height?: number, parentNode?: string }>; // Per-view layout configurations
+    containerId?: string; // Original logical ID from import
 };
 
 export type DiagramView = {

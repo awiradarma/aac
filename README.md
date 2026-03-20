@@ -172,9 +172,11 @@ Several recent capabilities have been added to improve architect experience and 
 *   **Design Overview Panel**: When no component is selected, the properties panel now displays a high-level summary of all "Known Patterns" (Patterns) currently active in the design.
 *   **Pattern Memberships**: Selecting a component displays its connection to higher-level patterns. If a component is part of multiple expansions, it is clearly tagged with a **Shared Resource** badge.
 *   **Enhanced Smart Adoption**: The validation engine's Smart Adoption logic now searches the entire flat deployment graph (across nested hierarchies) to find and repair orphaned required components, eliminating false positives in complex architectures.
+*   **Mobile-Responsive Authoring**: Added a dynamic View Switcher and bottom floating action menu, allowing seamless switching and creation of complex architectural context models completely on mobile devices.
+*   **Full C4 Export/Import Fidelity**: Generating architecture YAML files now faithfully preserves multi-view contexts, including native Software Systems, People, Containers, exact deployment instances, and their precise topological networking relationships upon re-import.
+*   **Classic C4 Visualization**: Components adapt to recognizable C4 entity shapes, such as the standard Person (circle on rectangle) notation.
+*   **View Isolation & Per-View Layouts**: Component positions are now natively tracked individually across separate diagram views (System Landscape vs Container vs Deployment), allowing unique structural organizations.
 *   **Canvas Workflow**: Added a distinct **Clear Canvas** button, improved gridline visibility for alignment, and forced the properties action button on mobile screens to ensure the Design Overview is always accessible.
-
----
 
 ## Technical Architecture
 

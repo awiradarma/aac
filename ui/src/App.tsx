@@ -165,6 +165,8 @@ export default function App() {
   const generateYamlObj = () => {
     const structurizr: any = {
       model: {
+        people: [],
+        softwareSystems: [],
         containers: [],
         relationships: []
       },
@@ -173,8 +175,10 @@ export default function App() {
       }
     };
 
-    const allNodes = nodes.filter(n => n.type === 'deploymentNode' || n.type === 'deploymentNode' || n.type === 'infrastructureNode');
+    const allNodes = nodes.filter(n => n.type === 'deploymentNode' || n.type === 'infrastructureNode');
     const containerNodes = nodes.filter(n => n.type === 'containerNode');
+    const systemNodes = nodes.filter(n => n.type === 'systemNode');
+    const personNodes = nodes.filter(n => n.type === 'personNode');
 
     const uniqueContainers = new Map<string, any>();
 
@@ -204,17 +208,35 @@ export default function App() {
 
     structurizr.model.containers = Array.from(uniqueContainers.values());
 
+    structurizr.model.people = personNodes.map(p => ({
+      name: p.data.label.replace(/\s+/g, '-'),
+      id: p.id,
+      properties: {
+        widget_ref: p.data.widget_ref,
+        ...p.data.properties
+      }
+    }));
+
+    structurizr.model.softwareSystems = systemNodes.map(s => ({
+      name: s.data.label.replace(/\s+/g, '-'),
+      id: s.id,
+      properties: {
+        widget_ref: s.data.widget_ref,
+        ...s.data.properties
+      }
+    }));
+
     // Generate Relationships
     const relationships: any[] = [];
     const relTracker = new Set<string>();
 
     edges.forEach(e => {
-      // Find source and target containers logically
-      const sourceNode = allNodes.find(n => n.id === e.source) || containerNodes.find(n => n.id === e.source);
-      const targetNode = allNodes.find(n => n.id === e.target) || containerNodes.find(n => n.id === e.target);
+      // Find source and target in any pool
+      const sourceNode = nodes.find(n => n.id === e.source);
+      const targetNode = nodes.find(n => n.id === e.target);
 
       if (sourceNode && targetNode) {
-        // Use logical container ID if workload, else fallback to visual id for infrastructure nodes
+        // Use logical container ID if workload, else fallback to visual id for infrastructure/system/person nodes
         const sourceLogicId = sourceNode.type === 'containerNode' ? (sourceNode as any)._logicalContainerId : sourceNode.id;
         const targetLogicId = targetNode.type === 'containerNode' ? (targetNode as any)._logicalContainerId : targetNode.id;
 
@@ -304,6 +326,57 @@ export default function App() {
         const cNodes = arch.model?.containers || [];
         cNodes.forEach((cn: any) => { containerMap[cn.id] = cn; });
 
+        // Add Systems and People
+        const sNodes = arch.model?.softwareSystems || [];
+        sNodes.forEach((sn: any) => {
+          const props = sn.properties || {};
+          const patternId = props.widget_ref?.split('@')[0];
+          const pattern = patternId ? getPatternById(patternId) : null;
+          newNodes.push({
+            id: sn.id,
+            type: 'systemNode',
+            position: { x: Math.random() * 400 + 100, y: Math.random() * 300 + 100 },
+            zIndex: 10,
+            data: {
+              label: sn.name.replace(/-/g, ' '),
+              widget_ref: props.widget_ref || '',
+              c4Level: pattern ? pattern.c4Level : 'SoftwareSystem',
+              layer: pattern?.layer,
+              properties: props,
+              status: props.status || 'existing',
+              icon: pattern?.display_metadata?.icon,
+              color: pattern?.display_metadata?.color,
+              min_width: pattern?.min_width || 300,
+              min_height: pattern?.min_height || 200,
+            }
+          });
+        });
+
+        const pNodes = arch.model?.people || [];
+        pNodes.forEach((pn: any) => {
+          const props = pn.properties || {};
+          const patternId = props.widget_ref?.split('@')[0];
+          const pattern = patternId ? getPatternById(patternId) : null;
+          newNodes.push({
+            id: pn.id,
+            type: 'personNode',
+            position: { x: Math.random() * 400 + 100, y: Math.random() * 300 + 100 },
+            zIndex: 10,
+            data: {
+              label: pn.name.replace(/-/g, ' '),
+              widget_ref: props.widget_ref || '',
+              c4Level: pattern ? pattern.c4Level : 'Person',
+              layer: pattern?.layer,
+              properties: props,
+              status: props.status || 'existing',
+              icon: pattern?.display_metadata?.icon,
+              color: pattern?.display_metadata?.color,
+              min_width: pattern?.min_width || 200,
+              min_height: pattern?.min_height || 200,
+            }
+          });
+        });
+
         const dNodes = arch.deployment?.nodes || [];
         const importedViews = arch.views || [];
         if (importedViews.length > 0) {
@@ -391,8 +464,8 @@ export default function App() {
                 delete cleanCProps.composition_alias;
                 delete cleanCProps.composition_id;
 
-                // Generate a unique node ID for the React Flow canvas to prevent collisions
-                const instanceNodeId = `workload-${ci.containerId}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+                // Generate/recover a unique node ID for the React Flow canvas to prevent collisions and maintain view bounds
+                const instanceNodeId = ci.id ? ci.id.replace('_instance', '') : `workload-${ci.containerId}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 
                 newNodes.push({
                   id: instanceNodeId,
@@ -414,7 +487,8 @@ export default function App() {
                     min_height: cPattern?.min_height,
                     origin_pattern: cProps.origin_pattern,
                     composition_alias: cProps.composition_alias,
-                    composition_id: cProps.composition_id
+                    composition_id: cProps.composition_id,
+                    containerId: ci.containerId
                   }
                 });
                 containerY += 150;
@@ -432,8 +506,8 @@ export default function App() {
         const rels = arch.model?.relationships || [];
 
         rels.forEach((r: any) => {
-          const sourceTarget = newNodes.find(n => n.type === 'containerNode' && n.data.label.replace(/\s+/g, '-').toLowerCase() === (r.sourceId?.split('-').slice(1).join('-') || '')) || newNodes.find(n => n.id === r.sourceId);
-          const destTarget = newNodes.find(n => n.type === 'containerNode' && n.data.label.replace(/\s+/g, '-').toLowerCase() === (r.destinationId?.split('-').slice(1).join('-') || '')) || newNodes.find(n => n.id === r.destinationId);
+          const sourceTarget = newNodes.find(n => n.id === r.sourceId || (n.data as any).containerId === r.sourceId);
+          const destTarget = newNodes.find(n => n.id === r.destinationId || (n.data as any).containerId === r.destinationId);
 
           if (sourceTarget && destTarget) {
             newEdges.push({
@@ -582,12 +656,29 @@ export default function App() {
           </div>
           <h1 className="text-xl font-bold tracking-tight hidden sm:block">Sovereign AaC Fabric</h1>
           <h1 className="text-xl font-bold tracking-tight sm:hidden">AaC</h1>
+
+          {/* Mobile-Friendly View Switcher */}
+          <div className="flex bg-slate-800 rounded border border-slate-700 ml-2 md:hidden relative max-w-[140px]">
+            <select
+              value={activeViewId}
+              onChange={(e) => setActiveViewId(e.target.value)}
+              className="bg-transparent text-white text-xs p-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full appearance-none pr-6 z-10"
+            >
+              {views.map(v => (
+                <option key={v.id} value={v.id}>{v.name}</option>
+              ))}
+            </select>
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+              <svg className="w-3 h-3 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" fillRule="evenodd"></path></svg>
+            </div>
+          </div>
         </div>
+
         <div className="flex items-center gap-2 sm:gap-3 ml-4 border-l border-slate-700 pl-4 hidden md:flex">
           <select
             value={activeViewId}
             onChange={(e) => setActiveViewId(e.target.value)}
-            className="bg-slate-800 text-white text-sm rounded border border-slate-700 p-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="bg-slate-800 text-white text-sm rounded border border-slate-700 p-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[200px]"
           >
             {views.map(v => (
               <option key={v.id} value={v.id}>{v.name} ({v.type})</option>
@@ -608,7 +699,7 @@ export default function App() {
               setViewModalForm({ name: 'New View', type: 'Container' });
               setViewModal({ isOpen: true, mode: 'create' });
             }}
-            className="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-sm font-semibold text-white transition-colors"
+            className="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-sm font-semibold text-white transition-colors whitespace-nowrap"
           >
             + View
           </button>
@@ -618,7 +709,8 @@ export default function App() {
           <button
             type="button"
             onClick={handleDiscover}
-            className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-sm font-semibold rounded-md shadow transition-colors flex items-center gap-2"
+            className="flex p-2 sm:px-3 sm:py-2 bg-indigo-600 hover:bg-indigo-500 text-sm font-semibold rounded-md shadow transition-colors items-center gap-2"
+            title="Auto-Detect Patterns"
           >
             <Wand2 className="w-4 h-4" />
             <span className="hidden sm:inline">Auto-Detect</span>
@@ -626,7 +718,8 @@ export default function App() {
           <button
             type="button"
             onClick={handleValidate}
-            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold rounded-md shadow transition-colors flex items-center gap-2"
+            className="flex p-2 sm:px-3 sm:py-2 bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold rounded-md shadow transition-colors items-center gap-2"
+            title="Validate Design"
           >
             <CheckCircle className="w-4 h-4" />
             <span className="hidden sm:inline">Validate Design</span>
@@ -646,7 +739,8 @@ export default function App() {
                 setDiscoveryResults(null);
               }
             }}
-            className="px-3 py-2 bg-red-600 hover:bg-red-500 text-sm font-semibold rounded-md shadow transition-colors flex items-center gap-2"
+            className="flex p-2 sm:px-3 sm:py-2 bg-red-600 hover:bg-red-500 text-sm font-semibold rounded-md shadow transition-colors items-center gap-2"
+            title="Clear Canvas"
           >
             <Trash2 className="w-4 h-4" />
             <span className="hidden sm:inline">Clear Canvas</span>
@@ -654,14 +748,15 @@ export default function App() {
 
           <div className="w-px h-6 bg-slate-700 mx-1 sm:mx-2 hidden sm:block"></div>
 
-          <label className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-sm font-semibold rounded-md shadow transition-colors cursor-pointer flex items-center gap-2">
+          <label className="p-2 sm:px-3 sm:py-2 bg-slate-800 hover:bg-slate-700 text-sm font-semibold rounded-md shadow transition-colors cursor-pointer flex items-center gap-2" title="Import YAML">
             <Upload className="w-4 h-4 text-slate-300" />
             <span className="hidden sm:inline">Import</span>
             <input type="file" accept=".yaml,.yml" className="hidden" onChange={handleImportYaml} />
           </label>
           <button
             onClick={handleExportYaml}
-            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-sm font-semibold rounded-md shadow transition-colors flex items-center gap-2"
+            className="p-2 sm:px-3 sm:py-2 bg-slate-800 hover:bg-slate-700 text-sm font-semibold rounded-md shadow transition-colors flex items-center gap-2"
+            title="Export YAML"
           >
             <Download className="w-4 h-4 text-slate-300" />
             <span className="hidden sm:inline">Export</span>
@@ -759,6 +854,16 @@ export default function App() {
             >
               <Box className="w-5 h-5" />
               Patterns
+            </button>
+            <button
+              onClick={() => {
+                setViewModalForm({ name: 'New View', type: 'Container' });
+                setViewModal({ isOpen: true, mode: 'create' });
+              }}
+              className="flex items-center justify-center w-12 h-12 bg-slate-800 hover:bg-slate-700 text-white rounded-full shadow-lg transition-transform active:scale-95"
+              title="New View"
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             </button>
             <button
               onClick={() => setIsPropertyPanelOpen(true)}
