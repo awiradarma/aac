@@ -533,6 +533,16 @@ export default function App() {
     a.download = 'architecture.yaml';
     a.click();
     URL.revokeObjectURL(url);
+
+    // Provide the absolute mathematically flawless truth of the raw ReactFlow GUI engine arrays dynamically to assert exact offline parity
+    const rawGraph = JSON.stringify({ nodes, edges, views }, null, 2);
+    const blobJson = new Blob([rawGraph], { type: 'application/json' });
+    const urlJson = URL.createObjectURL(blobJson);
+    const aJson = document.createElement('a');
+    aJson.href = urlJson;
+    aJson.download = 'raw-reactflow-topology.json';
+    aJson.click();
+    URL.revokeObjectURL(urlJson);
   };
 
   const handleImportYaml = (event: React.ChangeEvent<HTMLInputElement>) => {
