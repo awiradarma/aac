@@ -130,9 +130,35 @@ export function detectPatterns(arch: any, registry: Registry): DiscoveryResult[]
             const rules = cond.node_match;
             const alias = rules.alias;
             aliasCandidates[alias] = flatDeployments.filter(n => {
-                // If this node is already part of THIS specific pattern officially, don't re-detect it.
-                // We only want to detect loose/ungoverned components or those governed by something else.
-                if (n.properties?.origin_pattern === detector.target_pattern) return false;
+                // If this node is physically governed by THIS specific pattern officially in its current topological location, don't re-detect it.
+                // We only want to detect loosely deployed replica components or ungoverned instances sitting outside of their declared macro-boundaries!
+                if (n.properties?.origin_pattern === detector.target_pattern) {
+                    if (n.isInstance) {
+                        const getMemberships = (n: any) => n.properties?.memberships || n.memberships || {};
+                        let currentP = flatDeployments.find(p => p.id === n.parentId);
+                        let physicallyGoverned = false;
+                        while (currentP) {
+                            const pMem = getMemberships(currentP);
+                            const pPrime = currentP.properties?.composition_id || currentP.composition_id;
+
+                            // Check if the current parent container structurally participates in ANY of this node's declared composition instances
+                            const nMem = getMemberships(n);
+                            const nPrime = n.properties?.composition_id || n.composition_id;
+                            const nIds = new Set(Object.keys(nMem));
+                            if (nPrime) nIds.add(nPrime);
+
+                            if (nIds.has(pPrime) || Array.from(nIds).some(id => pMem[id])) {
+                                physicallyGoverned = true;
+                                break;
+                            }
+                            currentP = flatDeployments.find(p => p.id === currentP.parentId);
+                        }
+                        if (physicallyGoverned) return false;
+                    } else {
+                        // For logical containers natively placed directly on the root canvas (no bounded deployment) we assume default governance block
+                        return false;
+                    }
+                }
 
                 // Match C4 Level if specified
                 if (rules.c4Level && n.c4Level !== rules.c4Level && n.type !== rules.c4Level) return false;
