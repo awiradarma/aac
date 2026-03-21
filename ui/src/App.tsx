@@ -337,6 +337,7 @@ export default function App() {
             origin_pattern: (w.data as any).origin_pattern,
             composition_alias: (w.data as any).composition_alias,
             composition_id: (w.data as any).composition_id,
+            memberships: (w.data as any).memberships,
             status: 'new',
             aac_layout: serializeLayout(w),
             ...w.data.properties
@@ -450,6 +451,7 @@ export default function App() {
             origin_pattern: (child.data as any).origin_pattern,
             composition_alias: (child.data as any).composition_alias,
             composition_id: (child.data as any).composition_id,
+            memberships: (child.data as any).memberships,
             status: 'new',
             ...child.data.properties
           }
@@ -469,6 +471,7 @@ export default function App() {
               origin_pattern: (w.data as any).origin_pattern,
               composition_alias: (w.data as any).composition_alias,
               composition_id: (w.data as any).composition_id,
+              memberships: (w.data as any).memberships,
               ...w.data.properties
             }
           }));
@@ -485,6 +488,7 @@ export default function App() {
               origin_pattern: (w.data as any).origin_pattern,
               composition_alias: (w.data as any).composition_alias,
               composition_id: (w.data as any).composition_id,
+              memberships: (w.data as any).memberships,
               ...w.data.properties
             }
           }));
@@ -778,7 +782,8 @@ export default function App() {
                 min_height: pattern?.min_height,
                 origin_pattern: props.origin_pattern,
                 composition_alias: props.composition_alias,
-                composition_id: props.composition_id
+                composition_id: props.composition_id,
+                memberships: props.memberships || {},
               }
             });
 
@@ -829,9 +834,10 @@ export default function App() {
                     color: cPattern?.display_metadata?.color,
                     min_width: cPattern?.min_width,
                     min_height: cPattern?.min_height,
-                    origin_pattern: cProps.origin_pattern,
-                    composition_alias: cProps.composition_alias,
-                    composition_id: cProps.composition_id,
+                    origin_pattern: ciProps.origin_pattern || cProps.origin_pattern,
+                    composition_alias: ciProps.composition_alias || cProps.composition_alias,
+                    composition_id: ciProps.composition_id || cProps.composition_id,
+                    memberships: ciProps.memberships || cProps.memberships || {},
                     containerId: ci.containerId,
                     logical_parent_id: cn.logical_parent_id
                   }
