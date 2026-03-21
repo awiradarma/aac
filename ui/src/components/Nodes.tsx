@@ -288,7 +288,7 @@ export const SystemNode = ({ data, selected }: NodeProps<NodeData>) => {
 export const ComponentNode = ({ data, selected }: NodeProps<NodeData>) => {
     const style = themedStyles(data.color || 'blue');
     return (
-        <div className={`group w-36 md:w-56 bg-slate-50 border border-slate-300 rounded shadow-sm ${selected ? `border-blue-500 ring ring-blue-500/30` : `hover:border-slate-400`} transition-all relative`}>
+        <div className={`group w-36 md:w-56 bg-slate-50 border border-slate-300 rounded shadow-sm ${selected ? style.borderSelected : `hover:border-slate-400`} transition-all relative`}>
             <div className={`bg-slate-100/50 p-2 border-b border-slate-200 flex items-center gap-2`}>
                 <DynamicIcon name={data.icon} className={`w-4 h-4 text-slate-500`} />
                 <div>
@@ -306,7 +306,7 @@ export const ComponentNode = ({ data, selected }: NodeProps<NodeData>) => {
                     ))}
                 </div>
             )}
-            <OmniPorts styleClass="port-slate" />
+            <OmniPorts styleClass={style.port} />
         </div>
     );
 };
