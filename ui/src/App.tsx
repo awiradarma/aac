@@ -1150,6 +1150,8 @@ export default function App() {
     const n = nodes.find(x => x.id === nodeId);
     if (!n) return null;
     if (n.parentNode) return getVisibleAncestor(n.parentNode);
+    // CRITICAL: Prevent Physical Runtime Replicas from aggressively spawning duplicate Logic edges natively rolling up when mathematically hidden!
+    if (n.data?.containerId) return null;
     if (n.data.logical_parent_id) return getVisibleAncestor(n.data.logical_parent_id);
     return null;
   };
