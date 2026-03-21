@@ -1,89 +1,346 @@
 model:
-  containers:
-    - name: Internal-API-on-OpenShift-Instance
-      id: internal-api-ocp-internal-api-on-openshift-instance
+  people:
+    - name: Person-/-User-Instance
+      id: node_0
       properties:
-        widget_ref: internal-api-ocp@2.1.0
-        status: new
+        widget_ref: person@1.0.0
+        aac_layout: '{"default":{"x":378.37108788692717,"y":138.32675077478987}}'
+  softwareSystems:
+    - name: Core-Software-System
+      id: default-system
+      properties:
+        widget_ref: software-system@1.0.0
+        aac_layout: >-
+          {"default":{"x":728.4125625051176,"y":359.8194561635107},"v-1774102028485":{"x":240.26540438696657,"y":108.45262054390776,"width":1000,"height":800}}
+        system_type: Internal System
+      containers:
+        - name: Relational-Database-Instance
+          id: database-instance-relational-database-instance
+          properties:
+            widget_ref: database-instance@1.0.0
+            status: new
+            aac_layout: >-
+              {"v-1774102028485":{"x":300.92749952344286,"y":636.8531493489895,"parentNode":"default-system"},"v-1774102068864":{"x":671.2804809166576,"y":1041.121238928396,"parentNode":"default-system"},"v-1774102133569":{"x":476.2007786296823,"y":988.2136701579366,"parentNode":"default-system"},"v-1774102253962":{"x":265.6557870098035,"y":787.436229695681,"parentNode":"default-system"}}
+            technology: Postgres
+        - name: API-Container-Instance
+          id: api-container-api-container-instance
+          properties:
+            widget_ref: api-container@1.0.0
+            origin_pattern: internal-api-ocp@3.0.0
+            composition_alias: api
+            composition_id: auto-exp-1774120433011-0
+            status: new
+            aac_layout: >-
+              {"v-1774102028485":{"x":60.161938385664826,"y":161.0490941271484,"parentNode":"default-system"},"v-1774102068864":{"x":382.36806022467977,"y":67.6358562568198,"width":1000,"height":800},"v-1774120414121":{"x":57.99999999999977,"y":333,"parentNode":"node_1774120419122_313"}}
+            language: java
+            type: REST API
+          components:
+            - name: API-Controller
+              id: node_5
+              properties:
+                widget_ref: generic-component@1.0.0
+                status: new
+                aac_layout: >-
+                  {"v-1774102028485":{"x":300,"y":100,"parentNode":"api-container-api-container-instance"}}
+            - name: Command-Handler
+              id: node_6
+              properties:
+                widget_ref: generic-component@1.0.0
+                status: new
+                aac_layout: >-
+                  {"v-1774102028485":{"x":100,"y":250,"parentNode":"api-container-api-container-instance"}}
+            - name: Query-Handler
+              id: node_7
+              properties:
+                widget_ref: generic-component@1.0.0
+                status: new
+                aac_layout: >-
+                  {"v-1774102028485":{"x":500,"y":250,"parentNode":"api-container-api-container-instance"}}
+            - name: Write-Repository
+              id: node_8
+              properties:
+                widget_ref: generic-component@1.0.0
+                status: new
+                aac_layout: >-
+                  {"v-1774102028485":{"x":100,"y":400,"parentNode":"api-container-api-container-instance"}}
+            - name: Read-Repository
+              id: node_9
+              properties:
+                widget_ref: generic-component@1.0.0
+                status: new
+                aac_layout: >-
+                  {"v-1774102028485":{"x":500,"y":400,"parentNode":"api-container-api-container-instance"}}
+            - name: Event-Synchronizer
+              id: node_10
+              properties:
+                widget_ref: generic-component@1.0.0
+                status: new
+                aac_layout: >-
+                  {"v-1774102068864":{"x":318.9924605842675,"y":546.9000293547267,"parentNode":"api-container-api-container-instance"},"v-1774102028485":{"x":318.9924605842675,"y":546.9000293547267,"parentNode":"api-container-api-container-instance"}}
+        - name: Batch-Container-Instance
+          id: batch-container-batch-container-instance
+          properties:
+            widget_ref: batch-container@1.0.0
+            origin_pattern: batch-workload-ocp@1.0.0
+            composition_alias: workload
+            composition_id: auto-exp-1774120451879-0
+            status: new
+            aac_layout: >-
+              {"v-1774102028485":{"x":573.821935375886,"y":178.00211865107525,"parentNode":"default-system"},"v-1774102253962":{"x":181.59061976242424,"y":-133.14158420543572,"width":1000,"height":800},"v-1774120414121":{"x":57.999999999999886,"y":145,"parentNode":"node_1774120419122_313"}}
+            language: python
+            schedule: 0 0 * * *
+          components:
+            - name: Application-Component-Instance
+              id: node_14
+              properties:
+                widget_ref: generic-component@1.0.0
+                status: new
+                aac_layout: >-
+                  {"v-1774102253962":{"x":100.23505026859141,"y":590.4741138287966,"parentNode":"batch-container-batch-container-instance"}}
+    - name: ServiceNOW
+      id: node_15
+      properties:
+        widget_ref: software-system@1.0.0
+        aac_layout: '{"default":{"x":729.6228668871431,"y":755.787493124734}}'
+        system_type: SaaS Provider
   relationships:
-    - sourceId: node_8
-      destinationId: node_5
+    - sourceId: node_0
+      destinationId: default-system
       description: Uses
       technology: ''
-    - sourceId: node_9
+      properties:
+        styleVariant: solid
+        direction: forward
+        sourceHandle: source-bottom
+        targetHandle: target-left
+    - sourceId: node_5
+      destinationId: node_6
+      description: exec command
+      technology: ''
+      properties:
+        styleVariant: solid
+        direction: forward
+        sourceHandle: source-bottom
+        targetHandle: target-top
+    - sourceId: node_5
+      destinationId: node_7
+      description: fetch query
+      technology: ''
+      properties:
+        styleVariant: solid
+        direction: forward
+        sourceHandle: source-bottom
+        targetHandle: target-top
+    - sourceId: node_6
       destinationId: node_8
+      description: mutate state
+      technology: ''
+      properties:
+        styleVariant: solid
+        direction: forward
+        sourceHandle: source-bottom
+        targetHandle: target-top
+    - sourceId: node_7
+      destinationId: node_9
+      description: read state
+      technology: ''
+      properties:
+        styleVariant: solid
+        direction: forward
+        sourceHandle: source-bottom
+        targetHandle: target-top
+    - sourceId: node_8
+      destinationId: node_10
+      description: emits event
+      technology: ''
+      properties:
+        styleVariant: dashed
+        direction: forward
+        sourceHandle: source-bottom
+        targetHandle: target-left
+    - sourceId: node_10
+      destinationId: node_9
+      description: updates read model
+      technology: ''
+      properties:
+        styleVariant: dashed
+        direction: forward
+        sourceHandle: source-right
+        targetHandle: target-bottom
+    - sourceId: node_8
+      destinationId: database-instance-relational-database-instance
       description: Uses
       technology: ''
-    - sourceId: node_12
-      destinationId: node_3
+      properties:
+        styleVariant: solid
+        direction: forward
+        sourceHandle: source-left
+        targetHandle: target-left
+    - sourceId: node_9
+      destinationId: database-instance-relational-database-instance
       description: Uses
       technology: ''
-    - sourceId: node_13
-      destinationId: node_12
+      properties:
+        styleVariant: solid
+        direction: forward
+        sourceHandle: source-right
+        targetHandle: target-right
+    - sourceId: node_14
+      destinationId: database-instance-relational-database-instance
       description: Uses
       technology: ''
+      properties:
+        styleVariant: solid
+        direction: forward
+        sourceHandle: source-bottom
+        targetHandle: target-top
+    - sourceId: default-system
+      destinationId: node_15
+      description: Uses
+      technology: ''
+      properties:
+        styleVariant: solid
+        direction: forward
+        sourceHandle: source-bottom
+        targetHandle: target-top
+    - sourceId: node_1774120428152_44
+      destinationId: node_1774120430032_451
+      description: Uses
+      technology: ''
+      properties:
+        styleVariant: solid
+        direction: forward
+        sourceHandle: source-bottom
+        targetHandle: target-top
+    - sourceId: node_1774120430032_451
+      destinationId: api-container-api-container-instance
+      description: Uses
+      technology: ''
+      properties:
+        styleVariant: solid
+        direction: forward
+        sourceHandle: source-bottom
+        targetHandle: target-left
 deployment:
   nodes:
     - name: Primary-Region
-      id: node_1
+      id: node_1774120419121_381
       properties:
         widget_ref: region@1.0.0
+        origin_pattern: single-dc-ocp-cluster@1.0.0
+        composition_alias: region-1
+        composition_id: exp-single-dc-ocp-cluster-1774120419121
         status: new
       nodes:
         - name: Primary-Datacenter
-          id: node_2
+          id: node_1774120419121_133
           properties:
             widget_ref: datacenter@1.0.0
+            origin_pattern: internal-api-ocp@3.0.0
+            composition_alias: datacenter
+            composition_id: auto-exp-1774120433011-0
             status: new
           nodes:
             - name: Primary-OpenShift-Cluster
-              id: node_3
+              id: node_1774120419122_313
               properties:
                 widget_ref: openshift-cluster-v4@4.12.0
+                origin_pattern: batch-workload-ocp@1.0.0
+                composition_alias: cluster
+                composition_id: auto-exp-1774120451879-0
                 status: new
-              containerInstances:
-                - id: node_11_instance
-                  containerId: internal-api-ocp-internal-api-on-openshift-instance
-            - name: Local-Load-Balancer-Instance
-              id: node_12
-              properties:
-                widget_ref: local-load-balancer@2.0.0
-                status: new
-                provider: avi
             - name: API-Gateway-Instance
-              id: node_13
+              id: node_1774120428152_44
               properties:
                 widget_ref: api-gateway@2.0.0
+                origin_pattern: internal-api-ocp@3.0.0
+                composition_alias: gw
+                composition_id: auto-exp-1774120433011-0
                 status: new
                 provider: apigee
-        - name: Passive-Datacenter
-          id: node_4
-          properties:
-            widget_ref: datacenter@1.0.0
-            status: new
-          nodes:
-            - name: Passive-OpenShift-Cluster
-              id: node_5
-              properties:
-                widget_ref: openshift-cluster-v4@4.12.0
-                status: new
-              containerInstances:
-                - id: node_7_instance
-                  containerId: internal-api-ocp-internal-api-on-openshift-instance
-            - name: Virtual-Machine-Instance
-              id: node_6
-              properties:
-                widget_ref: virtual-machine@1.0.0
-                status: new
             - name: Local-Load-Balancer-Instance
-              id: node_8
+              id: node_1774120430032_451
               properties:
                 widget_ref: local-load-balancer@2.0.0
+                origin_pattern: internal-api-ocp@3.0.0
+                composition_alias: lb
+                composition_id: auto-exp-1774120433011-0
                 status: new
                 provider: avi
-            - name: API-Gateway-Instance
-              id: node_9
+          infrastructureNodes:
+            - id: node_1774120428152_44
+              name: API-Gateway-Instance
               properties:
                 widget_ref: api-gateway@2.0.0
-                status: new
+                origin_pattern: internal-api-ocp@3.0.0
+                composition_alias: gw
+                composition_id: auto-exp-1774120433011-0
                 provider: apigee
+            - id: node_1774120430032_451
+              name: Local-Load-Balancer-Instance
+              properties:
+                widget_ref: local-load-balancer@2.0.0
+                origin_pattern: internal-api-ocp@3.0.0
+                composition_alias: lb
+                composition_id: auto-exp-1774120433011-0
+                provider: avi
+views:
+  - key: default
+    name: Main System Context
+    type: SystemContext
+    include:
+      - default-system
+      - node_0
+      - node_15
+    exclude: []
+    exclude_edges: []
+  - key: v-1774102028485
+    name: Core Software System - Containers
+    type: Container
+    include:
+      - default-system
+      - api-container-api-container-instance
+      - database-instance-relational-database-instance
+      - node_3
+      - batch-container-batch-container-instance
+    exclude: []
+    exclude_edges: []
+    scope_entity_id: default-system
+  - key: v-1774102068864
+    name: API Container Instance - Components
+    type: Component
+    include:
+      - api-container-api-container-instance
+      - node_5
+      - node_6
+      - node_7
+      - node_8
+      - node_9
+      - node_10
+      - database-instance-relational-database-instance
+    exclude: []
+    exclude_edges: []
+    scope_entity_id: api-container-api-container-instance
+  - key: v-1774102253962
+    name: Batch Container Instance - Components
+    type: Component
+    include:
+      - batch-container-batch-container-instance
+      - node_14
+      - database-instance-relational-database-instance
+    exclude: []
+    exclude_edges: []
+    scope_entity_id: batch-container-batch-container-instance
+  - key: v-1774120414121
+    name: Topology
+    type: Deployment
+    include:
+      - node_1774120419121_381
+      - node_1774120419121_133
+      - node_1774120419122_313
+      - api-container-api-container-instance
+      - node_1774120428152_44
+      - node_1774120430032_451
+      - batch-container-batch-container-instance
+    exclude: []
+    exclude_edges: []

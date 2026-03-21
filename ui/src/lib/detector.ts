@@ -111,7 +111,7 @@ export function detectPatterns(arch: any, registry: Registry): DiscoveryResult[]
         let curr = flatDeployments.find(n => n.id === childId);
         while (curr && curr.parentId) {
             if (curr.parentId === possibleParentId) return true;
-            curr = flatDeployments.find(n => n.id === curr.parentId);
+            curr = flatDeployments.find(n => n.id === curr.parentId || n.logicalId === curr.parentId);
         }
         return false;
     };
