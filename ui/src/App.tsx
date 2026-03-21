@@ -1086,6 +1086,9 @@ export default function App() {
 
     if (activeView.exclude.includes(n.id)) {
       isHidden = true;
+    } else if (n.data?.containerId && activeView.type !== 'Deployment') {
+      // Forcefully hide physical runtime replicas from polluting purely logical architecture views!
+      isHidden = true;
     } else if (!allowed.includes(n.data?.c4Level) && !isExplicitlyIncluded) {
       // Enforce structural abstractions mathematically natively unless explicitly drawn in the model tree or manually included
       isHidden = true;
