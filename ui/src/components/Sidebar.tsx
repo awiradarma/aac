@@ -106,8 +106,13 @@ export const Sidebar: React.FC<Props> = ({ activeView, hiddenNodes, onRevealNode
                             {hiddenNodes?.map(node => (
                                 <div
                                     key={node.id}
-                                    className="px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg cursor-pointer hover:border-indigo-400 hover:shadow-md transition-all group active:scale-95 flex items-center gap-3"
+                                    className="px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg cursor-pointer hover:border-indigo-400 hover:shadow-md transition-all group active:scale-95 flex items-center gap-3 cursor-grab active:cursor-grabbing"
                                     onClick={() => onRevealNode && onRevealNode(node.id)}
+                                    draggable
+                                    onDragStart={(e) => {
+                                        e.dataTransfer.setData('application/existingNodeId', node.id);
+                                        e.dataTransfer.effectAllowed = 'move';
+                                    }}
                                 >
                                     <div className="w-8 h-8 rounded-md flex items-center justify-center shrink-0 bg-indigo-100 text-indigo-600">
                                         <DynamicIcon name={node.data?.icon || 'Box'} className="w-4 h-4" />

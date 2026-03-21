@@ -25,6 +25,9 @@ export function detectPatterns(arch: any, registry: Registry): DiscoveryResult[]
 
     // 1. Build a quick lookup map of containers
     cNodes.forEach((cn: any) => { containerMap[cn.id] = cn; });
+    (arch.model?.softwareSystems || []).forEach((s: any) => {
+        (s.containers || []).forEach((cn: any) => { containerMap[cn.id] = cn; });
+    });
 
     // 2. Parse the hierarchical Deployment Nodes into a flat Abstract Syntax Tree (AST)
     // This makes it easy to traverse parent-child relationships via `parentId`
@@ -49,10 +52,48 @@ export function detectPatterns(arch: any, registry: Registry): DiscoveryResult[]
                     }
                 });
             }
+            if (dn.infrastructureNodes) {
+                dn.infrastructureNodes.forEach((infra: any) => {
+                    flatDeployments.push({
+                        ...infra,
+                        type: 'InfrastructureNode',
+                        c4Level: 'InfrastructureNode',
+                        parentId: dn.id
+                    });
+                });
+            }
             if (dn.nodes) parseTree(dn.nodes, dn.id);
         });
     };
     parseTree(arch.deployment?.nodes || [], null);
+
+    // 2.5 Ensure purely logical models not explicitly wrapped in boundary deployments are still fully detectable!
+    const sNodes = arch.model?.softwareSystems || [];
+    const pNodes = arch.model?.people || [];
+
+    sNodes.forEach((s: any) => {
+        flatDeployments.push({ ...s, type: 'SoftwareSystem', c4Level: 'SoftwareSystem' });
+        (s.containers || []).forEach((c: any) => {
+            flatDeployments.push({ ...c, type: 'Container', c4Level: 'Container', parentId: s.id });
+            (c.components || []).forEach((cmp: any) => {
+                flatDeployments.push({ ...cmp, type: 'Component', c4Level: 'Component', parentId: c.id });
+            });
+        });
+    });
+
+    cNodes.forEach((c: any) => {
+        flatDeployments.push({ ...c, type: 'Container', c4Level: 'Container' });
+        (c.components || []).forEach((cmp: any) => {
+            flatDeployments.push({ ...cmp, type: 'Component', c4Level: 'Component', parentId: c.id });
+        });
+    });
+
+    pNodes.forEach((p: any) => flatDeployments.push({ ...p, type: 'Person', c4Level: 'Person' }));
+
+    // Deduplicate structurally
+    const uniqueDeployments = Array.from(new Map(flatDeployments.map(item => [item.id, item])).values());
+    flatDeployments.length = 0;
+    flatDeployments.push(...uniqueDeployments);
 
     // 3. Build Adjacency List for 'connects_to' generic relationship searches
     // Enables O(1) lookups for line connections between nodes
@@ -76,6 +117,7 @@ export function detectPatterns(arch: any, registry: Registry): DiscoveryResult[]
     };
 
     const results: DiscoveryResult[] = [];
+    const failedRelsTrace = new Set<string>();
 
     // 4. Run the Engine! Evaluate each detector rule against the canvas.
     detectors.forEach(detector => {
@@ -109,7 +151,10 @@ export function detectPatterns(arch: any, registry: Registry): DiscoveryResult[]
                 }
                 return true;
             });
-            if (aliasCandidates[alias].length === 0) return; // If any required actor is completely absent, this pattern isn't here.
+            if (aliasCandidates[alias].length === 0) {
+                console.error('Detector completely missing alias:', detector.id, alias);
+                return;
+            }
         }
 
         const aliases = Object.keys(aliasCandidates);
@@ -126,11 +171,17 @@ export function detectPatterns(arch: any, registry: Registry): DiscoveryResult[]
                     const r = cond.relationship;
                     const src = currentCombo[r.source];
                     const tgt = currentCombo[r.target];
-                    if (!src || !tgt) { valid = false; break; }
+                    if (!src || !tgt) {
+                        failedRelsTrace.add(`Missing src/tgt for ${r.source}->${r.target}`);
+                        valid = false; break;
+                    }
 
                     if (r.type === 'hosted_on') {
                         // Is the source physically inside the target container?
-                        if (!isDescendant(src.id, tgt.id)) valid = false;
+                        if (!isDescendant(src.id, tgt.id)) {
+                            failedRelsTrace.add(`'${src.name}' NOT visually inside '${tgt.name}'`);
+                            valid = false;
+                        }
                     } else if (r.type === 'connects_to') {
                         // Is there a line drawn from source to target?
                         const sId = src.logicalId || src.id;
@@ -166,6 +217,33 @@ export function detectPatterns(arch: any, registry: Registry): DiscoveryResult[]
 
         backtrack(0, {});
     });
+
+    if (results.length === 0) {
+        const diagnostics: string[] = [];
+        detectors.forEach(d => {
+            const aliasCandidates: Record<string, any[]> = {};
+            d.conditions.filter((c: any) => c.node_match).forEach((cond: any) => {
+                const rules = cond.node_match;
+                aliasCandidates[rules.alias] = flatDeployments.filter(n => {
+                    if (rules.c4Level && n.c4Level !== rules.c4Level && n.type !== rules.c4Level) return false;
+                    if (rules.widget_ref) {
+                        const id = n.properties?.widget_ref?.split('@')[0] || n.widget_ref?.split('@')[0];
+                        if (id !== rules.widget_ref) return false;
+                    }
+                    if (n.properties?.origin_pattern === d.target_pattern) return false;
+                    return true;
+                });
+            });
+            diagnostics.push(`\n${d.id} MATRICES -> ${Object.keys(aliasCandidates).map(k => k + ':' + aliasCandidates[k].length).join(', ')} | ERRORS -> ${Array.from(failedRelsTrace).join(', ')}`);
+        });
+
+        results.push({
+            detectorId: 'diagnostic-mode',
+            detectorName: `DIAGNOSTIC ALIAS COUNTS: ${diagnostics.join(' | ')} | FlatDeployments Length: ${flatDeployments.length}`,
+            targetPattern: 'none',
+            matchedNodes: {}
+        });
+    }
 
     return results;
 }

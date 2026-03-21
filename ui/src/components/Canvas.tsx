@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import ReactFlow, {
     Background,
     Controls,
@@ -24,8 +24,7 @@ const nodeTypes = {
     componentNode: ComponentNode,
 };
 
-let id = 0;
-const getId = () => `node_${id++}`;
+const getId = () => `node_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
 interface Props {
     onNodeSelect: (node: Node<NodeData> | null) => void;
@@ -38,12 +37,35 @@ interface Props {
     onEdgesChange: any;
     patternToAdd?: { type: string, patternId: string, version: string } | null;
     onPatternAdded?: () => void;
+    onRevealNode?: (id: string) => void;
     activeView?: DiagramView;
     selectedNodeId?: string | null;
 }
 
-export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange, onNodeSelect, onEdgeSelect, patternToAdd, onPatternAdded, selectedNodeId, activeView }) => {
+export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange, onNodeSelect, onEdgeSelect, patternToAdd, onPatternAdded, onRevealNode, selectedNodeId, activeView }) => {
     const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
+    const draggingEdgeId = useRef<string | null>(null);
+
+    const handleEdgesChange = useCallback((changes: any[]) => {
+        let hasInterceptedRemove = false;
+
+        const safeChanges = changes.filter(c => {
+            if (c.type === 'remove' && draggingEdgeId.current === c.id) {
+                // Intercept the native reactflow remove event triggered by missing a drag
+                hasInterceptedRemove = true;
+                draggingEdgeId.current = null; // Clear lock
+                return false;
+            }
+            return true;
+        });
+
+        if (safeChanges.length > 0) onEdgesChange(safeChanges);
+
+        if (hasInterceptedRemove) {
+            // Force React Flow to physically redraw the aborted connection
+            setEdges((eds: any[]) => [...eds]);
+        }
+    }, [onEdgesChange, setEdges]);
 
     const onConnect = useCallback((params: Edge | Connection) => {
         const edge = {
@@ -71,6 +93,48 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
         (event: React.DragEvent) => {
             event.preventDefault();
 
+            const existingNodeId = event.dataTransfer.getData('application/existingNodeId');
+            if (existingNodeId) {
+                const position = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+                const possibleParents = nodes.filter(n => {
+                    if (n.type !== 'deploymentNode' && n.type !== 'infrastructureNode') return false;
+                    let posx = n.position.x; let posy = n.position.y;
+                    let cId = n.parentNode;
+                    while (cId) { const p = nodes.find(x => x.id === cId); if (p) { posx += p.position.x; posy += p.position.y; cId = p.parentNode; } else break; }
+                    const width = n.width || (n.style?.width ? Number(n.style.width) : 500);
+                    const height = n.height || (n.style?.height ? Number(n.style.height) : 400);
+                    return position.x >= posx && position.x <= posx + width && position.y >= posy && position.y <= posy + height;
+                });
+                possibleParents.sort((a, b) => ((a.width || 500) * (a.height || 400)) - ((b.width || 500) * (b.height || 400)));
+                const closestParent = possibleParents.length > 0 ? possibleParents[0] : null;
+
+                setNodes((nds: Node[]) => {
+                    let updatedNode: Node | null = null;
+                    const remaining = nds.filter(n => {
+                        if (n.id === existingNodeId) {
+                            let px = 0; let py = 0;
+                            let cId = closestParent ? closestParent.parentNode : undefined;
+                            while (cId) { const p = nds.find(x => x.id === cId); if (p) { px += p.position.x; py += p.position.y; cId = p.parentNode; } else break; }
+                            const parentAbsX = closestParent ? closestParent.position.x + px : 0;
+                            const parentAbsY = closestParent ? closestParent.position.y + py : 0;
+
+                            updatedNode = {
+                                ...n,
+                                position: closestParent ? { x: Math.max(50, position.x - parentAbsX), y: Math.max(50, position.y - parentAbsY) } : position,
+                                parentNode: closestParent ? closestParent.id : undefined,
+                                extent: closestParent ? 'parent' : undefined,
+                                zIndex: closestParent ? (closestParent.zIndex || 0) + 5 : 15,
+                            };
+                            return false;
+                        }
+                        return true;
+                    });
+                    return updatedNode ? [...remaining, updatedNode] : remaining;
+                });
+                if (onRevealNode) onRevealNode(existingNodeId);
+                return;
+            }
+
             const type = event.dataTransfer.getData('application/reactflow');
             const patternId = event.dataTransfer.getData('application/patternId');
             const version = event.dataTransfer.getData('application/patternVersion');
@@ -88,6 +152,25 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 x: event.clientX,
                 y: event.clientY,
             });
+
+
+
+            const getAbsolutePosition = (node: Node) => {
+                let x = node.position.x;
+                let y = node.position.y;
+                let currentParentId = node.parentNode;
+                while (currentParentId) {
+                    const parent = nodes.find(n => n.id === currentParentId);
+                    if (parent) {
+                        x += parent.position.x;
+                        y += parent.position.y;
+                        currentParentId = parent.parentNode;
+                    } else {
+                        break;
+                    }
+                }
+                return { x, y };
+            };
 
             // Default properties based on the pattern parameters
             const defaultProps: Record<string, any> = {};
@@ -123,24 +206,8 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     min_height: pattern.min_height,
                     memberships: {},
                     logical_parent_id: (activeView?.scope_entity_id && (pattern.c4Level === 'Container' || pattern.c4Level === 'Component')) ? activeView.scope_entity_id : undefined,
+                    origin_pattern: pattern.composition ? `${pattern.id}@${pattern.version}` : undefined,
                 },
-            };
-
-            const getAbsolutePosition = (node: Node) => {
-                let x = node.position.x;
-                let y = node.position.y;
-                let currentParentId = node.parentNode;
-                while (currentParentId) {
-                    const parent = nodes.find(n => n.id === currentParentId);
-                    if (parent) {
-                        x += parent.position.x;
-                        y += parent.position.y;
-                        currentParentId = parent.parentNode;
-                    } else {
-                        break;
-                    }
-                }
-                return { x, y };
             };
 
             // Generic bounding-box hit detection for infinite hierarchy depth
@@ -287,6 +354,9 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                     ...existingMemberships,
                                     [expansionId]: macroNode.id_suffix
                                 },
+                                origin_pattern: `${pattern.id}@${pattern.version}`,
+                                composition_alias: macroNode.id_suffix,
+                                composition_id: expansionId,
                                 status: 'existing'
                             };
                         } else {
@@ -404,8 +474,8 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                 id: edgeId,
                                 source: sourceId,
                                 target: targetId,
-                                sourceHandle: macroEdge.source_handle,
-                                targetHandle: macroEdge.target_handle,
+                                sourceHandle: macroEdge.source_handle || 'source-right',
+                                targetHandle: macroEdge.target_handle || 'target-left',
                                 animated: isAnimated,
                                 type: 'smoothstep',
                                 zIndex: 5000,
@@ -540,7 +610,88 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 nodes={nodes}
                 edges={edges}
                 onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
+                onNodeDragStop={(event, node) => {
+                    if (node.type === 'deploymentNode' || node.type === 'infrastructureNode') return;
+
+                    const position = { x: event.clientX, y: event.clientY };
+                    const flowPos = reactFlowInstance.screenToFlowPosition(position);
+
+                    const getAbsolutePosition = (n: Node) => {
+                        let px = n.position.x;
+                        let py = n.position.y;
+                        let cParentId = n.parentNode;
+                        while (cParentId) {
+                            const parent = nodes.find(x => x.id === cParentId);
+                            if (parent) { px += parent.position.x; py += parent.position.y; cParentId = parent.parentNode; }
+                            else { break; }
+                        }
+                        return { x: px, y: py };
+                    };
+
+                    const possibleParents = nodes.filter(n => {
+                        if (n.id === node.id || (n.type !== 'deploymentNode' && n.type !== 'infrastructureNode')) return false;
+                        const pos = getAbsolutePosition(n);
+                        const width = n.width || (n.style?.width ? Number(n.style.width) : 500);
+                        const height = n.height || (n.style?.height ? Number(n.style.height) : 400);
+                        return flowPos.x >= pos.x && flowPos.x <= pos.x + width && flowPos.y >= pos.y && flowPos.y <= pos.y + height;
+                    });
+                    possibleParents.sort((a, b) => ((a.width || 500) * (a.height || 400)) - ((b.width || 500) * (b.height || 400)));
+                    const closestParent = possibleParents.length > 0 ? possibleParents[0] : null;
+
+                    if (closestParent && closestParent.id !== node.parentNode) {
+                        setNodes((nds: Node[]) => {
+                            let updatedNode: Node | null = null;
+                            const remaining = nds.filter(n => {
+                                if (n.id === node.id) {
+                                    updatedNode = {
+                                        ...n,
+                                        position: { x: Math.max(20, flowPos.x - getAbsolutePosition(closestParent).x), y: Math.max(20, flowPos.y - getAbsolutePosition(closestParent).y) },
+                                        parentNode: closestParent.id,
+                                        extent: 'parent',
+                                        zIndex: (closestParent.zIndex || 0) + 5,
+                                    };
+                                    return false;
+                                }
+                                return true;
+                            });
+                            return updatedNode ? [...remaining, updatedNode] : remaining;
+                        });
+                    } else if (!closestParent && node.parentNode) {
+                        setNodes((nds: Node[]) => {
+                            let updatedNode: Node | null = null;
+                            const remaining = nds.filter(n => {
+                                if (n.id === node.id) {
+                                    updatedNode = { ...n, position: flowPos, parentNode: undefined, extent: undefined, zIndex: 15 };
+                                    return false;
+                                }
+                                return true;
+                            });
+                            return updatedNode ? [...remaining, updatedNode] : remaining;
+                        });
+                    }
+                }}
+                onEdgesChange={handleEdgesChange}
+                onEdgeUpdateStart={(_, e) => { draggingEdgeId.current = e.id; }}
+                onEdgeUpdateEnd={() => { setTimeout(() => { draggingEdgeId.current = null; }, 500); }}
+                onEdgeUpdate={(oldEdge, newConnection) => {
+                    draggingEdgeId.current = null;
+                    setEdges((prevEdges: any[]) => prevEdges.map(edge => {
+                        const targetIds = oldEdge.id.startsWith('rollup-') ? (oldEdge.data?._underlyingEdgeIds || []) : [oldEdge.id];
+                        if (targetIds.includes(edge.id)) {
+                            const updated = { ...edge };
+                            if (oldEdge.source !== newConnection.source || oldEdge.sourceHandle !== newConnection.sourceHandle) {
+                                updated.source = newConnection.source;
+                                updated.sourceHandle = newConnection.sourceHandle || undefined;
+                            }
+                            if (oldEdge.target !== newConnection.target || oldEdge.targetHandle !== newConnection.targetHandle) {
+                                updated.target = newConnection.target;
+                                updated.targetHandle = newConnection.targetHandle || undefined;
+                            }
+                            return updated;
+                        }
+                        return edge;
+                    }));
+                }}
                 onConnect={onConnect}
                 onInit={setReactFlowInstance}
                 onDrop={onDrop}
@@ -548,7 +699,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 nodeTypes={nodeTypes}
                 elevateEdgesOnSelect={true}
                 connectionMode={ConnectionMode.Loose}
-                connectionRadius={40}
+                connectionRadius={80}
                 defaultEdgeOptions={{
                     zIndex: 5000,
                     style: { strokeWidth: 3, stroke: '#64748b' }

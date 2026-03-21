@@ -46,6 +46,39 @@ export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, act
                         )}
                     </div>
                 </div>
+
+                {activeView && onUpdateView && (
+                    <div className="mb-6 p-4 bg-slate-100 rounded-lg flex items-center justify-between">
+                        <div className="flex flex-col">
+                            <span className="text-sm font-bold text-slate-800">Edge Visibility</span>
+                            <span className="text-xs text-slate-500">Hide from {activeView.name}</span>
+                        </div>
+                        <button
+                            onClick={() => {
+                                const v = { ...activeView };
+                                const excludedEdges = v.exclude_edges || [];
+                                const isExcluded = excludedEdges.includes(selectedEdge.id);
+                                if (isExcluded) {
+                                    v.exclude_edges = excludedEdges.filter(id => id !== selectedEdge.id);
+                                } else {
+                                    v.exclude_edges = [...excludedEdges, selectedEdge.id];
+                                }
+                                onUpdateView(v);
+                            }}
+                            className={`p-2 rounded-md transition-colors flex items-center gap-1 ${(activeView.exclude_edges || []).includes(selectedEdge.id)
+                                ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                                : 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200'
+                                }`}
+                        >
+                            {(activeView.exclude_edges || []).includes(selectedEdge.id) ? (
+                                <><EyeOff className="w-4 h-4" /> <span className="text-xs font-bold">Hidden</span></>
+                            ) : (
+                                <><Eye className="w-4 h-4" /> <span className="text-xs font-bold">Visible</span></>
+                            )}
+                        </button>
+                    </div>
+                )}
+
                 <div className="mb-6 p-3 bg-slate-50 rounded border border-slate-100 flex flex-col gap-3">
                     <div>
                         <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Relationship / description</label>
@@ -189,17 +222,7 @@ export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, act
     };
 
     const handleDelete = () => {
-        const nodesToDelete = [{ id: selectedNode.id }];
-
-        // Find all immediate children to delete as well
-        const childNodes = getNodes().filter(n => n.parentNode === selectedNode.id);
-        nodesToDelete.push(...childNodes.map(n => ({ id: n.id })));
-
-        // Find children of children (e.g. Workloads inside Clusters inside Datacenters)
-        const subChildNodes = getNodes().filter(n => childNodes.some(cn => cn.id === n.parentNode));
-        nodesToDelete.push(...subChildNodes.map(n => ({ id: n.id })));
-
-        deleteElements({ nodes: nodesToDelete });
+        deleteElements({ nodes: [{ id: selectedNode.id }] });
     };
 
     return (
@@ -272,7 +295,7 @@ export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, act
                     />
                 </div>
                 <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Pattern Ref</label>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Widget Ref</label>
                     <div className="text-xs text-slate-500 font-mono p-1.5 bg-slate-200/50 rounded">{data.widget_ref}</div>
                 </div>
                 <div>

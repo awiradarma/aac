@@ -94,7 +94,7 @@ const OmniPorts = ({ styleClass }: { styleClass: string }) => {
                         type="target"
                         position={p.pos}
                         id={`target-${p.id}`}
-                        style={{ ...p.style, width: '24px', height: '24px', background: 'transparent', border: 'none', zIndex: 0 }}
+                        style={{ ...p.style, width: '36px', height: '36px', background: 'transparent', border: 'none', zIndex: 50 }}
                         className={`absolute`}
                         isConnectableStart={false}
                     />
@@ -103,7 +103,7 @@ const OmniPorts = ({ styleClass }: { styleClass: string }) => {
                         position={p.pos}
                         id={`source-${p.id}`}
                         style={p.style}
-                        className={`${styleClass} opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 flex items-center justify-center`}
+                        className={`${styleClass} opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-50 flex items-center justify-center`}
                         isConnectableEnd={false}
                     />
                 </React.Fragment>

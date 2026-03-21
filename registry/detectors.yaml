@@ -33,8 +33,7 @@ detectors:
     conditions:
       - node_match:
           alias: "api"
-          c4Level: "Container"  # Any generic container component
-          name_regex: "api|endpoint|web" # Whose user-defined name matches these keywords
+          c4Level: "Container"
       - node_match:
           alias: "lb"
           widget_ref: "local-load-balancer"

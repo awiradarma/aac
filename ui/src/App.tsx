@@ -41,7 +41,7 @@ const initialNodes: Node<NodeData>[] = [
 ];
 
 const initialViews: DiagramView[] = [
-  { id: 'default', name: 'Main System Context', type: 'SystemContext', include: ['default-system'], exclude: [] }
+  { id: 'default', name: 'Main System Context', type: 'SystemContext', include: ['default-system'], exclude: [], exclude_edges: [] }
 ];
 
 export default function App() {
@@ -65,13 +65,54 @@ export default function App() {
 
   // Custom node changes to track per-view coordinates dynamically
   const onNodesChange = useCallback((changes: any[]) => {
+    const removeChanges = changes.filter(c => c.type === 'remove');
+    let finalChanges = [...changes];
+
+    if (removeChanges.length > 0) {
+      const explicitIds = new Set(removeChanges.map(c => c.id));
+      let pendingDeletions = new Set([...explicitIds]);
+      let sizeBefore = 0;
+
+      while (pendingDeletions.size > sizeBefore) {
+        sizeBefore = pendingDeletions.size;
+        nodes.forEach(n => {
+          if (n.parentNode && pendingDeletions.has(n.parentNode)) pendingDeletions.add(n.id);
+          if (n.data.logical_parent_id && pendingDeletions.has(n.data.logical_parent_id)) pendingDeletions.add(n.id);
+        });
+      }
+
+      const affectedViews = views.filter(v => pendingDeletions.has(v.scope_entity_id || ''));
+      const includesHierarchicalNesting = Array.from(explicitIds).some(id => {
+        const n = nodes.find(x => x.id === id);
+        return n && (explicitIds.has(n.parentNode || '') || explicitIds.has(n.data?.logical_parent_id || ''));
+      });
+      const cascadingIds = Array.from(pendingDeletions).filter(id => !explicitIds.has(id));
+
+      if (cascadingIds.length > 0 || includesHierarchicalNesting || affectedViews.length > 0) {
+        const proceed = window.confirm(`Warning: You are deleting an element that contains nested architecture. This will permanently delete ${pendingDeletions.size} elements and ${affectedViews.length} views. Proceed?`);
+        if (!proceed) {
+          finalChanges = changes.filter(c => c.type !== 'remove');
+        } else {
+          if (affectedViews.length > 0) {
+            if (affectedViews.some(v => v.id === activeViewId)) {
+              setActiveViewId('default');
+            }
+            setViews(vs => vs.filter(v => !affectedViews.some(av => av.id === v.id)));
+          }
+          cascadingIds.forEach(id => finalChanges.push({ type: 'remove', id }));
+        }
+      }
+    }
+
+    if (finalChanges.length === 0) return;
+
     setNodes((nds) => {
-      // Use reactflow's utility internally
-      const updatedNodes = applyNodeChanges(changes, nds);
+      // 2. Use reactflow's utility internally
+      const updatedNodes = applyNodeChanges(finalChanges, nds);
 
       return updatedNodes.map((n: Node, i: number) => {
         const originalNode = nds[i];
-        const posChange = changes.find((c: any) => c.type === 'position' && c.id === n.id);
+        const posChange = finalChanges.find((c: any) => c.type === 'position' && c.id === n.id);
         const isAutomatedJump = posChange && !posChange.dragging && !posChange.positionAbsolute;
 
         if (!isAutomatedJump && (n.position.x !== originalNode.position.x || n.position.y !== originalNode.position.y || n.style?.width !== originalNode.style?.width || n.parentNode !== originalNode.parentNode)) {
@@ -96,7 +137,7 @@ export default function App() {
         return n;
       });
     });
-  }, [activeViewId]);
+  }, [activeViewId, nodes, views]);
 
   // When activeViewId changes, swap the physical layout of all nodes to that view's saved snapshot
   useEffect(() => {
@@ -365,12 +406,11 @@ export default function App() {
       const targetNode = nodes.find(n => n.id === e.target);
 
       if (sourceNode && targetNode) {
-        // Use logical container ID if workload, else fallback to visual id for infrastructure/system/person nodes
         let sourceLogicId = sourceNode.id;
-        if (sourceNode.type === 'containerNode') sourceLogicId = (sourceNode as any)._logicalContainerId;
+        if (sourceNode.type === 'containerNode') sourceLogicId = (sourceNode as any)._logicalContainerId || sourceNode.id;
 
         let targetLogicId = targetNode.id;
-        if (targetNode.type === 'containerNode') targetLogicId = (targetNode as any)._logicalContainerId;
+        if (targetNode.type === 'containerNode') targetLogicId = (targetNode as any)._logicalContainerId || targetNode.id;
 
         // Map relationships uniquely between explicitly defined distinct physical edge ports!
         const relId = `${sourceLogicId}-${targetLogicId}-${e.sourceHandle || ''}-${e.targetHandle || ''}`;
@@ -417,7 +457,7 @@ export default function App() {
         if (containers.length > 0) {
           dNode.containerInstances = containers.map(w => ({
             id: w.id + '_instance',
-            containerId: (w as any)._logicalContainerId,
+            containerId: (w as any)._logicalContainerId || w.id,
             properties: {
               widget_ref: w.data.widget_ref,
               origin_pattern: (w.data as any).origin_pattern,
@@ -427,6 +467,22 @@ export default function App() {
             }
           }));
         }
+
+        const infra = nodes.filter(n => n.type === 'infrastructureNode' && n.parentNode === child.id);
+        if (infra.length > 0) {
+          dNode.infrastructureNodes = infra.map(w => ({
+            id: w.id,
+            name: w.data.label.replace(/\s+/g, '-'),
+            properties: {
+              widget_ref: w.data.widget_ref,
+              origin_pattern: (w.data as any).origin_pattern,
+              composition_alias: (w.data as any).composition_alias,
+              composition_id: (w.data as any).composition_id,
+              ...w.data.properties
+            }
+          }));
+        }
+
         return dNode;
       });
     };
@@ -439,6 +495,7 @@ export default function App() {
       type: v.type,
       include: Array.from(new Set(v.include.map(id => id === '*' ? '*' : allIdMap.get(id) || id))),
       exclude: Array.from(new Set(v.exclude.map(id => allIdMap.get(id) || id))),
+      exclude_edges: Array.from(new Set(v.exclude_edges || [])),
       scope_entity_id: v.scope_entity_id ? (allIdMap.get(v.scope_entity_id) || v.scope_entity_id) : undefined
     }));
     return structurizr;
@@ -466,6 +523,8 @@ export default function App() {
       try {
         const content = e.target?.result as string;
         const arch = yaml.load(content) as any;
+        const importedViews = arch.views || [];
+        const targetViewId = importedViews.length > 0 ? (importedViews[0].key || importedViews[0].id) : 'default';
 
         const newNodes: Node<NodeData>[] = [];
 
@@ -499,8 +558,9 @@ export default function App() {
           newNodes.push({
             id: sn.id,
             type: 'systemNode',
-            position: { x: Math.random() * 400 + 100, y: Math.random() * 300 + 100 },
+            position: importedLayout?.[targetViewId] ? { x: importedLayout[targetViewId].x, y: importedLayout[targetViewId].y } : { x: Math.random() * 400 + 100, y: Math.random() * 300 + 100 },
             zIndex: 10,
+            style: importedLayout?.[targetViewId]?.width ? { width: importedLayout[targetViewId].width, height: importedLayout[targetViewId].height } : undefined,
             data: {
               label: sn.name.replace(/-/g, ' '),
               widget_ref: widgetRef,
@@ -536,8 +596,9 @@ export default function App() {
           newNodes.push({
             id: pn.id,
             type: 'personNode',
-            position: { x: Math.random() * 400 + 100, y: Math.random() * 300 + 100 },
+            position: importedLayout?.[targetViewId] ? { x: importedLayout[targetViewId].x, y: importedLayout[targetViewId].y } : { x: Math.random() * 400 + 100, y: Math.random() * 300 + 100 },
             zIndex: 10,
+            style: importedLayout?.[targetViewId]?.width ? { width: importedLayout[targetViewId].width, height: importedLayout[targetViewId].height } : undefined,
             data: {
               label: pn.name.replace(/-/g, ' '),
               widget_ref: widgetRef,
@@ -575,9 +636,10 @@ export default function App() {
             newNodes.push({
               id: cn.id,
               type: 'containerNode',
-              position: { x: Math.random() * 400 + 100, y: Math.random() * 300 + 100 },
+              position: importedLayout?.[targetViewId] ? { x: importedLayout[targetViewId].x, y: importedLayout[targetViewId].y } : { x: Math.random() * 400 + 100, y: Math.random() * 300 + 100 },
               parentNode: cn.logical_parent_id,
               zIndex: 15,
+              style: importedLayout?.[targetViewId]?.width ? { width: importedLayout[targetViewId].width, height: importedLayout[targetViewId].height } : undefined,
               data: {
                 label: cn.name?.replace(/-/g, ' ') || 'Container',
                 widget_ref: widgetRef,
@@ -615,10 +677,11 @@ export default function App() {
               newNodes.push({
                 id: cmp.id,
                 type: 'componentNode',
-                position: { x: Math.random() * 200 + 50, y: Math.random() * 200 + 50 }, // Render safely away from boundaries
+                position: importedLayoutComp?.[targetViewId] ? { x: importedLayoutComp[targetViewId].x, y: importedLayoutComp[targetViewId].y } : { x: Math.random() * 200 + 50, y: Math.random() * 200 + 50 },
                 parentNode: cn.id,
                 extent: 'parent',
                 zIndex: 20,
+                style: importedLayoutComp?.[targetViewId]?.width ? { width: importedLayoutComp[targetViewId].width, height: importedLayoutComp[targetViewId].height } : undefined,
                 data: {
                   label: cmp.name?.replace(/-/g, ' ') || 'Component',
                   widget_ref: widgetRef,
@@ -639,9 +702,8 @@ export default function App() {
         });
 
         const dNodes = arch.deployment?.nodes || [];
-        const importedViews = arch.views || [];
         if (importedViews.length > 0) {
-          setViews(importedViews.map((v: any) => ({ id: v.key || `v-${Date.now()}`, name: v.name || 'Imported View', type: v.type || 'Container', include: v.include || ['*'], exclude: v.exclude || [], scope_entity_id: v.scope_entity_id })));
+          setViews(importedViews.map((v: any) => ({ id: v.key || `v-${Date.now()}`, name: v.name || 'Imported View', type: v.type || 'Container', include: v.include || ['*'], exclude: v.exclude || [], exclude_edges: v.exclude_edges || [], scope_entity_id: v.scope_entity_id })));
           setActiveViewId(importedViews[0].key || importedViews[0].id);
         } else {
           setViews([{ ...initialViews[0], include: ['*'] }]);
@@ -964,27 +1026,31 @@ export default function App() {
 
   const activeView = views.find(v => v.id === activeViewId) || views[0];
 
-  const hiddenSet = new Set<string>();
   const allowedLevelsByView: Record<string, string[]> = {
     'SystemLandscape': ['Person', 'SoftwareSystem'],
     'SystemContext': ['Person', 'SoftwareSystem'],
     'Container': ['Person', 'SoftwareSystem', 'Container'],
     'Component': ['Person', 'SoftwareSystem', 'Container', 'Component'],
-    'Deployment': ['DeploymentNode', 'InfrastructureNode', 'Container', 'SoftwareSystem', 'Component']
+    'Deployment': ['DeploymentNode', 'InfrastructureNode', 'Container']
   };
 
+  const hiddenSet = new Set<string>();
   nodes.forEach(n => {
     let isHidden = false;
     const allowed = allowedLevelsByView[activeView.type] || [];
-    const isExplicitlyIncluded = activeView.include.includes(n.id) || n.data?.logical_parent_id === activeView.scope_entity_id;
+    const isExplicitlyIncluded = activeView.include.includes(n.id) || (activeView.scope_entity_id ? n.data?.logical_parent_id === activeView.scope_entity_id : false);
 
     if (activeView.exclude.includes(n.id)) {
       isHidden = true;
     } else if (!allowed.includes(n.data?.c4Level) && !isExplicitlyIncluded) {
       // Enforce structural abstractions mathematically natively unless explicitly drawn in the model tree or manually included
       isHidden = true;
-    } else if (!activeView.include.includes('*') && !activeView.include.includes(n.id) && n.data?.logical_parent_id !== activeView.scope_entity_id) {
+    } else if (!activeView.include.includes('*') && !isExplicitlyIncluded) {
       isHidden = true;
+    } else if (activeView.include.includes('*') && !isExplicitlyIncluded && activeView.scope_entity_id) {
+      // UX visual declutter: auto-hide components that belong to other containers
+      if (activeView.type === 'Component' && n.data?.c4Level === 'Component') isHidden = true;
+      if (activeView.type === 'Container' && n.data?.c4Level === 'Container') isHidden = true;
     }
 
     if (isHidden) hiddenSet.add(n.id);
@@ -1014,6 +1080,63 @@ export default function App() {
         isScopedBoundary: isBoundary
       }
     };
+  });
+
+  const getVisibleAncestor = (nodeId: string): string | null => {
+    if (!hiddenSet.has(nodeId)) return nodeId;
+    const n = nodes.find(x => x.id === nodeId);
+    if (!n) return null;
+    if (n.parentNode) return getVisibleAncestor(n.parentNode);
+    if (n.data.logical_parent_id) return getVisibleAncestor(n.data.logical_parent_id);
+    return null;
+  };
+
+  const visibleEdges: any[] = [];
+  const edgeTracker = new Map<string, any>();
+
+  edges.forEach(e => {
+    if ((activeView.exclude_edges || []).includes(e.id)) return;
+
+    const vSource = getVisibleAncestor(e.source);
+    const vTarget = getVisibleAncestor(e.target);
+
+    if (vSource && vTarget && vSource !== vTarget) {
+      const isRolledUp = vSource !== e.source || vTarget !== e.target;
+      // Synthesize a unique id if rolled up so we don't draw duplicate implicit lines
+      const displayId = isRolledUp ? `rollup-${vSource}-${vTarget}` : e.id;
+
+      const existing = edgeTracker.get(displayId);
+      if (existing) {
+        // Track the real constituent edge
+        if (!existing.data?._underlyingEdgeIds?.includes(e.id)) {
+          existing.data = { ...existing.data, _underlyingEdgeIds: [...(existing.data?._underlyingEdgeIds || []), e.id] };
+        }
+
+        // Aggregate labels if they are distinctly different
+        const existingLabel = existing.data?.label || '';
+        const newLabel = e.data?.label || '';
+        if (newLabel && existingLabel && existingLabel !== newLabel && !existingLabel.includes(newLabel)) {
+          existing.data = {
+            ...existing.data,
+            label: `${existingLabel} & ${newLabel}`
+          };
+        } else if (newLabel && !existingLabel) {
+          existing.data = { ...existing.data, label: newLabel };
+        }
+      } else {
+        const edgeToPush = {
+          ...e,
+          id: displayId,
+          source: vSource,
+          target: vTarget,
+          hidden: false
+        };
+        // Safely clone data so we can mutate the text representation if multiple lines share this path
+        edgeToPush.data = { ...(e.data || {}), _underlyingEdgeIds: [e.id] };
+        edgeTracker.set(displayId, edgeToPush);
+        visibleEdges.push(edgeToPush);
+      }
+    }
   });
 
   if (!isRegistryLoaded) {
@@ -1156,17 +1279,25 @@ export default function App() {
                   'SystemContext': ['Person', 'SoftwareSystem'],
                   'Container': ['Person', 'SoftwareSystem', 'Container'],
                   'Component': ['Person', 'SoftwareSystem', 'Container', 'Component'],
-                  'Deployment': ['DeploymentNode', 'InfrastructureNode', 'Container', 'SoftwareSystem']
+                  'Deployment': ['DeploymentNode', 'InfrastructureNode', 'Container']
                 };
                 const allowed = allowedLevelsByView[activeView.type] || [];
                 if (!allowed.includes(n.data?.c4Level)) return false; // Strictly enforce abstraction hierarchy
 
+                const isExplicitlyIncluded = activeView.include.includes(n.id) || (activeView.scope_entity_id ? n.data?.logical_parent_id === activeView.scope_entity_id : false);
+
+                // Unconditionally drop peer internal details before they even touch the include/exclude filters
+                if (!isExplicitlyIncluded && activeView.scope_entity_id) {
+                  if (activeView.type === 'Component' && n.data?.c4Level === 'Component') return false;
+                  if (activeView.type === 'Container' && n.data?.c4Level === 'Container') return false;
+                }
+
                 if (activeView.exclude.includes(n.id)) return true;
-                if (!activeView.include.includes('*') && !activeView.include.includes(n.id) && n.data?.logical_parent_id !== activeView.scope_entity_id) return true;
+                if (!activeView.include.includes('*') && !isExplicitlyIncluded) return true;
                 return false;
               })}
               onRevealNode={(id: string) => {
-                setViews(vs => vs.map(v => v.id === activeView.id ? { ...v, include: [...v.include.filter(i => i !== '*'), id], exclude: v.exclude.filter(e => e !== id) } : v));
+                setViews(vs => vs.map(v => v.id === activeView.id ? { ...v, include: Array.from(new Set([...v.include, id])), exclude: v.exclude.filter(e => e !== id) } : v));
               }}
               onAddPattern={(type, id, version) => {
                 setPatternToAdd({ type, patternId: id, version });
@@ -1179,13 +1310,20 @@ export default function App() {
           <CanvasArea
             activeView={activeView}
             nodes={visibleNodes}
-            edges={edges}
+            edges={visibleEdges}
             setNodes={(action: any) => {
               setNodes((prevNodes) => {
                 const result = typeof action === 'function' ? action(prevNodes) : action;
                 // Deep hook: if new nodes were added, officially append them to the active view if it is not a wildcard
-                const newIds = result.filter((n: Node) => !prevNodes.some(p => p.id === n.id)).map((n: Node) => n.id);
                 const activeV = views.find(v => v.id === activeViewId);
+                const allowed = activeV ? allowedLevelsByView[activeV.type] || [] : [];
+
+                const newIds = result.filter((n: Node) => {
+                  if (prevNodes.some(p => p.id === n.id)) return false;
+                  // Critical Fix: Only append to this view's whitelist if the node structurally maps to this view type!
+                  return allowed.includes(n.data?.c4Level);
+                }).map((n: Node) => n.id);
+
                 if (newIds.length > 0 && activeV && !activeV.include.includes('*')) {
                   setViews(cvs => cvs.map(v => v.id === activeViewId ? { ...v, include: [...v.include, ...newIds] } : v));
                 }
@@ -1197,6 +1335,9 @@ export default function App() {
             onEdgesChange={onEdgesChange}
             patternToAdd={patternToAdd}
             onPatternAdded={() => setPatternToAdd(null)}
+            onRevealNode={(id: string) => {
+              setViews(vs => vs.map(v => v.id === activeViewId ? { ...v, include: Array.from(new Set([...v.include, id])), exclude: v.exclude.filter(e => e !== id) } : v));
+            }}
             onNodeSelect={(n) => {
               if (linkingNodeId) {
                 if (n && n.id !== linkingNodeId) {

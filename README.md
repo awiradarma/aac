@@ -203,15 +203,16 @@ Several recent capabilities have been added to improve architect experience and 
 To move toward a production-grade governance engine, the following capabilities are planned:
 
 ### 1. Stability & Versioning
-*   **Registry Immutability**: Implementing a strict enforcement that published pattern versions (e.g., `v2.1.0`) are never modified. All changes must go through a new SemVer folder.
-*   **Schema Evolution**: Developing a migration path for designs when a Major (breaking) change occurs in a pattern.
+*   [ ] **Registry Immutability**: Implementing a strict enforcement that published pattern versions (e.g., `v2.1.0`) are never modified. All changes must go through a new SemVer folder.
+*   [ ] **Schema Evolution**: Developing a migration path for designs when a Major (breaking) change occurs in a pattern.
 
 ### 2. Architectural Unit Testing (AUT)
-*   **Gold Samples**: Maintaining a library of "Perfect Designs" for every pattern that must always pass validation.
-*   **Poison Samples**: Maintaining a library of "Illegal Designs" (e.g., direct-bypass connection samples) to ensure the validator catches security breaches.
-*   **Headless Validation CLI**: A Node.js runner to execute the validation engine in CI/CD against these samples.
+*   [ ] **Gold Samples**: Maintaining a library of "Perfect Designs" for every pattern that must always pass validation.
+*   [ ] **Poison Samples**: Maintaining a library of "Illegal Designs" (e.g., direct-bypass connection samples) to ensure the validator catches security breaches.
+*   [ ] **Headless Validation CLI**: A Node.js runner to execute the validation engine in CI/CD against these samples.
 
 ### 3. Advanced Governance
-*   **Active-Active Topology Checks**: Expanding the validator to enforce multi-region and multi-datacenter quorum rules.
-*   **Component Capability Mapping**: Automatically suggesting compatible persistence or security layers based on a workload's declared requirements.
-*   **Implied Relationships (Model Roll-up)**: Dynamically inferring high-level architecture relationships (e.g. `System A -> System B`) automatically when lower-level granular connections are drawn (e.g. `System A -> Database Container in System B`), preserving strict C4 compliance across view scopes.
+*   [ ] **Active-Active Topology Checks**: Expanding the validator to enforce multi-region and multi-datacenter quorum rules.
+*   [ ] **Component Capability Mapping**: Automatically suggesting compatible persistence or security layers based on a workload's declared requirements.
+*   [x] **Implied Relationships (Model Roll-up)**: Dynamically inferring high-level architecture relationships (e.g. `System A -> System B`) automatically when lower-level granular connections are drawn (e.g. `System A -> Database Container in System B`), preserving strict C4 compliance across view scopes. *(Implemented manual edge-visibility toggling per-view to satisfy visual decluttering)*.
+*   [x] **Cascading Scoped Deletions**: Enforcing strict lifecycle management so that deleting a generic host deletes all of its nested containers, components, and diagrams with proper user confirmation warnings.

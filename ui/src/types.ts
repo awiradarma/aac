@@ -125,5 +125,6 @@ export type DiagramView = {
     type: string; // 'SystemLandscape' | 'SystemContext' | 'Container' | 'Component' | 'Deployment'
     include: string[]; // List of IDs or ['*']
     exclude: string[]; // List of IDs to hide
+    exclude_edges?: string[]; // List of Edge IDs to hide in this view
     scope_entity_id?: string; // ID of the parent entity this view represents (e.g. SoftwareSystem ID for a Container view)
 };

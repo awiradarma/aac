@@ -7,6 +7,9 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
     const containerMap: Record<string, any> = {};
     const cNodes = arch.model?.containers || [];
     cNodes.forEach((cn: any) => { containerMap[cn.id] = cn; });
+    (arch.model?.softwareSystems || []).forEach((s: any) => {
+        (s.containers || []).forEach((cn: any) => { containerMap[cn.id] = cn; });
+    });
 
     const dNodes = arch.deployment?.nodes || [];
     const flatDeployments: any[] = [];
@@ -55,6 +58,17 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
                             properties: { ...cn.properties, ...ci.properties }
                         });
                     }
+                });
+            }
+            if (dn.infrastructureNodes) {
+                dn.infrastructureNodes.forEach((infra: any) => {
+                    flatDeployments.push({
+                        ...infra,
+                        type: 'InfrastructureNode',
+                        layer: 'InfrastructureNode',
+                        parentLayer: layerType,
+                        parentId: dn.id
+                    });
                 });
             }
             if (dn.nodes) parseTree(dn.nodes, layerType, dn.id);
