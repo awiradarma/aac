@@ -137,6 +137,26 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
         if (primaryExpId) allIds.add(primaryExpId);
 
         allIds.forEach(id => {
+            // Strict Topological Geometric Filtering:
+            // If this node is a physical replica instance of a logical workload, it mathematically should only
+            // participate in the composition pattern that explicitly owns its immediate deployment hierarchy.
+            if (n.isInstance) {
+                let currentP = flatDeployments.find(p => p.id === n.parentId);
+                let validForThisId = false;
+                while (currentP) {
+                    const pMem = getMemberships(currentP);
+                    const pPrime = currentP.properties?.composition_id || currentP.composition_id;
+                    if (pPrime === id || pMem[id]) {
+                        validForThisId = true;
+                        break;
+                    }
+                    currentP = flatDeployments.find(p => p.id === currentP.parentId);
+                }
+
+                // If the instance natively floats outside the bounds of this specific deployment pattern instance, decouple it.
+                if (!validForThisId) return;
+            }
+
             if (!expansionInstances[id]) expansionInstances[id] = [];
             if (!expansionInstances[id].includes(n)) expansionInstances[id].push(n);
         });
