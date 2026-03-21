@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "test:all": "npm run test && npm run test:e2e"
+    "test:all": "npm run test && npm run test:e2e && npm run test --prefix ../cli-ts"
   },
   "dependencies": {
     "@reactflow/node-resizer": "^2.2.14",
