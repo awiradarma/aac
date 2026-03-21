@@ -39,3 +39,8 @@ patterns:
     versions:
       - "1.0.0"
     latest: "1.0.0"
+  - id: cqrs-pattern
+    name: CQRS Architecture
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"

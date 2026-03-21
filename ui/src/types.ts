@@ -37,6 +37,7 @@ export type CompositionNode = {
     properties?: Record<string, any>;
     layout_hint?: { x: number; y: number };
     property_mappings?: Record<string, string>;
+    reuse_existing?: boolean; // Whether to reuse an existing canvas node if it matches, or force generic creation (defaults to true)
 };
 
 /** A preset networking path defined inside a Blueprint */

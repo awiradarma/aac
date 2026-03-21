@@ -11,6 +11,7 @@ composition:
       widget_ref: executable@1.0.0
       label: Publisher Service
       c4Level: Container
+      reuse_existing: false
       layout_hint: { x: 250, y: 0 }
 
     - id_suffix: topic
@@ -18,6 +19,7 @@ composition:
       widget_ref: topic@1.0.0
       label: Event Topic
       c4Level: Container
+      reuse_existing: false
       layout_hint: { x: 250, y: 150 }
 
     - id_suffix: sub_a
@@ -25,6 +27,7 @@ composition:
       widget_ref: executable@1.0.0
       label: Subscriber A
       c4Level: Container
+      reuse_existing: false
       layout_hint: { x: 50, y: 300 }
 
     - id_suffix: sub_b
@@ -32,17 +35,27 @@ composition:
       widget_ref: executable@1.0.0
       label: Subscriber B
       c4Level: Container
+      reuse_existing: false
       layout_hint: { x: 450, y: 300 }
 
   edges:
     - source_suffix: publisher
       target_suffix: topic
+      source_handle: source-bottom
+      target_handle: target-top
+      styleVariant: dashed
       label: publish
     - source_suffix: topic
       target_suffix: sub_a
+      source_handle: source-bottom
+      target_handle: target-top
+      styleVariant: dashed
       label: distribute
     - source_suffix: topic
       target_suffix: sub_b
+      source_handle: source-bottom
+      target_handle: target-top
+      styleVariant: dashed
       label: distribute
 
 display_metadata:

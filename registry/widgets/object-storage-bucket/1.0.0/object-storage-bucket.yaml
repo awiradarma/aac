@@ -6,3 +6,13 @@ display_metadata:
   icon: Database
   color: purple
   category: Container
+parameters:
+  technology:
+    type: string
+    options:
+      - S3
+      - Azure Blob Storage
+      - Google Cloud Storage
+      - MinIO
+      - NetApp Storage
+    default: "S3"

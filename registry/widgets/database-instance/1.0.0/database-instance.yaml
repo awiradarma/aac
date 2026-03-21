@@ -6,3 +6,12 @@ display_metadata:
   icon: Database
   color: amber
   category: Container
+parameters:
+  technology:
+    type: string
+    options:
+      - Postgres
+      - MySQL
+      - Oracle
+      - SQL Server
+    default: "Postgres"

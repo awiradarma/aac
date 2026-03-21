@@ -245,7 +245,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                         const checkType = (macroNode.type === 'deploymentNode' || macroNode.type === 'deploymentNode' || macroNode.type === 'deploymentNode') ? 'deploymentNode' : macroNode.type;
 
                         // Priority 1: Direct match with the node we actually dropped on
-                        if (depth === 0 && closestParent) {
+                        if (depth === 0 && closestParent && macroNode.reuse_existing !== false) {
                             const matchesPattern = closestParent.data.widget_ref === macroNode.widget_ref;
                             const matchesLayer = closestParent.data.layer === macroNode.layer;
                             const matchesType = closestParent.type === checkType;
@@ -255,7 +255,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                         }
 
                         // Priority 2: Generic search in the parent scope
-                        if (!existingNode) {
+                        if (!existingNode && macroNode.reuse_existing !== false) {
                             if (parentId) {
                                 existingNode = nodes.find(n =>
                                     n.parentNode === parentId &&
@@ -375,16 +375,52 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                         const edgeId = `e-${sourceId}-${targetId}`;
 
                         if (sourceId && targetId && !edges.some(e => e.id === edgeId)) {
+                            const isAnimated = macroEdge.styleVariant === 'animated';
+                            const baseEdgeStyle: any = { strokeWidth: 3, stroke: '#64748b', ...macroEdge.style };
+                            if (macroEdge.styleVariant === 'dashed') {
+                                baseEdgeStyle.strokeDasharray = '5, 5';
+                                baseEdgeStyle.strokeLinecap = 'square';
+                            } else if (macroEdge.styleVariant === 'dotted') {
+                                baseEdgeStyle.strokeDasharray = '2, 5';
+                                baseEdgeStyle.strokeLinecap = 'round';
+                            }
+
+                            const direction = macroEdge.direction || 'forward';
+                            const drawMarker = { type: MarkerType.ArrowClosed, width: 20, height: 20, color: baseEdgeStyle.stroke || '#64748b' };
+
+                            let mStart = undefined;
+                            let mEnd = undefined;
+                            if (direction === 'forward') mEnd = drawMarker;
+                            if (direction === 'reverse') mStart = drawMarker;
+                            if (direction === 'both') {
+                                mStart = drawMarker;
+                                mEnd = drawMarker;
+                            }
+
+                            let displayLabel = macroEdge.label;
+                            if (displayLabel && macroEdge.technology) displayLabel = `${displayLabel}\n[${macroEdge.technology}]`;
+
                             generatedEdges.push({
                                 id: edgeId,
                                 source: sourceId,
                                 target: targetId,
-                                animated: false,
+                                sourceHandle: macroEdge.source_handle,
+                                targetHandle: macroEdge.target_handle,
+                                animated: isAnimated,
                                 type: 'smoothstep',
                                 zIndex: 5000,
-                                markerEnd: { type: MarkerType.ArrowClosed, width: 20, height: 20, color: '#64748b' },
-                                data: { label: 'Uses', technology: '' },
-                                style: { strokeWidth: 3, stroke: '#64748b', ...macroEdge.style }
+                                markerStart: mStart,
+                                markerEnd: mEnd,
+                                data: {
+                                    label: macroEdge.label || 'Uses',
+                                    technology: macroEdge.technology || '',
+                                    direction: direction,
+                                    styleVariant: macroEdge.styleVariant || 'solid'
+                                },
+                                label: displayLabel,
+                                labelStyle: { fill: '#475569', fontWeight: 700, fontSize: 11, whiteSpace: 'pre-wrap', textAlign: 'center' as any },
+                                labelBgStyle: { fill: '#f8fafc', color: '#f8fafc', fillOpacity: 0.9, stroke: '#e2e8f0', strokeWidth: 1 },
+                                style: baseEdgeStyle
                             });
                         }
                     });

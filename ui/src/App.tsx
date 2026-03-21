@@ -482,7 +482,8 @@ export default function App() {
             containerMap[cn.id] = cn;
           });
 
-          const props = sn.properties || {};
+          const rawProps = sn.properties || {};
+          const props = { ...rawProps };
           const patternId = props.widget_ref?.split('@')[0];
           const pattern = patternId ? getPatternById(patternId) : null;
           let importedLayout: any = undefined;
@@ -490,6 +491,8 @@ export default function App() {
             try { importedLayout = JSON.parse(props.aac_layout as string); } catch (e) { }
             delete props.aac_layout;
           }
+          const widgetRef = props.widget_ref || '';
+          const status = props.status || 'existing';
           delete props.widget_ref;
           delete props.status;
 
@@ -500,11 +503,11 @@ export default function App() {
             zIndex: 10,
             data: {
               label: sn.name.replace(/-/g, ' '),
-              widget_ref: props.widget_ref || '',
+              widget_ref: widgetRef,
               c4Level: pattern ? pattern.c4Level : 'SoftwareSystem',
               layer: pattern?.layer,
               properties: props,
-              status: props.status || 'existing',
+              status: status,
               icon: pattern?.display_metadata?.icon,
               color: pattern?.display_metadata?.color,
               min_width: pattern?.min_width || 300,
@@ -516,7 +519,8 @@ export default function App() {
 
         const pNodes = arch.model?.people || [];
         pNodes.forEach((pn: any) => {
-          const props = pn.properties || {};
+          const rawProps = pn.properties || {};
+          const props = { ...rawProps };
           const patternId = props.widget_ref?.split('@')[0];
           const pattern = patternId ? getPatternById(patternId) : null;
           let importedLayout: any = undefined;
@@ -524,6 +528,8 @@ export default function App() {
             try { importedLayout = JSON.parse(props.aac_layout as string); } catch (e) { }
             delete props.aac_layout;
           }
+          const widgetRef = props.widget_ref || '';
+          const status = props.status || 'existing';
           delete props.widget_ref;
           delete props.status;
 
@@ -534,11 +540,11 @@ export default function App() {
             zIndex: 10,
             data: {
               label: pn.name.replace(/-/g, ' '),
-              widget_ref: props.widget_ref || '',
+              widget_ref: widgetRef,
               c4Level: pattern ? pattern.c4Level : 'Person',
               layer: pattern?.layer,
               properties: props,
-              status: props.status || 'existing',
+              status: status,
               icon: pattern?.display_metadata?.icon,
               color: pattern?.display_metadata?.color,
               min_width: pattern?.min_width || 200,
@@ -550,7 +556,8 @@ export default function App() {
 
         // Loop over containerMap to natively insert containers and their interior components into ReactFlow
         Object.values(containerMap).forEach((cn: any) => {
-          const props = cn.properties || {};
+          const rawProps = cn.properties || {};
+          const props = { ...rawProps };
           const patternId = props.widget_ref?.split('@')[0];
           const pattern = patternId ? getPatternById(patternId) : null;
 
@@ -559,6 +566,8 @@ export default function App() {
             try { importedLayout = JSON.parse(props.aac_layout as string); } catch (e) { }
             delete props.aac_layout;
           }
+          const widgetRef = props.widget_ref || '';
+          const status = props.status || 'existing';
           delete props.widget_ref;
           delete props.status;
 
@@ -571,11 +580,11 @@ export default function App() {
               zIndex: 15,
               data: {
                 label: cn.name?.replace(/-/g, ' ') || 'Container',
-                widget_ref: props.widget_ref || '',
+                widget_ref: widgetRef,
                 c4Level: pattern ? pattern.c4Level : 'Container',
                 layer: pattern?.layer,
                 properties: props,
-                status: props.status || 'existing',
+                status: status,
                 icon: pattern?.display_metadata?.icon,
                 color: pattern?.display_metadata?.color,
                 min_width: pattern?.min_width || 200,
@@ -588,7 +597,8 @@ export default function App() {
 
           const nestedComponents = cn.components || [];
           nestedComponents.forEach((cmp: any) => {
-            const cpProps = cmp.properties || {};
+            const rawCpProps = cmp.properties || {};
+            const cpProps = { ...rawCpProps };
             const cpPatternId = cpProps.widget_ref?.split('@')[0];
             const cpPattern = cpPatternId ? getPatternById(cpPatternId) : null;
             let importedLayoutComp: any = undefined;
@@ -596,6 +606,8 @@ export default function App() {
               try { importedLayoutComp = JSON.parse(cpProps.aac_layout as string); } catch (e) { }
               delete cpProps.aac_layout;
             }
+            const widgetRef = cpProps.widget_ref || '';
+            const status = cpProps.status || 'existing';
             delete cpProps.widget_ref;
             delete cpProps.status;
 
@@ -609,11 +621,11 @@ export default function App() {
                 zIndex: 20,
                 data: {
                   label: cmp.name?.replace(/-/g, ' ') || 'Component',
-                  widget_ref: cpProps.widget_ref || '',
+                  widget_ref: widgetRef,
                   c4Level: cpPattern ? cpPattern.c4Level : 'Component',
                   layer: cpPattern?.layer,
                   properties: cpProps,
-                  status: cpProps.status || 'existing',
+                  status: status,
                   icon: cpPattern?.display_metadata?.icon,
                   color: cpPattern?.display_metadata?.color,
                   min_width: cpPattern?.min_width || 150,
@@ -1188,10 +1200,15 @@ export default function App() {
             onNodeSelect={(n) => {
               if (linkingNodeId) {
                 if (n && n.id !== linkingNodeId) {
+                  const sPort = prompt("Source port? (top, right, bottom, left)", "right") || "right";
+                  const tPort = prompt("Target port? (top, right, bottom, left)", "left") || "left";
+
                   const newEdge = {
                     id: `e-${linkingNodeId}-${n.id}-${Date.now()}`,
                     source: linkingNodeId,
                     target: n.id,
+                    sourceHandle: `source-${sPort.toLowerCase()}`,
+                    targetHandle: `target-${tPort.toLowerCase()}`,
                     animated: false,
                     type: 'smoothstep',
                     zIndex: 5000,
