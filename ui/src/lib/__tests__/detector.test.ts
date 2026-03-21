@@ -126,4 +126,50 @@ describe('Pattern Discovery Auto-Detect Engine', () => {
         const results = detectPatterns(ast, mockRegistry);
         expect(results.length).toBe(1); // Caught the bug from before perfectly!
     });
+
+    it('should mathematically evaluate infinite-depth class polymorphism validating specialized extensions against base generic pattern rules', () => {
+        const polyRegistry: any = {
+            patterns: [
+                { id: 'spring-boot', base_type: 'java-program' },
+                { id: 'dotnet-program', base_type: 'executable' },
+                { id: 'java-program', base_type: 'executable' },
+                { id: 'executable', base_type: undefined },
+                { id: 'message-queue', base_type: undefined }
+            ],
+            detectors: [
+                {
+                    id: 'detect-java-messaging',
+                    target_pattern: 'java-messaging@1.0',
+                    conditions: [
+                        { node_match: { alias: 'producer', widget_ref: 'java-program' } },
+                        { node_match: { alias: 'queue', widget_ref: 'message-queue' } },
+                        { relationship: { type: 'connects_to', source: 'producer', target: 'queue' } }
+                    ]
+                }
+            ]
+        };
+
+        const ast = {
+            model: {
+                containers: [
+                    { id: 'valid_spring_producer', widget_ref: 'spring-boot' }, // Spring Boot -> Java Program -> Executable (Matches java-program)
+                    { id: 'invalid_dotnet_producer', widget_ref: 'dotnet-program' }, // Dotnet Program -> Executable (FAILS java-program check)
+                    { id: 'queue1', widget_ref: 'message-queue' },
+                    { id: 'queue2', widget_ref: 'message-queue' }
+                ],
+                relationships: [
+                    { sourceId: 'valid_spring_producer', destinationId: 'queue1' },
+                    { sourceId: 'invalid_dotnet_producer', destinationId: 'queue2' }
+                ]
+            }
+        };
+
+        const results = detectPatterns(ast, polyRegistry);
+
+        // It should ONLY detect the spring-boot queue connection as mathematically aligned with `java-program`!
+        expect(results.length).toBe(1);
+        expect(results[0].detectorId).toBe('detect-java-messaging');
+        expect(results[0].matchedNodes.producer.id).toBe('valid_spring_producer');
+        expect(results[0].matchedNodes.queue.id).toBe('queue1');
+    });
 });

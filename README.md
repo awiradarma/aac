@@ -111,6 +111,19 @@ The `registry/detectors.yaml` file maintains heuristic conditions that search fo
 
 If a pattern is discovered, the user is prompted to officially "Adopt" it, wherein the generic components get wrapped in official governance blueprints and are fully validated against the standard.
 
+### 9. Structural Polymorphism (Class Inheritance)
+The Governance Engine supports unlimited-depth class polymorphism natively out of the box. You can declare specialized widget types that inherently extend abstract base classes using the `base_type` parameter. 
+
+```yaml
+# registry/widgets/api-container/1.0.0/api-container.yaml
+id: api-container
+version: 1.0.0
+base_type: executable
+c4Level: Container
+```
+
+During **Pattern Discovery** or **Validation**, if a rule strictly demands an `executable` widget (e.g. within a Point-to-Point Messaging pattern constraint), the backtracking engine will recursively trace the lineage of any widget dropped on the canvas. If it finds a specialized `api-container` or `batch-container`, it dynamically climbs their `base_type` properties until it verifies they inherit from the generic `executable` base node. This mathematically ensures specialized variations are perfectly grandfathered into your governance guardrails without duplicating detector rules!
+
 ---
 
 ## Authoring Guide
