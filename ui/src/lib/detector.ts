@@ -117,7 +117,6 @@ export function detectPatterns(arch: any, registry: Registry): DiscoveryResult[]
     };
 
     const results: DiscoveryResult[] = [];
-    const failedRelsTrace = new Set<string>();
 
     // 4. Run the Engine! Evaluate each detector rule against the canvas.
     detectors.forEach(detector => {
@@ -171,17 +170,11 @@ export function detectPatterns(arch: any, registry: Registry): DiscoveryResult[]
                     const r = cond.relationship;
                     const src = currentCombo[r.source];
                     const tgt = currentCombo[r.target];
-                    if (!src || !tgt) {
-                        failedRelsTrace.add(`Missing src/tgt for ${r.source}->${r.target}`);
-                        valid = false; break;
-                    }
+                    if (!src || !tgt) { valid = false; break; }
 
                     if (r.type === 'hosted_on') {
                         // Is the source physically inside the target container?
-                        if (!isDescendant(src.id, tgt.id)) {
-                            failedRelsTrace.add(`'${src.name}' NOT visually inside '${tgt.name}'`);
-                            valid = false;
-                        }
+                        if (!isDescendant(src.id, tgt.id)) valid = false;
                     } else if (r.type === 'connects_to') {
                         // Is there a line drawn from source to target?
                         const sId = src.logicalId || src.id;
@@ -217,33 +210,6 @@ export function detectPatterns(arch: any, registry: Registry): DiscoveryResult[]
 
         backtrack(0, {});
     });
-
-    if (results.length === 0) {
-        const diagnostics: string[] = [];
-        detectors.forEach(d => {
-            const aliasCandidates: Record<string, any[]> = {};
-            d.conditions.filter((c: any) => c.node_match).forEach((cond: any) => {
-                const rules = cond.node_match;
-                aliasCandidates[rules.alias] = flatDeployments.filter(n => {
-                    if (rules.c4Level && n.c4Level !== rules.c4Level && n.type !== rules.c4Level) return false;
-                    if (rules.widget_ref) {
-                        const id = n.properties?.widget_ref?.split('@')[0] || n.widget_ref?.split('@')[0];
-                        if (id !== rules.widget_ref) return false;
-                    }
-                    if (n.properties?.origin_pattern === d.target_pattern) return false;
-                    return true;
-                });
-            });
-            diagnostics.push(`\n${d.id} MATRICES -> ${Object.keys(aliasCandidates).map(k => k + ':' + aliasCandidates[k].length).join(', ')} | ERRORS -> ${Array.from(failedRelsTrace).join(', ')}`);
-        });
-
-        results.push({
-            detectorId: 'diagnostic-mode',
-            detectorName: `DIAGNOSTIC ALIAS COUNTS: ${diagnostics.join(' | ')} | FlatDeployments Length: ${flatDeployments.length}`,
-            targetPattern: 'none',
-            matchedNodes: {}
-        });
-    }
 
     return results;
 }

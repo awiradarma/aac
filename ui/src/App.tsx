@@ -1075,6 +1075,7 @@ export default function App() {
       hidden: hiddenSet.has(n.id),
       parentNode: safeParentNode,
       style: computedStyle,
+      zIndex: isBoundary ? 0 : n.zIndex,
       data: {
         ...n.data,
         isScopedBoundary: isBoundary

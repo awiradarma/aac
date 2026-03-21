@@ -225,7 +225,7 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
                         if (!targetNode) return;
 
                         const protectedNodes = flatDeployments.filter(n => n.id === targetNode.id || isDescendant(n.id, targetNode.id));
-                        const externalNodes = flatDeployments.filter(n => !getSuffixForExp(n, expId));
+                        const externalNodes = flatDeployments.filter(n => !getSuffixForExp(n, expId) && !protectedNodes.some(p => p.id === n.id));
 
                         externalNodes.forEach(entry => {
                             const entryCid = getCid(entry);
