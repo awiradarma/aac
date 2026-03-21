@@ -228,4 +228,10 @@ To move toward a production-grade governance engine, the following capabilities 
 *   [ ] **Active-Active Topology Checks**: Expanding the validator to enforce multi-region and multi-datacenter quorum rules.
 *   [ ] **Component Capability Mapping**: Automatically suggesting compatible persistence or security layers based on a workload's declared requirements.
 *   [x] **Implied Relationships (Model Roll-up)**: Dynamically inferring high-level architecture relationships (e.g. `System A -> System B`) automatically when lower-level granular connections are drawn (e.g. `System A -> Database Container in System B`), preserving strict C4 compliance across view scopes. *(Implemented manual edge-visibility toggling per-view to satisfy visual decluttering)*.
+*   [ ] **Rollup Line Validation**: Evaluate pattern validation logic to ensure that a line coming from a nested component (inside a container) reaching out to a target (like a message queue) mathematically counts as a valid connection emerging from the parent container itself.
 *   [x] **Cascading Scoped Deletions**: Enforcing strict lifecycle management so that deleting a generic host deletes all of its nested containers, components, and diagrams with proper user confirmation warnings.
+
+### 4. Diagram Creation Lifecycle & Boundaries
+*   [ ] **Deployment vs Container Instantiation Rules**: Formally design and define what can natively be created directly on the Deployment Diagram versus the Container Diagram. 
+    *   *Consideration A:* Should brand new containers exclusively only be allowed to be created natively inside the Container Diagram view? If so, how do we elegantly allow architects to drag and drop Deployment Patterns (which contain containers)?
+    *   *Consideration B:* If we allow new containers to be physically created directly on the Deployment Diagram, what is the safest architectural mechanism to instantly mathematically synchronize that new node back into the root backing model guaranteeing it appears correctly back inside the Container Diagram context natively?
