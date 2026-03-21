@@ -697,6 +697,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 onDrop={onDrop}
                 onDragOver={onDragOver}
                 nodeTypes={nodeTypes}
+                elevateNodesOnSelect={false}
                 elevateEdgesOnSelect={true}
                 connectionMode={ConnectionMode.Loose}
                 connectionRadius={80}

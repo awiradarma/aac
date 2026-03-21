@@ -35,6 +35,14 @@ test.describe('Sovereign Architecture Auto-Discovery & Validation GUI', () => {
         const cluster = page.locator('text="Primary OpenShift Cluster"').first();
         await expect(cluster).toBeVisible();
 
+        // Click the cluster node to ensure it doesn't artificially elevate its Z-index covering children natively!
+        await cluster.click();
+
+        // Verify the internal container workload remains physically accessible and interactable mechanically on its own Z-plane.
+        const rdb = page.locator('text="Relational Database Instance"').first();
+        await expect(rdb).toBeVisible();
+        await rdb.click(); // This mathematically FAILS if ReactFlow z-index bugs overlap nodes behind frosted-glass!
+
         // Ensure the CQRS components safely hide within scoped nested boundaries by default
         await expect(page.locator('text="API Controller"').first()).not.toBeVisible();
 
