@@ -9,14 +9,15 @@ describe('Pattern Discovery Auto-Detect Engine', () => {
                 id: 'detect-internal-api-v3',
                 target_pattern: 'internal-api-ocp@3.0.0',
                 conditions: [
-                    { node_match: { alias: 'api', c4Level: 'Container' } },
+                    { node_match: { alias: 'api', widget_ref: 'api-container' } },
                     { node_match: { alias: 'lb', widget_ref: 'local-load-balancer' } },
                     { node_match: { alias: 'gw', widget_ref: 'api-gateway' } },
                     { node_match: { alias: 'cluster', widget_ref: 'openshift-cluster-v4' } },
                     { node_match: { alias: 'datacenter', widget_ref: 'datacenter' } },
                     { relationship: { type: 'hosted_on', source: 'api', target: 'cluster' } },
                     { relationship: { type: 'hosted_on', source: 'gw', target: 'datacenter' } },
-                    { relationship: { type: 'hosted_on', source: 'lb', target: 'datacenter' } }
+                    { relationship: { type: 'hosted_on', source: 'lb', target: 'datacenter' } },
+                    { relationship: { type: 'hosted_on', source: 'cluster', target: 'datacenter' } }
                 ]
             }
         ]
@@ -171,5 +172,60 @@ describe('Pattern Discovery Auto-Detect Engine', () => {
         expect(results[0].detectorId).toBe('detect-java-messaging');
         expect(results[0].matchedNodes.producer.id).toBe('valid_spring_producer');
         expect(results[0].matchedNodes.queue.id).toBe('queue1');
+    });
+
+    it('should mathematically trace logical replicas securely evaluating only disjointed physical clusters dynamically separating identically governed instances correctly eliminating cross-region detector anomalies', () => {
+        const ast = {
+            model: {
+                containers: [
+                    { id: 'logic_api', widget_ref: 'api-container', properties: { origin_pattern: 'internal-api-ocp@3.0.0', composition_alias: 'api', composition_id: 'exp_A' } }
+                ]
+            },
+            deployment: {
+                nodes: [
+                    {
+                        id: 'dcA', type: 'DeploymentNode', properties: { widget_ref: 'datacenter', composition_id: 'exp_A' },
+                        infrastructureNodes: [
+                            { id: 'gwA', properties: { widget_ref: 'api-gateway', composition_id: 'exp_A' } },
+                            { id: 'lbA', properties: { widget_ref: 'local-load-balancer', composition_id: 'exp_A' } }
+                        ],
+                        nodes: [
+                            {
+                                id: 'clusterA', type: 'DeploymentNode', properties: { widget_ref: 'openshift-cluster-v4', composition_id: 'exp_A' },
+                                containerInstances: [
+                                    { id: 'api_instance_A', containerId: 'logic_api' } // Officially governed by exp_A logic inheritance geometrically!
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        id: 'dcB', type: 'DeploymentNode', properties: { widget_ref: 'datacenter' },
+                        infrastructureNodes: [
+                            { id: 'gwB', properties: { widget_ref: 'api-gateway' } },
+                            { id: 'lbB', properties: { widget_ref: 'local-load-balancer' } }
+                        ],
+                        nodes: [
+                            {
+                                id: 'clusterB', type: 'DeploymentNode', properties: { widget_ref: 'openshift-cluster-v4' },
+                                containerInstances: [
+                                    // REPLICA! Internally inherently inherits origin_pattern from 'logic_api'.
+                                    // BUT! Region B is explicitly completely separated from 'exp_A'!
+                                    { id: 'api_instance_B', containerId: 'logic_api' }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        };
+
+        const results = detectPatterns(ast, mockRegistry);
+
+        // Detection Logic should evaluate 'api_instance_A' as fully governed inherently rejecting it.
+        // It should precisely evaluate 'api_instance_B' as functionally un-governed geometrically, proposing exactly ONE new architecture boundary adoption mapping!
+        expect(results.length).toBe(1);
+        expect(results[0].detectorId).toBe('detect-internal-api-v3');
+        expect(results[0].matchedNodes.api.id).toBe('api_instance_B'); // The independent replica perfectly verified securely without cross-contamination anomalies!
+        expect(results[0].matchedNodes.datacenter.id).toBe('dcB');
     });
 });

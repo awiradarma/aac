@@ -114,4 +114,53 @@ describe('Validator Engine Regression Suite', () => {
         const errors = validateArchitecture(ast, mockRegistry);
         expect(errors.some(e => e.includes("mandatory component 'lb' is missing"))).toBe(false);
     });
+
+    it('should mathematically deduce regional routing and bypass external node violation assertions locally when identical twin replicas structurally exist in independent datacenters', () => {
+        const ast = {
+            model: {
+                containers: [{ id: 'logic_api', properties: {} }],
+                relationships: [
+                    // Logical C4 Edge: The DC B Gateway natively targets the shared Logical API structure!
+                    { sourceId: 'gw_b', destinationId: 'logic_api' },
+                    // Even if DC A Gateway does too:
+                    { sourceId: 'gw_a', destinationId: 'logic_api' },
+                    // Internal correct pattern edges (simulated Logical Connections)
+                    { sourceId: 'gw_a', destinationId: 'lb_a' }, { sourceId: 'lb_a', destinationId: 'logic_api' },
+                    { sourceId: 'gw_b', destinationId: 'lb_b' }, { sourceId: 'lb_b', destinationId: 'logic_api' }
+                ]
+            },
+            deployment: {
+                nodes: [
+                    {
+                        id: 'datacenter_A',
+                        type: 'DeploymentNode',
+                        containerInstances: [
+                            { id: 'api_a', containerId: 'logic_api', properties: { origin_pattern: 'internal-api-ocp@3.0.0', composition_alias: 'api', composition_id: 'exp1' } }
+                        ],
+                        infrastructureNodes: [
+                            { id: 'gw_a', properties: { origin_pattern: 'internal-api-ocp@3.0.0', composition_alias: 'gw', composition_id: 'exp1', provider: 'apigee' } },
+                            { id: 'lb_a', properties: { origin_pattern: 'internal-api-ocp@3.0.0', composition_alias: 'lb', composition_id: 'exp1', provider: 'avi' } }
+                        ]
+                    },
+                    {
+                        id: 'datacenter_B',
+                        type: 'DeploymentNode',
+                        // Exact same logical container deployed as a physical twin structurally unhooked from A!
+                        containerInstances: [
+                            { id: 'api_b', containerId: 'logic_api', properties: { origin_pattern: 'internal-api-ocp@3.0.0', composition_alias: 'api', composition_id: 'exp2' } }
+                        ],
+                        // Secondary region external actor that maps structurally correctly
+                        infrastructureNodes: [
+                            { id: 'gw_b', properties: { origin_pattern: 'internal-api-ocp@3.0.0', composition_alias: 'gw', composition_id: 'exp2', provider: 'apigee' } },
+                            { id: 'lb_b', properties: { origin_pattern: 'internal-api-ocp@3.0.0', composition_alias: 'lb', composition_id: 'exp2', provider: 'avi' } }
+                        ]
+                    }
+                ]
+            }
+        };
+
+        // If the topological regionalization engine structurally fails, gw_b mathematically assaults api_a returning Cross-Contamination Bypassing Errors!
+        const errors = validateArchitecture(ast, mockRegistry);
+        expect(errors.some(e => e.includes("Connectivity Violation: entry 'gw_b' bypassing security"))).toBe(false);
+    });
 });
