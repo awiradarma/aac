@@ -108,19 +108,44 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 possibleParents.sort((a, b) => ((a.width || 500) * (a.height || 400)) - ((b.width || 500) * (b.height || 400)));
                 const closestParent = possibleParents.length > 0 ? possibleParents[0] : null;
 
+                let cloned = false;
                 setNodes((nds: Node[]) => {
+                    const srcNode = nds.find(n => n.id === existingNodeId);
+                    if (!srcNode) return nds;
+
+                    let px = 0; let py = 0;
+                    let cId = closestParent ? closestParent.parentNode : undefined;
+                    while (cId) { const p = nds.find(x => x.id === cId); if (p) { px += p.position.x; py += p.position.y; cId = p.parentNode; } else break; }
+                    const parentAbsX = closestParent ? closestParent.position.x + px : 0;
+                    const parentAbsY = closestParent ? closestParent.position.y + py : 0;
+
+                    const newPosition = closestParent ? { x: Math.max(50, position.x - parentAbsX), y: Math.max(50, position.y - parentAbsY) } : position;
+
+                    // Support multiple Container Instances natively across Deployment diagram scales
+                    if (activeView?.type === 'Deployment' && srcNode.type === 'containerNode') {
+                        cloned = true;
+                        const instanceNode: Node = {
+                            ...srcNode,
+                            id: `${srcNode.id}_inst_${getId()}`, // Creates a distinct replica uniquely
+                            position: newPosition,
+                            parentNode: closestParent ? closestParent.id : undefined,
+                            extent: closestParent ? 'parent' : undefined,
+                            zIndex: closestParent ? (closestParent.zIndex || 0) + 5 : 15,
+                            data: {
+                                ...srcNode.data,
+                                logical_parent_id: srcNode.id // Traces explicitly back to logical architectural root
+                            }
+                        };
+                        return [...nds, instanceNode];
+                    }
+
+                    // For non-deployment views or structurally singular abstractions, surgically mutate the reference directly
                     let updatedNode: Node | null = null;
                     const remaining = nds.filter(n => {
                         if (n.id === existingNodeId) {
-                            let px = 0; let py = 0;
-                            let cId = closestParent ? closestParent.parentNode : undefined;
-                            while (cId) { const p = nds.find(x => x.id === cId); if (p) { px += p.position.x; py += p.position.y; cId = p.parentNode; } else break; }
-                            const parentAbsX = closestParent ? closestParent.position.x + px : 0;
-                            const parentAbsY = closestParent ? closestParent.position.y + py : 0;
-
                             updatedNode = {
                                 ...n,
-                                position: closestParent ? { x: Math.max(50, position.x - parentAbsX), y: Math.max(50, position.y - parentAbsY) } : position,
+                                position: newPosition,
                                 parentNode: closestParent ? closestParent.id : undefined,
                                 extent: closestParent ? 'parent' : undefined,
                                 zIndex: closestParent ? (closestParent.zIndex || 0) + 5 : 15,
@@ -131,7 +156,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     });
                     return updatedNode ? [...remaining, updatedNode] : remaining;
                 });
-                if (onRevealNode) onRevealNode(existingNodeId);
+                if (!cloned && onRevealNode) onRevealNode(existingNodeId);
                 return;
             }
 
