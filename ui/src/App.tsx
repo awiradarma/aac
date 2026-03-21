@@ -295,7 +295,17 @@ export default function App() {
     const serializeLayout = (n: any) => {
       if (!n.data?.layoutMap || Object.keys(n.data.layoutMap).length === 0) return undefined;
       const outMap: any = {};
+      // Stamp the live canvas geometry into the active view dynamically ensuring export boundaries always identically match physical visual topology states!
+      outMap[activeViewId] = {
+        x: n.position.x,
+        y: n.position.y,
+        width: n.style?.width,
+        height: n.style?.height,
+        parentNode: allIdMap.get(n.parentNode || '') || n.parentNode
+      };
+
       for (const [viewId, layout] of Object.entries<any>(n.data.layoutMap)) {
+        if (viewId === activeViewId) continue; // Already dynamically serialized natively above!
         const cleanLayout = { ...layout };
         if (cleanLayout.parentNode) cleanLayout.parentNode = allIdMap.get(cleanLayout.parentNode) || cleanLayout.parentNode;
         outMap[viewId] = cleanLayout;

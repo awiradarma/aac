@@ -517,18 +517,18 @@ views:
       - node_1774120419121_381
       - node_1774120419121_133
       - node_1774120419122_313
-      - api-container-api-container-instance
+      - api-container-api-container-instance_instance
       - node_1774120428152_44
       - node_1774120430032_451
-      - batch-container-batch-container-instance
+      - batch-container-batch-container-instance_instance
       - node_1774129079243_308
       - node_1774129079243_281
       - node_1774129079243_393
       - >-
-        api-container-api-container-instance_instance_inst_node_1774129116639_160
+        api-container-api-container-instance_instance_inst_node_1774129116639_387_instance
       - node_1774129123671_544
       - node_1774129128102_406
       - >-
-        batch-container-batch-container-instance_instance_inst_node_1774129169819_639
+        batch-container-batch-container-instance_instance_inst_node_1774129169819_189_instance
     exclude: []
     exclude_edges: []
