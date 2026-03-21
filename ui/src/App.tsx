@@ -667,12 +667,16 @@ export default function App() {
           const status = props.status || 'existing';
           delete props.widget_ref;
           delete props.status;
+          delete props.origin_pattern;
+          delete props.composition_alias;
+          delete props.composition_id;
+          delete props.memberships;
 
           if (!newNodes.find(n => n.id === cn.id)) { // Prevent dupes with deployments later
             newNodes.push({
               id: cn.id,
               type: 'containerNode',
-              position: importedLayout?.[targetViewId] ? { x: importedLayout[targetViewId].x, y: importedLayout[targetViewId].y } : { x: Math.random() * 400 + 100, y: Math.random() * 300 + 100 },
+              position: importedLayout?.[targetViewId] ? { x: importedLayout[targetViewId].x, y: importedLayout[targetViewId].y } : (importedLayout && Object.keys(importedLayout).length > 0 ? { x: Object.values<any>(importedLayout)[0]!.x, y: Object.values<any>(importedLayout)[0]!.y } : { x: Math.random() * 400 + 100, y: Math.random() * 300 + 100 }),
               parentNode: cn.logical_parent_id,
               extent: cn.logical_parent_id ? 'parent' : undefined,
               zIndex: 15,
@@ -709,6 +713,10 @@ export default function App() {
             const status = cpProps.status || 'existing';
             delete cpProps.widget_ref;
             delete cpProps.status;
+            delete cpProps.origin_pattern;
+            delete cpProps.composition_alias;
+            delete cpProps.composition_id;
+            delete cpProps.memberships;
 
             if (!newNodes.find(n => n.id === cmp.id)) {
               newNodes.push({
@@ -831,6 +839,7 @@ export default function App() {
                 delete cleanCProps.origin_pattern;
                 delete cleanCProps.composition_alias;
                 delete cleanCProps.composition_id;
+                delete cleanCProps.memberships;
 
                 const instanceNodeId = ci.id || `workload-${ci.containerId}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 
@@ -843,7 +852,7 @@ export default function App() {
                 newNodes.push({
                   id: instanceNodeId,
                   type: 'containerNode',
-                  position: importedLayoutInst?.[targetViewId] ? { x: importedLayoutInst[targetViewId].x, y: importedLayoutInst[targetViewId].y } : { x: 50, y: containerY },
+                  position: importedLayoutInst?.[targetViewId] ? { x: importedLayoutInst[targetViewId].x, y: importedLayoutInst[targetViewId].y } : (importedLayoutInst && Object.keys(importedLayoutInst).length > 0 ? { x: Object.values<any>(importedLayoutInst)[0]!.x, y: Object.values<any>(importedLayoutInst)[0]!.y } : { x: 50, y: containerY }),
                   parentNode: dn.id,
                   extent: 'parent',
                   zIndex: 20,
