@@ -461,7 +461,7 @@ export default function App() {
         const containers = containerNodes.filter(w => w.parentNode === child.id);
         if (containers.length > 0) {
           dNode.containerInstances = containers.map(w => ({
-            id: w.id + '_instance',
+            id: w.id, // Strictly preserve origin ID mapping mathematically seamlessly avoiding inclusion blinding
             containerId: (w as any)._logicalContainerId || w.id,
             properties: {
               widget_ref: w.data.widget_ref,
@@ -851,57 +851,65 @@ export default function App() {
         const rels = arch.model?.relationships || [];
 
         rels.forEach((r: any) => {
-          const sourceTarget = newNodes.find(n => n.id === r.sourceId || (n.data as any).containerId === r.sourceId);
-          const destTarget = newNodes.find(n => n.id === r.destinationId || (n.data as any).containerId === r.destinationId);
+          const sources = newNodes.filter(n => n.id === r.sourceId || (n.data as any).containerId === r.sourceId);
+          const blocks = newNodes.filter(n => n.id === r.destinationId || (n.data as any).containerId === r.destinationId);
 
-          if (sourceTarget && destTarget) {
-            const props = r.properties || {};
-            const direction = props.direction || 'forward';
-            const styleVariant = props.styleVariant || 'solid';
-            const isAnimated = styleVariant === 'animated';
+          sources.forEach(sourceTarget => {
+            // Regional Edge Distribution Matcher:
+            // If a physical source legitimately connects globally to a Logical concept, trace regionally locally first.
+            let destTarget = blocks.find(b => b.data?.composition_id === sourceTarget.data?.composition_id && sourceTarget.data?.composition_id);
+            // If there's no native localized twin mapped, fallback to resolving broadly identically
+            if (!destTarget && blocks.length > 0) destTarget = blocks[0];
 
-            let newStyle: any = { strokeWidth: 3, stroke: '#64748b' };
-            if (styleVariant === 'dashed') {
-              newStyle.strokeDasharray = '5, 5';
-              newStyle.strokeLinecap = 'square';
-            } else if (styleVariant === 'dotted') {
-              newStyle.strokeDasharray = '2, 5';
-              newStyle.strokeLinecap = 'round';
-            }
+            if (sourceTarget && destTarget) {
+              const props = r.properties || {};
+              const direction = props.direction || 'forward';
+              const styleVariant = props.styleVariant || 'solid';
+              const isAnimated = styleVariant === 'animated';
 
-            const drawMarker = { type: MarkerType.ArrowClosed, width: 20, height: 20, color: newStyle.stroke };
-            let mStart = undefined;
-            let mEnd = undefined;
-            if (direction === 'forward') mEnd = drawMarker;
-            if (direction === 'reverse') mStart = drawMarker;
-            if (direction === 'both') {
-              mStart = drawMarker;
-              mEnd = drawMarker;
-            }
-
-            newEdges.push({
-              id: `e-${sourceTarget.id}-${destTarget.id}-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-              source: sourceTarget.id,
-              target: destTarget.id,
-              sourceHandle: props.sourceHandle,
-              targetHandle: props.targetHandle,
-              animated: isAnimated,
-              type: 'smoothstep',
-              zIndex: 5000,
-              markerStart: mStart,
-              markerEnd: mEnd,
-              style: newStyle,
-              label: r.technology ? `${r.description || 'Uses'}\n[${r.technology}]` : (r.description || 'Uses'),
-              labelStyle: { fill: '#475569', fontWeight: 700, fontSize: 11, whiteSpace: 'pre-wrap', textAlign: 'center' as any },
-              labelBgStyle: { fill: '#f8fafc', color: '#f8fafc', fillOpacity: 0.9, stroke: '#e2e8f0', strokeWidth: 1 },
-              data: {
-                label: r.description || 'Uses',
-                technology: r.technology || '',
-                styleVariant,
-                direction
+              let newStyle: any = { strokeWidth: 3, stroke: '#64748b' };
+              if (styleVariant === 'dashed') {
+                newStyle.strokeDasharray = '5, 5';
+                newStyle.strokeLinecap = 'square';
+              } else if (styleVariant === 'dotted') {
+                newStyle.strokeDasharray = '2, 5';
+                newStyle.strokeLinecap = 'round';
               }
-            });
-          }
+
+              const drawMarker = { type: MarkerType.ArrowClosed, width: 20, height: 20, color: newStyle.stroke };
+              let mStart = undefined;
+              let mEnd = undefined;
+              if (direction === 'forward') mEnd = drawMarker;
+              if (direction === 'reverse') mStart = drawMarker;
+              if (direction === 'both') {
+                mStart = drawMarker;
+                mEnd = drawMarker;
+              }
+
+              newEdges.push({
+                id: `e-${sourceTarget.id}-${destTarget.id}-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+                source: sourceTarget.id,
+                target: destTarget.id,
+                sourceHandle: props.sourceHandle,
+                targetHandle: props.targetHandle,
+                animated: isAnimated,
+                type: 'smoothstep',
+                zIndex: 5000,
+                markerStart: mStart,
+                markerEnd: mEnd,
+                style: newStyle,
+                label: r.technology ? `${r.description || 'Uses'}\n[${r.technology}]` : (r.description || 'Uses'),
+                labelStyle: { fill: '#475569', fontWeight: 700, fontSize: 11, whiteSpace: 'pre-wrap', textAlign: 'center' as any },
+                labelBgStyle: { fill: '#f8fafc', color: '#f8fafc', fillOpacity: 0.9, stroke: '#e2e8f0', strokeWidth: 1 },
+                data: {
+                  label: r.description || 'Uses',
+                  technology: r.technology || '',
+                  styleVariant,
+                  direction
+                }
+              });
+            }
+          });
         });
 
         setNodes(newNodes);
@@ -977,7 +985,6 @@ export default function App() {
 
           nextNodes = nextNodes.map(n => {
             const isMatch = n.id === targetId ||
-              n.id + '_instance' === targetId ||
               (n.type === 'containerNode' && (n as any)._logicalContainerId === targetId) ||
               (n.type === 'containerNode' && logicalId && (n as any)._logicalContainerId === logicalId);
 

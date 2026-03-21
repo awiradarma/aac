@@ -221,6 +221,24 @@ model:
         direction: forward
         sourceHandle: source-bottom
         targetHandle: target-left
+    - sourceId: node_1774129123671_544
+      destinationId: node_1774129128102_406
+      description: Uses
+      technology: ''
+      properties:
+        styleVariant: solid
+        direction: forward
+        sourceHandle: source-bottom
+        targetHandle: target-top
+    - sourceId: node_1774129128102_406
+      destinationId: api-container-api-container-instance
+      description: Uses
+      technology: ''
+      properties:
+        styleVariant: solid
+        direction: forward
+        sourceHandle: source-bottom
+        targetHandle: target-left
 deployment:
   nodes:
     - name: Primary-Region
@@ -276,6 +294,30 @@ deployment:
                     composition_id: auto-exp-1774120451879-0
                     language: python
                     schedule: 0 0 * * *
+                - id: api-container-api-container-instance_instance_instance
+                  containerId: api-container-api-container-instance
+                  properties:
+                    widget_ref: api-container@1.0.0
+                    aac_layout: >-
+                      {"v-1774102028485":{"x":60.161938385664826,"y":161.0490941271484,"parentNode":"default-system"},"v-1774102068864":{"x":382.36806022467977,"y":67.6358562568198,"width":1000,"height":800},"v-1774120414121":{"x":57.99999999999977,"y":333,"parentNode":"node_1774120419122_313"}}
+                    origin_pattern: internal-api-ocp@3.0.0
+                    composition_alias: api
+                    composition_id: auto-exp-1774129133869-0
+                    status: new
+                    language: java
+                    type: REST API
+                - id: batch-container-batch-container-instance_instance_instance
+                  containerId: batch-container-batch-container-instance
+                  properties:
+                    widget_ref: batch-container@1.0.0
+                    aac_layout: >-
+                      {"v-1774102028485":{"x":573.821935375886,"y":178.00211865107525,"parentNode":"default-system"},"v-1774102253962":{"x":181.59061976242424,"y":-133.14158420543572,"width":1000,"height":800},"v-1774120414121":{"x":57.999999999999886,"y":145,"parentNode":"node_1774120419122_313"}}
+                    origin_pattern: batch-workload-ocp@1.0.0
+                    composition_alias: workload
+                    composition_id: auto-exp-1774129173757-0
+                    status: new
+                    language: python
+                    schedule: 0 0 * * *
             - name: API-Gateway-Instance
               id: node_1774120428152_44
               properties:
@@ -318,6 +360,108 @@ deployment:
                 origin_pattern: internal-api-ocp@3.0.0
                 composition_alias: lb
                 composition_id: auto-exp-1774120433011-0
+                provider: avi
+    - name: Secondary-Region
+      id: node_1774129079243_308
+      properties:
+        widget_ref: region@1.0.0
+        aac_layout: >-
+          {"v-1774120414121":{"x":63.033135033765575,"y":1143.4750211813164,"width":1200,"height":1000}}
+        origin_pattern: single-dc-ocp-cluster@1.0.0
+        composition_alias: region-1
+        composition_id: exp-single-dc-ocp-cluster-1774129079243
+        status: new
+      nodes:
+        - name: Secondary-Datacenter
+          id: node_1774129079243_281
+          properties:
+            widget_ref: datacenter@1.0.0
+            aac_layout: >-
+              {"v-1774120414121":{"x":136,"y":199.99999999999977,"width":1000,"height":800,"parentNode":"node_1774129079243_308"}}
+            origin_pattern: internal-api-ocp@3.0.0
+            composition_alias: datacenter
+            composition_id: auto-exp-1774129133869-0
+            status: new
+          nodes:
+            - name: Secondary-OpenShift-Cluster
+              id: node_1774129079243_393
+              properties:
+                widget_ref: openshift-cluster-v4@4.12.0
+                aac_layout: >-
+                  {"v-1774120414121":{"x":388,"y":300,"width":600,"height":500,"parentNode":"node_1774129079243_281"}}
+                origin_pattern: batch-workload-ocp@1.0.0
+                composition_alias: cluster
+                composition_id: auto-exp-1774129173757-0
+                status: new
+              containerInstances:
+                - id: >-
+                    api-container-api-container-instance_instance_inst_node_1774129116639_387_instance
+                  containerId: api-container-api-container-instance
+                  properties:
+                    widget_ref: api-container@1.0.0
+                    aac_layout: >-
+                      {"v-1774102028485":{"x":60.161938385664826,"y":161.0490941271484,"parentNode":"default-system"},"v-1774102068864":{"x":382.36806022467977,"y":67.6358562568198,"width":1000,"height":800},"v-1774120414121":{"x":57.99999999999977,"y":333,"parentNode":"node_1774120419122_313"}}
+                    origin_pattern: internal-api-ocp@3.0.0
+                    composition_alias: api
+                    composition_id: auto-exp-1774129133869-0
+                    status: new
+                    language: java
+                    type: REST API
+                - id: >-
+                    batch-container-batch-container-instance_instance_inst_node_1774129169819_189_instance
+                  containerId: batch-container-batch-container-instance
+                  properties:
+                    widget_ref: batch-container@1.0.0
+                    aac_layout: >-
+                      {"v-1774102028485":{"x":573.821935375886,"y":178.00211865107525,"parentNode":"default-system"},"v-1774102253962":{"x":181.59061976242424,"y":-133.14158420543572,"width":1000,"height":800},"v-1774120414121":{"x":57.999999999999886,"y":145,"parentNode":"node_1774120419122_313"}}
+                    origin_pattern: batch-workload-ocp@1.0.0
+                    composition_alias: workload
+                    composition_id: auto-exp-1774129173757-0
+                    status: new
+                    language: python
+                    schedule: 0 0 * * *
+            - name: API-Gateway-Instance
+              id: node_1774129123671_544
+              properties:
+                widget_ref: api-gateway@2.0.0
+                aac_layout: >-
+                  {"v-1774120414121":{"x":42,"y":106.00000000000023,"parentNode":"node_1774129079243_281"}}
+                origin_pattern: internal-api-ocp@3.0.0
+                composition_alias: gw
+                composition_id: auto-exp-1774129133869-0
+                status: new
+                provider: apigee
+            - name: Local-Load-Balancer-Instance
+              id: node_1774129128102_406
+              properties:
+                widget_ref: local-load-balancer@2.0.0
+                aac_layout: >-
+                  {"v-1774120414121":{"x":44,"y":430.0000000000002,"parentNode":"node_1774129079243_281"}}
+                origin_pattern: internal-api-ocp@3.0.0
+                composition_alias: lb
+                composition_id: auto-exp-1774129133869-0
+                status: new
+                provider: avi
+          infrastructureNodes:
+            - id: node_1774129123671_544
+              name: API-Gateway-Instance
+              properties:
+                widget_ref: api-gateway@2.0.0
+                aac_layout: >-
+                  {"v-1774120414121":{"x":42,"y":106.00000000000023,"parentNode":"node_1774129079243_281"}}
+                origin_pattern: internal-api-ocp@3.0.0
+                composition_alias: gw
+                composition_id: auto-exp-1774129133869-0
+                provider: apigee
+            - id: node_1774129128102_406
+              name: Local-Load-Balancer-Instance
+              properties:
+                widget_ref: local-load-balancer@2.0.0
+                aac_layout: >-
+                  {"v-1774120414121":{"x":44,"y":430.0000000000002,"parentNode":"node_1774129079243_281"}}
+                origin_pattern: internal-api-ocp@3.0.0
+                composition_alias: lb
+                composition_id: auto-exp-1774129133869-0
                 provider: avi
 views:
   - key: default
@@ -377,5 +521,14 @@ views:
       - node_1774120428152_44
       - node_1774120430032_451
       - batch-container-batch-container-instance
+      - node_1774129079243_308
+      - node_1774129079243_281
+      - node_1774129079243_393
+      - >-
+        api-container-api-container-instance_instance_inst_node_1774129116639_160
+      - node_1774129123671_544
+      - node_1774129128102_406
+      - >-
+        batch-container-batch-container-instance_instance_inst_node_1774129169819_639
     exclude: []
     exclude_edges: []
