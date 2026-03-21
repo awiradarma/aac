@@ -4,6 +4,7 @@
 node_modules/
 
 # Build and output directories
+debug/
 dist/
 dist-ssr/
 build/

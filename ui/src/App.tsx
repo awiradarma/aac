@@ -510,15 +510,20 @@ export default function App() {
 
     structurizr.deployment.nodes = buildTree(undefined);
 
-    structurizr.views = views.map(v => ({
-      key: v.id,
-      name: v.name,
-      type: v.type,
-      include: Array.from(new Set(v.include.map(id => id === '*' ? '*' : allIdMap.get(id) || id))),
-      exclude: Array.from(new Set(v.exclude.map(id => allIdMap.get(id) || id))),
-      exclude_edges: Array.from(new Set(v.exclude_edges || [])),
-      scope_entity_id: v.scope_entity_id ? (allIdMap.get(v.scope_entity_id) || v.scope_entity_id) : undefined
-    }));
+    structurizr.views = views.map(v => {
+      // 🚨 CRITICAL FIX: NEVER map visually included items via allIdMap natively!
+      // If we translate a physical instance's structural ID back into its primary logical container's ID exclusively, a deployment view natively loses
+      // the ability to identify and render the physical node correctly mathematically when re-importing!
+      return {
+        key: v.id,
+        name: v.name,
+        type: v.type,
+        include: Array.from(new Set(v.include)), // Strongly lock exact identities seamlessly
+        exclude: Array.from(new Set(v.exclude)), // Strongly lock exact exclusions seamlessly
+        exclude_edges: Array.from(new Set(v.exclude_edges || [])),
+        scope_entity_id: v.scope_entity_id ? (allIdMap.get(v.scope_entity_id) || v.scope_entity_id) : undefined // Scope entity safely parses logically
+      };
+    });
     return structurizr;
   };
 
