@@ -164,7 +164,8 @@ export default function App() {
           ...n,
           position: { x: layout.x, y: layout.y },
           style: sanitizedStyle,
-          parentNode: layout.parentNode
+          parentNode: layout.parentNode,
+          extent: layout.parentNode ? 'parent' : undefined
         };
       }
 
@@ -644,6 +645,7 @@ export default function App() {
               type: 'containerNode',
               position: importedLayout?.[targetViewId] ? { x: importedLayout[targetViewId].x, y: importedLayout[targetViewId].y } : { x: Math.random() * 400 + 100, y: Math.random() * 300 + 100 },
               parentNode: cn.logical_parent_id,
+              extent: cn.logical_parent_id ? 'parent' : undefined,
               zIndex: 15,
               style: importedLayout?.[targetViewId]?.width ? { width: importedLayout[targetViewId].width, height: importedLayout[targetViewId].height } : undefined,
               data: {
@@ -800,17 +802,23 @@ export default function App() {
                 delete cleanCProps.composition_alias;
                 delete cleanCProps.composition_id;
 
-                // Generate/recover a unique node ID for the React Flow canvas to prevent collisions and maintain view bounds
-                const instanceNodeId = ci.id ? ci.id.replace('_instance', '') : `workload-${ci.containerId}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+                const instanceNodeId = ci.id || `workload-${ci.containerId}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+
+                const ciProps = ci.properties || {};
+                let importedLayoutInst: any = undefined;
+                if (ciProps.aac_layout) {
+                  try { importedLayoutInst = JSON.parse(ciProps.aac_layout as string); } catch (e) { }
+                }
 
                 newNodes.push({
                   id: instanceNodeId,
                   type: 'containerNode',
-                  position: { x: 50, y: containerY },
+                  position: importedLayoutInst?.[targetViewId] ? { x: importedLayoutInst[targetViewId].x, y: importedLayoutInst[targetViewId].y } : { x: 50, y: containerY },
                   parentNode: dn.id,
                   extent: 'parent',
                   zIndex: 20,
                   data: {
+                    layoutMap: importedLayoutInst || {},
                     label: cn.name.replace(/-/g, ' '),
                     widget_ref: cProps.widget_ref || '',
                     c4Level: cPattern ? cPattern.c4Level : 'Container',
