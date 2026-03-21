@@ -179,8 +179,12 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
     // However, if a user deleted a required component, but manually recreated a generic component of the exact same type/version nearby,
     // this auto-adopts it into the logical grouping so it can be verified for architectural constraints.
     Object.entries(expansionInstances).forEach(([expId, instanceNodes]) => {
-        // Find origin pattern (look for MUST HAVE origin_pattern on any node in expansion)
-        const master = instanceNodes.find(n => n.properties?.origin_pattern || n.origin_pattern);
+        // Find origin pattern (prioritize finding a node that natively owns THIS explicitly over arbitrarily overlapping secondary strings)
+        let master = instanceNodes.find(n => {
+            const pExp = n.properties?.composition_id || n.composition_id;
+            return pExp === expId && (n.properties?.origin_pattern || n.origin_pattern);
+        });
+        if (!master) master = instanceNodes.find(n => n.properties?.origin_pattern || n.origin_pattern);
         const originVal = master ? (master.properties?.origin_pattern || master.origin_pattern) : null;
         const originPattern = getPatternFromOriginVal(originVal);
 
