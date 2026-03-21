@@ -464,6 +464,7 @@ export default function App() {
             containerId: (w as any)._logicalContainerId || w.id,
             properties: {
               widget_ref: w.data.widget_ref,
+              aac_layout: serializeLayout(w),
               origin_pattern: (w.data as any).origin_pattern,
               composition_alias: (w.data as any).composition_alias,
               composition_id: (w.data as any).composition_id,
@@ -479,6 +480,7 @@ export default function App() {
             name: w.data.label.replace(/\s+/g, '-'),
             properties: {
               widget_ref: w.data.widget_ref,
+              aac_layout: serializeLayout(w),
               origin_pattern: (w.data as any).origin_pattern,
               composition_alias: (w.data as any).composition_alias,
               composition_id: (w.data as any).composition_id,
