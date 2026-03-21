@@ -245,7 +245,27 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
                         if (!targetNode) return;
 
                         const protectedNodes = flatDeployments.filter(n => n.id === targetNode.id || isDescendant(n.id, targetNode.id));
-                        const externalNodes = flatDeployments.filter(n => !getSuffixForExp(n, expId) && !protectedNodes.some(p => p.id === n.id));
+                        const externalNodes = flatDeployments.filter(n => {
+                            if (getSuffixForExp(n, expId)) return false; // Native member of this specific pattern instance
+                            if (protectedNodes.some(p => p.id === n.id)) return false;
+
+                            // Topological Edge Regionalization:
+                            // If this external node actually belongs to a DIFFERENT pattern instance (e.g. Region B)
+                            // and the Logical Target ALSO has a replica residing locally in THAT same Region B...
+                            // we mathematically deduce this native C4 logical edge routes regionally, not cross-site!
+                            const nMem = getMemberships(n);
+                            const nPrime = n.properties?.composition_id || n.composition_id;
+                            const nExpIds = [...Object.keys(nMem), nPrime].filter(Boolean);
+
+                            for (const otherExpId of nExpIds) {
+                                if (otherExpId !== expId && expansionInstances[otherExpId]) {
+                                    // Does the other region have its own physical replica of our protected target?
+                                    const hasTwin = expansionInstances[otherExpId].some(peer => getCid(peer) === getCid(targetNode));
+                                    if (hasTwin) return false; // Strip it from assaulting our local region!
+                                }
+                            }
+                            return true;
+                        });
 
                         externalNodes.forEach(entry => {
                             const entryCid = getCid(entry);
