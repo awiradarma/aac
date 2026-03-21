@@ -1,0 +1,51 @@
+id: pub-sub-messaging
+name: Pub/Sub Broadcast
+version: 1.0.0
+c4Level: Container
+description: "A standard broadcast topology using a Topic and multiple subscribers."
+
+composition:
+  nodes:
+    - id_suffix: publisher
+      type: containerNode
+      widget_ref: executable@1.0.0
+      label: Publisher Service
+      c4Level: Container
+      layout_hint: { x: 250, y: 0 }
+
+    - id_suffix: topic
+      type: containerNode
+      widget_ref: topic@1.0.0
+      label: Event Topic
+      c4Level: Container
+      layout_hint: { x: 250, y: 150 }
+
+    - id_suffix: sub_a
+      type: containerNode
+      widget_ref: executable@1.0.0
+      label: Subscriber A
+      c4Level: Container
+      layout_hint: { x: 50, y: 300 }
+
+    - id_suffix: sub_b
+      type: containerNode
+      widget_ref: executable@1.0.0
+      label: Subscriber B
+      c4Level: Container
+      layout_hint: { x: 450, y: 300 }
+
+  edges:
+    - source_suffix: publisher
+      target_suffix: topic
+      label: publish
+    - source_suffix: topic
+      target_suffix: sub_a
+      label: distribute
+    - source_suffix: topic
+      target_suffix: sub_b
+      label: distribute
+
+display_metadata:
+  icon: Wifi
+  color: slate
+  category: Container

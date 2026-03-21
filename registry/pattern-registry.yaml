@@ -29,3 +29,13 @@ patterns:
     versions:
       - "1.0.0"
     latest: "1.0.0"
+  - id: point-to-point-messaging
+    name: Point-to-Point Messaging
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: pub-sub-messaging
+    name: Pub/Sub Broadcast
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"

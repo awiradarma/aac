@@ -115,6 +115,7 @@ export type NodeData = {
     memberships?: Record<string, string>; // Sub-graph relationships if adopted by multiple patterns (expansionId -> suffix)
     layoutMap?: Record<string, { x: number, y: number, width?: number, height?: number, parentNode?: string }>; // Per-view layout configurations
     containerId?: string; // Original logical ID from import
+    logical_parent_id?: string; // Links this node to a parent scoping entity (e.g. Container to SoftwareSystem)
 };
 
 export type DiagramView = {
@@ -123,4 +124,5 @@ export type DiagramView = {
     type: string; // 'SystemLandscape' | 'SystemContext' | 'Container' | 'Component' | 'Deployment'
     include: string[]; // List of IDs or ['*']
     exclude: string[]; // List of IDs to hide
+    scope_entity_id?: string; // ID of the parent entity this view represents (e.g. SoftwareSystem ID for a Container view)
 };

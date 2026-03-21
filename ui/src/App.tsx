@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { ReactFlowProvider, useEdgesState, applyNodeChanges } from 'reactflow';
+import { ReactFlowProvider, useEdgesState, applyNodeChanges, MarkerType } from 'reactflow';
 import { Sidebar } from './components/Sidebar';
 import { CanvasArea } from './components/Canvas';
 import { PropertyPanel } from './components/PropertyPanel';
@@ -60,7 +60,7 @@ export default function App() {
   const [linkingNodeId, setLinkingNodeId] = useState<string | null>(null);
   const [validationModal, setValidationModal] = useState<{ isOpen: boolean, type: 'success' | 'error', message: string }>({ isOpen: false, type: 'success', message: '' });
   const [viewModal, setViewModal] = useState<{ isOpen: boolean, mode: 'create' | 'edit', viewId?: string }>({ isOpen: false, mode: 'create' });
-  const [viewModalForm, setViewModalForm] = useState({ name: '', type: 'Container' });
+  const [viewModalForm, setViewModalForm] = useState({ name: '', type: 'SystemLandscape' });
   const [discoveryResults, setDiscoveryResults] = useState<DiscoveryResult[] | null>(null);
 
   // Custom node changes to track per-view coordinates dynamically
@@ -71,7 +71,10 @@ export default function App() {
 
       return updatedNodes.map((n: Node, i: number) => {
         const originalNode = nds[i];
-        if (n.position.x !== originalNode.position.x || n.position.y !== originalNode.position.y || n.style?.width !== originalNode.style?.width || n.parentNode !== originalNode.parentNode) {
+        const posChange = changes.find((c: any) => c.type === 'position' && c.id === n.id);
+        const isAutomatedJump = posChange && !posChange.dragging && !posChange.positionAbsolute;
+
+        if (!isAutomatedJump && (n.position.x !== originalNode.position.x || n.position.y !== originalNode.position.y || n.style?.width !== originalNode.style?.width || n.parentNode !== originalNode.parentNode)) {
           const currentLayouts = n.data.layoutMap || {};
           return {
             ...n,
@@ -99,17 +102,34 @@ export default function App() {
   useEffect(() => {
     setNodes((currentNodes) => currentNodes.map(n => {
       const layout = n.data.layoutMap?.[activeViewId];
+
+      // Actively strip out physics dimensions when they don't apply to the active view.
+      // This prevents the invisible DOM Wrapper from remaining 1000x800 pixels (which causes connection ports 
+      // to route 800 pixels into thin air) when a boundary container returns back to a normal view.
+      const sanitizedStyle: any = { ...n.style };
+      if (!layout || !layout.width) {
+        delete sanitizedStyle.width;
+        delete sanitizedStyle.height;
+      } else {
+        sanitizedStyle.width = layout.width;
+        sanitizedStyle.height = layout.height;
+      }
+
       if (layout) {
         return {
           ...n,
           position: { x: layout.x, y: layout.y },
-          style: layout.width ? { ...n.style, width: layout.width, height: layout.height } : n.style,
+          style: sanitizedStyle,
           parentNode: layout.parentNode
         };
       }
-      return n;
+
+      return {
+        ...n,
+        style: sanitizedStyle
+      };
     }));
-  }, [activeViewId]);
+  }, [activeViewId, setNodes]);
 
 
   useEffect(() => {
@@ -145,8 +165,40 @@ export default function App() {
       eds.map(e => {
         if (e.id === id) {
           const finalData = { ...e.data, ...newData };
+          const isAnimated = finalData.styleVariant === 'animated';
+          const baseStyle = e.style || { strokeWidth: 3, stroke: '#64748b' };
+          let newStyle: any = { ...baseStyle };
+
+          if (finalData.styleVariant === 'dashed') {
+            newStyle.strokeDasharray = '5, 5';
+            newStyle.strokeLinecap = 'square';
+          } else if (finalData.styleVariant === 'dotted') {
+            newStyle.strokeDasharray = '2, 5';
+            newStyle.strokeLinecap = 'round';
+          } else {
+            delete newStyle.strokeDasharray;
+            delete newStyle.strokeLinecap;
+          }
+
+          const direction = finalData.direction || 'forward';
+          const drawMarker = { type: MarkerType.ArrowClosed, width: 20, height: 20, color: newStyle.stroke || '#64748b' };
+
+          let mStart = undefined;
+          let mEnd = undefined;
+
+          if (direction === 'forward') mEnd = drawMarker;
+          if (direction === 'reverse') mStart = drawMarker;
+          if (direction === 'both') {
+            mStart = drawMarker;
+            mEnd = drawMarker;
+          }
+
           return {
             ...e,
+            animated: isAnimated,
+            style: newStyle,
+            markerStart: mStart,
+            markerEnd: mEnd,
             data: finalData,
             label: finalData.technology ? `${finalData.label}\n[${finalData.technology}]` : finalData.label,
             labelStyle: { fill: '#475569', fontWeight: 700, fontSize: 11, whiteSpace: 'pre-wrap', textAlign: 'center' as any },
@@ -177,10 +229,53 @@ export default function App() {
 
     const allNodes = nodes.filter(n => n.type === 'deploymentNode' || n.type === 'infrastructureNode');
     const containerNodes = nodes.filter(n => n.type === 'containerNode');
+    const componentNodes = nodes.filter(n => n.type === 'componentNode');
     const systemNodes = nodes.filter(n => n.type === 'systemNode');
     const personNodes = nodes.filter(n => n.type === 'personNode');
 
+    const allIdMap = new Map<string, string>();
+    systemNodes.forEach(n => allIdMap.set(n.id, n.id));
+    personNodes.forEach(n => allIdMap.set(n.id, n.id));
+    componentNodes.forEach(n => allIdMap.set(n.id, n.id));
+    allNodes.forEach(n => allIdMap.set(n.id, n.id));
+
+    // Group workloads into unique Model Containers based on widget_ref and label
+    containerNodes.forEach(w => {
+      const patternId = w.data.widget_ref?.split('@')[0] || 'unknown';
+      const logicalId = `${patternId}-${w.data.label.replace(/\s+/g, '-')}`.toLowerCase();
+      allIdMap.set(w.id, logicalId);
+      (w as any)._logicalContainerId = logicalId;
+    });
+
+    const serializeLayout = (n: any) => {
+      if (!n.data?.layoutMap || Object.keys(n.data.layoutMap).length === 0) return undefined;
+      const outMap: any = {};
+      for (const [viewId, layout] of Object.entries<any>(n.data.layoutMap)) {
+        const cleanLayout = { ...layout };
+        if (cleanLayout.parentNode) cleanLayout.parentNode = allIdMap.get(cleanLayout.parentNode) || cleanLayout.parentNode;
+        outMap[viewId] = cleanLayout;
+      }
+      return JSON.stringify(outMap);
+    };
+
+    const uniqueComponents = new Map<string, any>();
+    componentNodes.forEach(c => {
+      uniqueComponents.set(c.id, {
+        name: c.data.label?.replace(/\s+/g, '-') || 'Unnamed-Component',
+        id: c.id,
+        logical_parent_id: c.data.logical_parent_id,
+        properties: {
+          widget_ref: c.data.widget_ref,
+          status: 'new',
+          aac_layout: serializeLayout(c),
+          ...c.data.properties
+        }
+      });
+      (c as any)._logicalId = c.id;
+    });
+
     const uniqueContainers = new Map<string, any>();
+    const containerIdMap = new Map<string, string>(); // React Flow ID -> Logical ID
 
     // Group workloads into unique Model Containers based on widget_ref and label
     containerNodes.forEach(w => {
@@ -191,12 +286,14 @@ export default function App() {
         uniqueContainers.set(logicalId, {
           name: w.data.label.replace(/\s+/g, '-'),
           id: logicalId,
+          logical_parent_id: w.data.logical_parent_id,
           properties: {
             widget_ref: w.data.widget_ref,
             origin_pattern: (w.data as any).origin_pattern,
             composition_alias: (w.data as any).composition_alias,
             composition_id: (w.data as any).composition_id,
             status: 'new',
+            aac_layout: serializeLayout(w),
             ...w.data.properties
           }
         });
@@ -204,27 +301,59 @@ export default function App() {
 
       // Store logical ID reference for deployment mapping
       (w as any)._logicalContainerId = logicalId;
+      containerIdMap.set(w.id, logicalId);
     });
 
-    structurizr.model.containers = Array.from(uniqueContainers.values());
+    const compArr = Array.from(uniqueComponents.values());
+    const containerArr = Array.from(uniqueContainers.values());
+
+    containerArr.forEach((cont: any) => {
+      const nestedComps = compArr.filter(c => containerIdMap.get(c.logical_parent_id) === cont.id || c.logical_parent_id === cont.id);
+      if (nestedComps.length > 0) {
+        cont.components = nestedComps.map(c => { const { logical_parent_id, ...rest } = c; return rest; });
+      }
+    });
 
     structurizr.model.people = personNodes.map(p => ({
       name: p.data.label.replace(/\s+/g, '-'),
       id: p.id,
       properties: {
         widget_ref: p.data.widget_ref,
+        aac_layout: serializeLayout(p),
         ...p.data.properties
       }
     }));
 
-    structurizr.model.softwareSystems = systemNodes.map(s => ({
-      name: s.data.label.replace(/\s+/g, '-'),
-      id: s.id,
-      properties: {
-        widget_ref: s.data.widget_ref,
-        ...s.data.properties
+    structurizr.model.softwareSystems = systemNodes.map(s => {
+      const systemContainers = containerArr.filter((c: any) => c.logical_parent_id === s.id);
+      const out: any = {
+        name: s.data.label.replace(/\s+/g, '-'),
+        id: s.id,
+        properties: {
+          widget_ref: s.data.widget_ref,
+          aac_layout: serializeLayout(s),
+          ...s.data.properties
+        }
+      };
+      if (systemContainers.length > 0) {
+        out.containers = systemContainers.map((c: any) => {
+          const { logical_parent_id, ...rest } = c; // Filter out from standard DSL
+          return rest;
+        });
       }
-    }));
+      return out;
+    });
+
+    const orphanedContainers = containerArr.filter((c: any) => !c.logical_parent_id).map((c: any) => {
+      const { logical_parent_id, ...rest } = c;
+      return rest;
+    });
+
+    if (orphanedContainers.length > 0) {
+      structurizr.model.containers = orphanedContainers;
+    } else {
+      delete structurizr.model.containers;
+    }
 
     // Generate Relationships
     const relationships: any[] = [];
@@ -237,17 +366,27 @@ export default function App() {
 
       if (sourceNode && targetNode) {
         // Use logical container ID if workload, else fallback to visual id for infrastructure/system/person nodes
-        const sourceLogicId = sourceNode.type === 'containerNode' ? (sourceNode as any)._logicalContainerId : sourceNode.id;
-        const targetLogicId = targetNode.type === 'containerNode' ? (targetNode as any)._logicalContainerId : targetNode.id;
+        let sourceLogicId = sourceNode.id;
+        if (sourceNode.type === 'containerNode') sourceLogicId = (sourceNode as any)._logicalContainerId;
 
-        const relId = `${sourceLogicId}-${targetLogicId}`;
+        let targetLogicId = targetNode.id;
+        if (targetNode.type === 'containerNode') targetLogicId = (targetNode as any)._logicalContainerId;
+
+        // Map relationships uniquely between explicitly defined distinct physical edge ports!
+        const relId = `${sourceLogicId}-${targetLogicId}-${e.sourceHandle || ''}-${e.targetHandle || ''}`;
         if (!relTracker.has(relId)) {
           relTracker.add(relId);
           relationships.push({
             sourceId: sourceLogicId,
             destinationId: targetLogicId,
             description: e.data?.label || 'Uses',
-            technology: e.data?.technology || ''
+            technology: e.data?.technology || '',
+            properties: {
+              styleVariant: e.data?.styleVariant || 'solid',
+              direction: e.data?.direction || 'forward',
+              sourceHandle: e.sourceHandle || undefined,
+              targetHandle: e.targetHandle || undefined
+            }
           });
         }
       }
@@ -293,7 +432,15 @@ export default function App() {
     };
 
     structurizr.deployment.nodes = buildTree(undefined);
-    structurizr.views = views.map(v => ({ key: v.id, name: v.name, type: v.type, include: v.include, exclude: v.exclude }));
+
+    structurizr.views = views.map(v => ({
+      key: v.id,
+      name: v.name,
+      type: v.type,
+      include: Array.from(new Set(v.include.map(id => id === '*' ? '*' : allIdMap.get(id) || id))),
+      exclude: Array.from(new Set(v.exclude.map(id => allIdMap.get(id) || id))),
+      scope_entity_id: v.scope_entity_id ? (allIdMap.get(v.scope_entity_id) || v.scope_entity_id) : undefined
+    }));
     return structurizr;
   };
 
@@ -329,9 +476,23 @@ export default function App() {
         // Add Systems and People
         const sNodes = arch.model?.softwareSystems || [];
         sNodes.forEach((sn: any) => {
+          const nestedContainers = sn.containers || [];
+          nestedContainers.forEach((cn: any) => {
+            cn.logical_parent_id = sn.id;
+            containerMap[cn.id] = cn;
+          });
+
           const props = sn.properties || {};
           const patternId = props.widget_ref?.split('@')[0];
           const pattern = patternId ? getPatternById(patternId) : null;
+          let importedLayout: any = undefined;
+          if (props.aac_layout) {
+            try { importedLayout = JSON.parse(props.aac_layout as string); } catch (e) { }
+            delete props.aac_layout;
+          }
+          delete props.widget_ref;
+          delete props.status;
+
           newNodes.push({
             id: sn.id,
             type: 'systemNode',
@@ -348,6 +509,7 @@ export default function App() {
               color: pattern?.display_metadata?.color,
               min_width: pattern?.min_width || 300,
               min_height: pattern?.min_height || 200,
+              layoutMap: importedLayout
             }
           });
         });
@@ -357,6 +519,14 @@ export default function App() {
           const props = pn.properties || {};
           const patternId = props.widget_ref?.split('@')[0];
           const pattern = patternId ? getPatternById(patternId) : null;
+          let importedLayout: any = undefined;
+          if (props.aac_layout) {
+            try { importedLayout = JSON.parse(props.aac_layout as string); } catch (e) { }
+            delete props.aac_layout;
+          }
+          delete props.widget_ref;
+          delete props.status;
+
           newNodes.push({
             id: pn.id,
             type: 'personNode',
@@ -373,6 +543,85 @@ export default function App() {
               color: pattern?.display_metadata?.color,
               min_width: pattern?.min_width || 200,
               min_height: pattern?.min_height || 200,
+              layoutMap: importedLayout
+            }
+          });
+        });
+
+        // Loop over containerMap to natively insert containers and their interior components into ReactFlow
+        Object.values(containerMap).forEach((cn: any) => {
+          const props = cn.properties || {};
+          const patternId = props.widget_ref?.split('@')[0];
+          const pattern = patternId ? getPatternById(patternId) : null;
+
+          let importedLayout: any = undefined;
+          if (props.aac_layout) {
+            try { importedLayout = JSON.parse(props.aac_layout as string); } catch (e) { }
+            delete props.aac_layout;
+          }
+          delete props.widget_ref;
+          delete props.status;
+
+          if (!newNodes.find(n => n.id === cn.id)) { // Prevent dupes with deployments later
+            newNodes.push({
+              id: cn.id,
+              type: 'containerNode',
+              position: { x: Math.random() * 400 + 100, y: Math.random() * 300 + 100 },
+              parentNode: cn.logical_parent_id,
+              zIndex: 15,
+              data: {
+                label: cn.name?.replace(/-/g, ' ') || 'Container',
+                widget_ref: props.widget_ref || '',
+                c4Level: pattern ? pattern.c4Level : 'Container',
+                layer: pattern?.layer,
+                properties: props,
+                status: props.status || 'existing',
+                icon: pattern?.display_metadata?.icon,
+                color: pattern?.display_metadata?.color,
+                min_width: pattern?.min_width || 200,
+                min_height: pattern?.min_height || 150,
+                logical_parent_id: cn.logical_parent_id,
+                layoutMap: importedLayout
+              }
+            });
+          }
+
+          const nestedComponents = cn.components || [];
+          nestedComponents.forEach((cmp: any) => {
+            const cpProps = cmp.properties || {};
+            const cpPatternId = cpProps.widget_ref?.split('@')[0];
+            const cpPattern = cpPatternId ? getPatternById(cpPatternId) : null;
+            let importedLayoutComp: any = undefined;
+            if (cpProps.aac_layout) {
+              try { importedLayoutComp = JSON.parse(cpProps.aac_layout as string); } catch (e) { }
+              delete cpProps.aac_layout;
+            }
+            delete cpProps.widget_ref;
+            delete cpProps.status;
+
+            if (!newNodes.find(n => n.id === cmp.id)) {
+              newNodes.push({
+                id: cmp.id,
+                type: 'componentNode',
+                position: { x: Math.random() * 200 + 50, y: Math.random() * 200 + 50 }, // Render safely away from boundaries
+                parentNode: cn.id,
+                extent: 'parent',
+                zIndex: 20,
+                data: {
+                  label: cmp.name?.replace(/-/g, ' ') || 'Component',
+                  widget_ref: cpProps.widget_ref || '',
+                  c4Level: cpPattern ? cpPattern.c4Level : 'Component',
+                  layer: cpPattern?.layer,
+                  properties: cpProps,
+                  status: cpProps.status || 'existing',
+                  icon: cpPattern?.display_metadata?.icon,
+                  color: cpPattern?.display_metadata?.color,
+                  min_width: cpPattern?.min_width || 150,
+                  min_height: cpPattern?.min_height || 100,
+                  logical_parent_id: cn.id,
+                  layoutMap: importedLayoutComp
+                }
+              });
             }
           });
         });
@@ -380,7 +629,7 @@ export default function App() {
         const dNodes = arch.deployment?.nodes || [];
         const importedViews = arch.views || [];
         if (importedViews.length > 0) {
-          setViews(importedViews.map((v: any) => ({ id: v.key || `v-${Date.now()}`, name: v.name || 'Imported View', type: v.type || 'Container', include: v.include || ['*'], exclude: v.exclude || [] })));
+          setViews(importedViews.map((v: any) => ({ id: v.key || `v-${Date.now()}`, name: v.name || 'Imported View', type: v.type || 'Container', include: v.include || ['*'], exclude: v.exclude || [], scope_entity_id: v.scope_entity_id })));
           setActiveViewId(importedViews[0].key || importedViews[0].id);
         } else {
           setViews([{ ...initialViews[0], include: ['*'] }]);
@@ -488,7 +737,8 @@ export default function App() {
                     origin_pattern: cProps.origin_pattern,
                     composition_alias: cProps.composition_alias,
                     composition_id: cProps.composition_id,
-                    containerId: ci.containerId
+                    containerId: ci.containerId,
+                    logical_parent_id: cn.logical_parent_id
                   }
                 });
                 containerY += 150;
@@ -510,19 +760,50 @@ export default function App() {
           const destTarget = newNodes.find(n => n.id === r.destinationId || (n.data as any).containerId === r.destinationId);
 
           if (sourceTarget && destTarget) {
+            const props = r.properties || {};
+            const direction = props.direction || 'forward';
+            const styleVariant = props.styleVariant || 'solid';
+            const isAnimated = styleVariant === 'animated';
+
+            let newStyle: any = { strokeWidth: 3, stroke: '#64748b' };
+            if (styleVariant === 'dashed') {
+              newStyle.strokeDasharray = '5, 5';
+              newStyle.strokeLinecap = 'square';
+            } else if (styleVariant === 'dotted') {
+              newStyle.strokeDasharray = '2, 5';
+              newStyle.strokeLinecap = 'round';
+            }
+
+            const drawMarker = { type: MarkerType.ArrowClosed, width: 20, height: 20, color: newStyle.stroke };
+            let mStart = undefined;
+            let mEnd = undefined;
+            if (direction === 'forward') mEnd = drawMarker;
+            if (direction === 'reverse') mStart = drawMarker;
+            if (direction === 'both') {
+              mStart = drawMarker;
+              mEnd = drawMarker;
+            }
+
             newEdges.push({
-              id: `e-${sourceTarget.id}-${destTarget.id}-${Date.now()}`,
+              id: `e-${sourceTarget.id}-${destTarget.id}-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
               source: sourceTarget.id,
               target: destTarget.id,
-              animated: true,
+              sourceHandle: props.sourceHandle,
+              targetHandle: props.targetHandle,
+              animated: isAnimated,
+              type: 'smoothstep',
               zIndex: 5000,
-              style: { strokeWidth: 3, stroke: '#64748b' },
+              markerStart: mStart,
+              markerEnd: mEnd,
+              style: newStyle,
               label: r.technology ? `${r.description || 'Uses'}\n[${r.technology}]` : (r.description || 'Uses'),
               labelStyle: { fill: '#475569', fontWeight: 700, fontSize: 11, whiteSpace: 'pre-wrap', textAlign: 'center' as any },
               labelBgStyle: { fill: '#f8fafc', color: '#f8fafc', fillOpacity: 0.9, stroke: '#e2e8f0', strokeWidth: 1 },
               data: {
                 label: r.description || 'Uses',
-                technology: r.technology || ''
+                technology: r.technology || '',
+                styleVariant,
+                direction
               }
             });
           }
@@ -635,12 +916,92 @@ export default function App() {
     });
   };
 
+  const handleNavigateToScope = (nodeId: string, nodeLabel: string, targetType: string) => {
+    const existingView = views.find(v => v.type === targetType && v.scope_entity_id === nodeId);
+    let targetViewId = '';
+
+    if (existingView) {
+      targetViewId = existingView.id;
+    } else {
+      const newViewId = `v-${Date.now()}`;
+      const newView: DiagramView = {
+        id: newViewId,
+        name: `${nodeLabel} - ${targetType}s`,
+        type: targetType,
+        include: [nodeId], // Only include the boundary and strictly nested children
+        exclude: [],
+        scope_entity_id: nodeId
+      };
+      setViews(vs => [...vs, newView]);
+      targetViewId = newViewId;
+    }
+
+    setNodes(nds => nds.map(n => {
+      if (n.id === nodeId && !n.data.layoutMap?.[targetViewId]) {
+        return {
+          ...n,
+          data: { ...n.data, layoutMap: { ...(n.data.layoutMap || {}), [targetViewId]: { x: 50, y: 50, width: 1000, height: 800 } } }
+        };
+      }
+      return n;
+    }));
+
+    setActiveViewId(targetViewId);
+    setIsPropertyPanelOpen(false);
+  };
+
   const activeView = views.find(v => v.id === activeViewId) || views[0];
-  const visibleNodes = nodes.map(n => {
+
+  const hiddenSet = new Set<string>();
+  const allowedLevelsByView: Record<string, string[]> = {
+    'SystemLandscape': ['Person', 'SoftwareSystem'],
+    'SystemContext': ['Person', 'SoftwareSystem'],
+    'Container': ['Person', 'SoftwareSystem', 'Container'],
+    'Component': ['Person', 'SoftwareSystem', 'Container', 'Component'],
+    'Deployment': ['DeploymentNode', 'InfrastructureNode', 'Container', 'SoftwareSystem', 'Component']
+  };
+
+  nodes.forEach(n => {
     let isHidden = false;
-    if (activeView.exclude.includes(n.id)) isHidden = true;
-    else if (!activeView.include.includes('*') && !activeView.include.includes(n.id)) isHidden = true;
-    return { ...n, hidden: isHidden };
+    const allowed = allowedLevelsByView[activeView.type] || [];
+    const isExplicitlyIncluded = activeView.include.includes(n.id) || n.data?.logical_parent_id === activeView.scope_entity_id;
+
+    if (activeView.exclude.includes(n.id)) {
+      isHidden = true;
+    } else if (!allowed.includes(n.data?.c4Level) && !isExplicitlyIncluded) {
+      // Enforce structural abstractions mathematically natively unless explicitly drawn in the model tree or manually included
+      isHidden = true;
+    } else if (!activeView.include.includes('*') && !activeView.include.includes(n.id) && n.data?.logical_parent_id !== activeView.scope_entity_id) {
+      isHidden = true;
+    }
+
+    if (isHidden) hiddenSet.add(n.id);
+  });
+
+  const visibleNodes = nodes.map(n => {
+    const isBoundary = (activeView.type === 'Container' || activeView.type === 'Component') && activeView.scope_entity_id === n.id;
+    let safeParentNode = n.parentNode;
+    if (isBoundary || (n.parentNode && hiddenSet.has(n.parentNode))) {
+      safeParentNode = undefined;
+    }
+
+    const computedStyle = { ...n.style };
+    if (isBoundary && !computedStyle.width) {
+      // Autonomously explode un-styled boundaries back out to their C4 macroscopic geometries!
+      computedStyle.width = activeView.type === 'Container' ? 1000 : 800;
+      computedStyle.height = activeView.type === 'Container' ? 800 : 600;
+    }
+
+    return {
+      ...n,
+      hidden: hiddenSet.has(n.id),
+      parentNode: safeParentNode,
+      style: computedStyle,
+      data: {
+        ...n.data,
+        isScopedBoundary: isBoundary
+      }
+    };
   });
 
   if (!isRegistryLoaded) {
@@ -696,7 +1057,7 @@ export default function App() {
           </button>
           <button
             onClick={() => {
-              setViewModalForm({ name: 'New View', type: 'Container' });
+              setViewModalForm({ name: 'New View', type: 'SystemLandscape' });
               setViewModal({ isOpen: true, mode: 'create' });
             }}
             className="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-sm font-semibold text-white transition-colors whitespace-nowrap"
@@ -777,6 +1138,24 @@ export default function App() {
           <div className={`fixed inset-y-0 left-0 z-50 transform bg-white transition-transform duration-300 md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
             <Sidebar
               activeView={activeView}
+              hiddenNodes={nodes.filter(n => {
+                const allowedLevelsByView: Record<string, string[]> = {
+                  'SystemLandscape': ['Person', 'SoftwareSystem'],
+                  'SystemContext': ['Person', 'SoftwareSystem'],
+                  'Container': ['Person', 'SoftwareSystem', 'Container'],
+                  'Component': ['Person', 'SoftwareSystem', 'Container', 'Component'],
+                  'Deployment': ['DeploymentNode', 'InfrastructureNode', 'Container', 'SoftwareSystem']
+                };
+                const allowed = allowedLevelsByView[activeView.type] || [];
+                if (!allowed.includes(n.data?.c4Level)) return false; // Strictly enforce abstraction hierarchy
+
+                if (activeView.exclude.includes(n.id)) return true;
+                if (!activeView.include.includes('*') && !activeView.include.includes(n.id) && n.data?.logical_parent_id !== activeView.scope_entity_id) return true;
+                return false;
+              })}
+              onRevealNode={(id: string) => {
+                setViews(vs => vs.map(v => v.id === activeView.id ? { ...v, include: [...v.include.filter(i => i !== '*'), id], exclude: v.exclude.filter(e => e !== id) } : v));
+              }}
               onAddPattern={(type, id, version) => {
                 setPatternToAdd({ type, patternId: id, version });
                 setIsSidebarOpen(false);
@@ -786,6 +1165,7 @@ export default function App() {
           </div>
 
           <CanvasArea
+            activeView={activeView}
             nodes={visibleNodes}
             edges={edges}
             setNodes={(action: any) => {
@@ -812,8 +1192,10 @@ export default function App() {
                     id: `e-${linkingNodeId}-${n.id}-${Date.now()}`,
                     source: linkingNodeId,
                     target: n.id,
-                    animated: true,
+                    animated: false,
+                    type: 'smoothstep',
                     zIndex: 5000,
+                    markerEnd: { type: MarkerType.ArrowClosed, width: 20, height: 20, color: '#64748b' },
                     style: { strokeWidth: 3, stroke: '#64748b' },
                     label: 'Uses',
                     labelStyle: { fill: '#475569', fontWeight: 700, fontSize: 11, whiteSpace: 'pre-wrap', textAlign: 'center' as any },
@@ -842,6 +1224,7 @@ export default function App() {
               selectedEdge={selectedEdge}
               onUpdateNodeData={handleUpdateNodeData}
               onUpdateEdgeData={handleUpdateEdgeData}
+              onNavigateToScope={handleNavigateToScope}
               onClose={() => setIsPropertyPanelOpen(false)}
             />
           </div>
@@ -857,7 +1240,7 @@ export default function App() {
             </button>
             <button
               onClick={() => {
-                setViewModalForm({ name: 'New View', type: 'Container' });
+                setViewModalForm({ name: 'New View', type: 'SystemLandscape' });
                 setViewModal({ isOpen: true, mode: 'create' });
               }}
               className="flex items-center justify-center w-12 h-12 bg-slate-800 hover:bg-slate-700 text-white rounded-full shadow-lg transition-transform active:scale-95"
@@ -1014,15 +1397,20 @@ export default function App() {
                   <select
                     value={viewModalForm.type}
                     onChange={(e) => setViewModalForm({ ...viewModalForm, type: e.target.value })}
-                    className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    disabled={viewModalForm.type === 'Container' || viewModalForm.type === 'Component'}
+                    className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:bg-slate-100"
                   >
                     <option value="SystemLandscape">System Landscape</option>
                     <option value="SystemContext">System Context</option>
-                    <option value="Container">Container</option>
-                    <option value="Component">Component</option>
                     <option value="Deployment">Deployment</option>
+                    {viewModalForm.type === 'Container' && <option value="Container">Container (Scoped)</option>}
+                    {viewModalForm.type === 'Component' && <option value="Component">Component (Scoped)</option>}
                   </select>
-                  <p className="text-xs text-slate-500 mt-2">This dictates the available patterns and validation rules applied to the canvas.</p>
+                  <p className="text-xs text-slate-500 mt-2">
+                    {viewModalForm.type === 'Container' || viewModalForm.type === 'Component'
+                      ? 'Scoped model views cannot be manually modified or created from the global dropdown. They are automatically managed by drilling down into specific elements on the canvas.'
+                      : 'This dictates the available patterns and validation rules applied to the canvas.'}
+                  </p>
                 </div>
               </div>
               <div className="p-4 border-t bg-slate-50 flex justify-end gap-3">

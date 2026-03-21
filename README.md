@@ -214,3 +214,4 @@ To move toward a production-grade governance engine, the following capabilities 
 ### 3. Advanced Governance
 *   **Active-Active Topology Checks**: Expanding the validator to enforce multi-region and multi-datacenter quorum rules.
 *   **Component Capability Mapping**: Automatically suggesting compatible persistence or security layers based on a workload's declared requirements.
+*   **Implied Relationships (Model Roll-up)**: Dynamically inferring high-level architecture relationships (e.g. `System A -> System B`) automatically when lower-level granular connections are drawn (e.g. `System A -> Database Container in System B`), preserving strict C4 compliance across view scopes.

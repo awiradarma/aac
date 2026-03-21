@@ -1,0 +1,8 @@
+id: topic
+name: Event Topic
+version: 1.0.0
+c4Level: Container
+display_metadata:
+  icon: Radio
+  color: blue
+  category: Container

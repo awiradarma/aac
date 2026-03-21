@@ -14,11 +14,13 @@ import type { DiagramView } from '../types';
 
 interface Props {
     activeView?: DiagramView;
+    hiddenNodes?: any[];
+    onRevealNode?: (id: string) => void;
     onAddPattern?: (nodeType: string, patternId: string, version: string) => void;
     onClose?: () => void;
 }
 
-export const Sidebar: React.FC<Props> = ({ activeView, onAddPattern, onClose }) => {
+export const Sidebar: React.FC<Props> = ({ activeView, hiddenNodes, onRevealNode, onAddPattern, onClose }) => {
     const onDragStart = (event: React.DragEvent, nodeType: string, patternId: string, version: string) => {
         event.dataTransfer.setData('application/reactflow', nodeType);
         event.dataTransfer.setData('application/patternId', patternId);
@@ -33,14 +35,27 @@ export const Sidebar: React.FC<Props> = ({ activeView, onAddPattern, onClose }) 
         const allowedLevelsByView: Record<string, string[]> = {
             'SystemLandscape': ['Person', 'SoftwareSystem'],
             'SystemContext': ['Person', 'SoftwareSystem'],
-            'Container': ['Person', 'SoftwareSystem', 'Container'],
-            'Component': ['Person', 'SoftwareSystem', 'Container', 'Component'],
+            'Container': ['Container'],
+            'Component': ['Component'],
             'Deployment': ['DeploymentNode', 'InfrastructureNode', 'Container', 'SoftwareSystem']
         };
 
         const allowed = allowedLevelsByView[activeView.type];
         if (allowed) {
-            patterns = patterns.filter(p => allowed.includes(p.c4Level));
+            patterns = patterns.filter(p => {
+                // Must pass basic layer authorization
+                if (!allowed.includes(p.c4Level)) return false;
+
+                // Smart Filter for Macro Patterns:
+                // If we are strictly mapping logical application boundaries (Container/Component level),
+                // we should exclude pre-orchestrated macro patterns that enforce physical infrastructure or deployment nodes.
+                if (activeView.type === 'Container' || activeView.type === 'Component') {
+                    if (p.composition?.nodes?.some(n => n.c4Level === 'DeploymentNode' || n.c4Level === 'InfrastructureNode')) {
+                        return false;
+                    }
+                }
+                return true;
+            });
         }
     }
 
@@ -54,6 +69,7 @@ export const Sidebar: React.FC<Props> = ({ activeView, onAddPattern, onClose }) 
 
     // Define preferred order for standard categories
     const order = ['DeploymentNode', 'InfrastructureNode', 'Container', 'Component'];
+    const hasHiddenNodes = hiddenNodes && hiddenNodes.length > 0;
     const sortedCategories = Object.keys(categories).sort((a, b) => {
         const idxA = order.indexOf(a);
         const idxB = order.indexOf(b);
@@ -78,6 +94,36 @@ export const Sidebar: React.FC<Props> = ({ activeView, onAddPattern, onClose }) 
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-6">
+                {/* Existing Model Entities */}
+                {hasHiddenNodes && (
+                    <div>
+                        <div className="flex items-center gap-2 mb-3">
+                            <div className="h-px bg-slate-100 flex-1"></div>
+                            <h3 className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">Hidden Elements</h3>
+                            <div className="h-px bg-slate-100 flex-1"></div>
+                        </div>
+                        <div className="grid grid-cols-1 gap-2">
+                            {hiddenNodes?.map(node => (
+                                <div
+                                    key={node.id}
+                                    className="px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg cursor-pointer hover:border-indigo-400 hover:shadow-md transition-all group active:scale-95 flex items-center gap-3"
+                                    onClick={() => onRevealNode && onRevealNode(node.id)}
+                                >
+                                    <div className="w-8 h-8 rounded-md flex items-center justify-center shrink-0 bg-indigo-100 text-indigo-600">
+                                        <DynamicIcon name={node.data?.icon || 'Box'} className="w-4 h-4" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <div className="text-[11px] font-bold text-slate-700 truncate leading-tight group-hover:text-indigo-700 transition-colors">{node.data?.label || 'Unnamed Node'}</div>
+                                        <div className="text-[9px] font-mono text-slate-400 mt-0.5 truncate uppercase">{node.data?.c4Level || 'Unknown'}</div>
+                                    </div>
+                                    <div className="text-[9px] font-black text-indigo-400 opacity-0 group-hover:opacity-100 uppercase tracking-widest shrink-0">ADD</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Registry Patterns */}
                 {sortedCategories.map(level => (
                     <div key={level}>
                         <div className="flex items-center gap-2 mb-3">
@@ -126,7 +172,7 @@ export const Sidebar: React.FC<Props> = ({ activeView, onAddPattern, onClose }) 
             </div>
 
             <div className="p-4 bg-slate-50 border-t border-slate-100 shrink-0">
-                <div className="text-[10px] text-slate-400 text-center font-medium">Drag patterns to canvas to expand architecture</div>
+                <div className="text-[10px] text-slate-400 text-center font-medium">Click elements to reveal in current scope or drag patterns to expand architecture</div>
             </div>
         </aside>
     );

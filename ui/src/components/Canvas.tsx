@@ -4,14 +4,16 @@ import ReactFlow, {
     Controls,
     MiniMap,
     addEdge,
-    BackgroundVariant
+    BackgroundVariant,
+    ConnectionMode,
+    MarkerType
 } from 'reactflow';
 import type { Connection, Edge, Node } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-import { DeploymentNode, ContainerNode, InfrastructureNode, PersonNode, SystemNode } from './Nodes';
+import { DeploymentNode, ContainerNode, InfrastructureNode, PersonNode, SystemNode, ComponentNode } from './Nodes';
 import { getPatternById, getPatternByIdAndVersion } from '../lib/registry';
-import type { NodeData } from '../types';
+import type { NodeData, DiagramView } from '../types';
 
 const nodeTypes = {
     deploymentNode: DeploymentNode,
@@ -19,6 +21,7 @@ const nodeTypes = {
     infrastructureNode: InfrastructureNode,
     personNode: PersonNode,
     systemNode: SystemNode,
+    componentNode: ComponentNode,
 };
 
 let id = 0;
@@ -35,18 +38,21 @@ interface Props {
     onEdgesChange: any;
     patternToAdd?: { type: string, patternId: string, version: string } | null;
     onPatternAdded?: () => void;
+    activeView?: DiagramView;
     selectedNodeId?: string | null;
 }
 
-export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange, onNodeSelect, onEdgeSelect, patternToAdd, onPatternAdded, selectedNodeId }) => {
+export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange, onNodeSelect, onEdgeSelect, patternToAdd, onPatternAdded, selectedNodeId, activeView }) => {
     const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
 
     const onConnect = useCallback((params: Edge | Connection) => {
         const edge = {
             ...params,
             id: `e-${params.source}-${params.target}-${Date.now()}`,
-            animated: true,
+            animated: false,
+            type: 'smoothstep',
             zIndex: 5000,
+            markerEnd: { type: MarkerType.ArrowClosed, width: 20, height: 20, color: '#64748b' },
             style: { strokeWidth: 3, stroke: '#64748b' },
             label: 'Uses',
             labelStyle: { fill: '#475569', fontWeight: 700, fontSize: 11, whiteSpace: 'pre-wrap', textAlign: 'center' as any },
@@ -97,6 +103,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
             let nodeType = type;
             if (pattern.c4Level === 'SoftwareSystem') nodeType = 'systemNode';
             if (pattern.c4Level === 'Person') nodeType = 'personNode';
+            if (pattern.c4Level === 'Component') nodeType = 'componentNode';
 
             const newNode: Node<NodeData> = {
                 id: getId(),
@@ -114,7 +121,8 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     color: pattern.display_metadata?.color,
                     min_width: pattern.min_width,
                     min_height: pattern.min_height,
-                    memberships: {}
+                    memberships: {},
+                    logical_parent_id: (activeView?.scope_entity_id && (pattern.c4Level === 'Container' || pattern.c4Level === 'Component')) ? activeView.scope_entity_id : undefined,
                 },
             };
 
@@ -212,7 +220,13 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
 
                 // If dropping on a matching anchor (e.g. cluster), use that anchor's parent for all other nodes in the macro
                 // If dropping on a container without a match (e.g. datacenter), then it's a child.
-                const searchParentId = (anchorMatchFound && targetNode) ? targetNode.parentNode : (isHierarchyParent && targetNode ? targetNode.id : ((isHostParent || isInfraParent) && targetNode ? targetNode.parentNode : undefined));
+                let searchParentId = (anchorMatchFound && targetNode) ? targetNode.parentNode : (isHierarchyParent && targetNode ? targetNode.id : ((isHostParent || isInfraParent) && targetNode ? targetNode.parentNode : undefined));
+
+                // If dropping a container-level macro on a scoped container view, hook it into the system boundary natively
+                if (!searchParentId && activeView?.scope_entity_id && (pattern.c4Level === 'Container' || pattern.c4Level === 'Component')) {
+                    searchParentId = activeView.scope_entity_id;
+                }
+
                 const isParentExtent = !!searchParentId;
 
                 const generatedNodes: Node<NodeData>[] = [];
@@ -318,7 +332,8 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                     composition_id: expansionId,
                                     memberships: {
                                         [expansionId]: macroNode.id_suffix
-                                    }
+                                    },
+                                    logical_parent_id: (activeView?.scope_entity_id && (macroNode.c4Level === 'Container' || macroNode.c4Level === 'Component')) ? activeView.scope_entity_id : undefined,
                                 }
                             };
 
@@ -364,8 +379,10 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                 id: edgeId,
                                 source: sourceId,
                                 target: targetId,
-                                animated: true,
+                                animated: false,
+                                type: 'smoothstep',
                                 zIndex: 5000,
+                                markerEnd: { type: MarkerType.ArrowClosed, width: 20, height: 20, color: '#64748b' },
                                 data: { label: 'Uses', technology: '' },
                                 style: { strokeWidth: 3, stroke: '#64748b', ...macroEdge.style }
                             });
@@ -413,10 +430,26 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
             }
 
             // Standard Relationship Resolution based on geometric boundaries
+            const scopedParentId = activeView?.scope_entity_id;
+
             if (pattern.c4Level === 'SoftwareSystem' || pattern.c4Level === 'Person') {
                 // Top-level C4 constructs sit directly on the root canvas, never strictly enforced into infrastructure boxes
                 newNode.zIndex = 5;
-            } else if (closestParent && (closestParent.type === 'deploymentNode' || closestParent.type === 'deploymentNode')) {
+            } else if (scopedParentId && (pattern.c4Level === 'Container' || pattern.c4Level === 'Component')) {
+                const systemNodeObj = nodes.find(n => n.id === scopedParentId);
+                const parentAbs = systemNodeObj ? getAbsolutePosition(systemNodeObj) : { x: 0, y: 0 };
+                newNode.parentNode = scopedParentId;
+                newNode.extent = 'parent';
+                newNode.zIndex = (systemNodeObj?.zIndex || 5) + 5;
+                if (isMockTarget) {
+                    newNode.position = { x: 50 * scale, y: 80 * scale };
+                } else {
+                    newNode.position = {
+                        x: position.x - parentAbs.x,
+                        y: position.y - parentAbs.y,
+                    };
+                }
+            } else if (closestParent && (closestParent.type === 'deploymentNode' || closestParent.type === 'infrastructureNode')) {
                 const parentAbs = getAbsolutePosition(closestParent);
                 newNode.parentNode = closestParent.id;
                 newNode.extent = 'parent';
@@ -430,7 +463,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     };
                 }
             } else if (type === 'containerNode') {
-                alert(`Governance Violation: A ${pattern.name} must be placed inside a valid Infrastructure Host.`);
+                alert(`Governance Violation: A ${pattern.name} must be placed inside a valid Infrastructure Host or System Scope.`);
                 return;
             } else if (type === 'deploymentNode') {
                 // Placing hierarchy element on root canvas
@@ -478,6 +511,8 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 onDragOver={onDragOver}
                 nodeTypes={nodeTypes}
                 elevateEdgesOnSelect={true}
+                connectionMode={ConnectionMode.Loose}
+                connectionRadius={40}
                 defaultEdgeOptions={{
                     zIndex: 5000,
                     style: { strokeWidth: 3, stroke: '#64748b' }

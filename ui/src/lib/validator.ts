@@ -62,6 +62,34 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
     };
     parseTree(dNodes, null, null);
 
+    // Ensure purely logical models not explicitly wrapped in boundary deployments are still fully validated!
+    const sNodes = arch.model?.softwareSystems || [];
+    const pNodes = arch.model?.people || [];
+
+    sNodes.forEach((s: any) => {
+        flatDeployments.push({ ...s, type: 'SoftwareSystem' });
+        (s.containers || []).forEach((c: any) => {
+            flatDeployments.push({ ...c, type: 'Container', parentId: s.id });
+            (c.components || []).forEach((cmp: any) => {
+                flatDeployments.push({ ...cmp, type: 'Component', parentId: c.id });
+            });
+        });
+    });
+
+    cNodes.forEach((c: any) => {
+        flatDeployments.push({ ...c, type: 'Container' });
+        (c.components || []).forEach((cmp: any) => {
+            flatDeployments.push({ ...cmp, type: 'Component', parentId: c.id });
+        });
+    });
+
+    pNodes.forEach((p: any) => flatDeployments.push({ ...p, type: 'Person' }));
+
+    // Securely deduplicate elements while safely preserving dynamic deployment instance aliases
+    const uniqueDeployments = Array.from(new Map(flatDeployments.map(item => [item.id, item])).values());
+    flatDeployments.length = 0;
+    flatDeployments.push(...uniqueDeployments);
+
     const adjList: Record<string, string[]> = {};
     const rels = arch.model?.relationships || [];
     rels.forEach((rel: any) => {

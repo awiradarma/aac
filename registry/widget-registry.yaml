@@ -57,3 +57,43 @@ widgets:
     versions:
       - "1.0.0"
     latest: "1.0.0"
+  - id: object-storage-bucket
+    name: Object Storage
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: database-instance
+    name: Relational Database
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: user-interface
+    name: Web Interface
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: directory
+    name: Directory / Filesystem
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: topic
+    name: Event Topic
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: message-queue
+    name: Message Queue
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: executable
+    name: Executable Workload
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: generic-component
+    name: Application Component
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"

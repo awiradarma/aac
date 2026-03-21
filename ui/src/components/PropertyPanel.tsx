@@ -13,6 +13,7 @@ interface Props {
     selectedEdge?: Edge | null;
     onUpdateNodeData: (id: string, newData: any) => void;
     onUpdateEdgeData?: (id: string, newData: any) => void;
+    onNavigateToScope?: (nodeId: string, nodeLabel: string, targetType: string) => void;
     onClose?: () => void;
 }
 
@@ -22,7 +23,7 @@ interface Props {
  * YAML registries based on the currently selected node (`widget_ref`). 
  * It manages the local instance state without mutating the global registry template.
  */
-export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, activeView, onUpdateView, onUpdateNodeData, onUpdateEdgeData, onClose }) => {
+export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, activeView, onUpdateView, onUpdateNodeData, onUpdateEdgeData, onNavigateToScope, onClose }) => {
     const { deleteElements, getNodes } = useReactFlow();
 
     if (selectedEdge) {
@@ -61,9 +62,35 @@ export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, act
                             type="text"
                             value={selectedEdge.data?.technology || ''}
                             onChange={(e) => onUpdateEdgeData?.(selectedEdge.id, { technology: e.target.value })}
-                            className="w-full border border-slate-200 rounded p-1.5 text-sm font-semibold focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full border border-slate-200 rounded p-1.5 text-sm font-semibold focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-3"
                             placeholder="e.g. HTTPS, gRPC, TCP"
                         />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Line Style</label>
+                        <select
+                            value={selectedEdge.data?.styleVariant || 'solid'}
+                            onChange={(e) => onUpdateEdgeData?.(selectedEdge.id, { styleVariant: e.target.value })}
+                            className="w-full border border-slate-200 rounded p-1.5 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white mb-3"
+                        >
+                            <option value="solid">Solid Outline</option>
+                            <option value="dashed">Dashed Outline</option>
+                            <option value="dotted">Dotted Outline</option>
+                            <option value="animated">Flowing (Animated)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Direction / Arrow</label>
+                        <select
+                            value={selectedEdge.data?.direction || 'forward'}
+                            onChange={(e) => onUpdateEdgeData?.(selectedEdge.id, { direction: e.target.value })}
+                            className="w-full border border-slate-200 rounded p-1.5 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                        >
+                            <option value="forward">Forward (Target)</option>
+                            <option value="reverse">Reverse (Source)</option>
+                            <option value="both">Bidirectional (Both)</option>
+                            <option value="none">None (No Arrows)</option>
+                        </select>
                     </div>
                 </div>
             </div>
@@ -281,6 +308,18 @@ export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, act
                             <span className="font-semibold">Source Pattern:</span> {data.origin_pattern}
                         </div>
                     )}
+                </div>
+            )}
+
+            {(pattern.c4Level === 'SoftwareSystem' || pattern.c4Level === 'Container') && onNavigateToScope && (
+                <div className="mb-6">
+                    <button
+                        onClick={() => onNavigateToScope(selectedNode.id, data.label, pattern.c4Level === 'SoftwareSystem' ? 'Container' : 'Component')}
+                        className="w-full flex items-center justify-center gap-2 p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded shadow-sm font-semibold transition-colors text-sm"
+                    >
+                        <Box className="w-4 h-4" />
+                        Edit Internal {pattern.c4Level === 'SoftwareSystem' ? 'Containers' : 'Components'}
+                    </button>
                 </div>
             )}
 

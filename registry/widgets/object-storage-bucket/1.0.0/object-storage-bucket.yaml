@@ -1,0 +1,8 @@
+id: object-storage-bucket
+name: Object Storage
+version: 1.0.0
+c4Level: Container
+display_metadata:
+  icon: Database
+  color: purple
+  category: Container
