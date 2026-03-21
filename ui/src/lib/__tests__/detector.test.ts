@@ -3,6 +3,7 @@ import { detectPatterns } from '../detector';
 
 describe('Pattern Discovery Auto-Detect Engine', () => {
     const mockRegistry: any = {
+        patterns: [],
         detectors: [
             {
                 id: 'detect-internal-api-v3',

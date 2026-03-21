@@ -60,6 +60,7 @@ export type Pattern = {
     name: string; // e.g. "OpenShift v4 Architecture"
     version: string; // SemVer
     c4Level: "SoftwareSystem" | "Person" | "Container" | "Component" | "DeploymentNode" | "InfrastructureNode";
+    base_type?: string; // Establishes structural inheritance (e.g. 'api-container' extends 'executable')
     description?: string;
     layer?: string;
     default_width?: number;

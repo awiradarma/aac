@@ -140,7 +140,21 @@ export function detectPatterns(arch: any, registry: Registry): DiscoveryResult[]
                 // Match specific blueprint reference if requested (e.g. 'batch-container' widget)
                 if (rules.widget_ref) {
                     const id = n.properties?.widget_ref?.split('@')[0] || n.widget_ref?.split('@')[0];
-                    if (id !== rules.widget_ref) return false;
+                    if (id !== rules.widget_ref) {
+                        // Traverse structural polymorphism mapping (class hierarchy extensions) recursively unlimited hops natively
+                        let isMatch = false;
+                        let currId = id;
+                        while (currId) {
+                            const pNode = registry.patterns.find(p => p.id === currId);
+                            if (!pNode) break;
+                            if (pNode.base_type === rules.widget_ref) {
+                                isMatch = true;
+                                break;
+                            }
+                            currId = pNode.base_type;
+                        }
+                        if (!isMatch) return false;
+                    }
                 }
 
                 // Flexible regex matching for wild-west brownfield discovery

@@ -1,6 +1,7 @@
 id: api-container
 name: API Container
 version: 1.0.0
+base_type: executable
 c4Level: Container
 capabilities:
   - api-container

@@ -1,6 +1,7 @@
 id: batch-container
 name: Batch Container
 version: 1.0.0
+base_type: executable
 c4Level: Container
 capabilities:
   - batch-workload
