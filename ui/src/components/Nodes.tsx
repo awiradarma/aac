@@ -116,7 +116,7 @@ export const DeploymentNode = ({ data, selected }: NodeProps<NodeData>) => {
     const style = themedStyles(data.color || 'emerald');
 
     return (
-        <div className={`group absolute inset-0 w-full h-full border-2 rounded-2xl ${style.bg} backdrop-blur-sm ${selected ? `${style.borderSelected}` : `${style.border} border-dashed`} transition-all -z-10`}>
+        <div className={`group w-full h-full border-2 rounded-2xl ${style.bg} ${selected ? `${style.borderSelected}` : `${style.border} border-dashed`} transition-all relative`}>
             <NodeResizer
                 minWidth={data.min_width || (window.innerWidth < 768 ? 200 : 300)}
                 minHeight={data.min_height || (window.innerWidth < 768 ? 200 : 300)}
