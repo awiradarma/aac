@@ -186,7 +186,7 @@ export const ContainerNode = ({ data, selected }: NodeProps<NodeData>) => {
             </div>
             <div className="p-2">
                 <div className="flex flex-col gap-1">
-                    {Object.entries(data.properties).map(([key, value]) => (
+                    {Object.entries(data.properties).filter(([key]) => !['origin_pattern', 'composition_alias', 'composition_id', 'status', 'aac_layout'].includes(key)).map(([key, value]) => (
                         <div key={key} className="flex justify-between text-xs">
                             <span className="text-slate-500">{key}:</span>
                             <span className="font-medium text-slate-700">{String(value)}</span>
@@ -273,7 +273,7 @@ export const SystemNode = ({ data, selected }: NodeProps<NodeData>) => {
             </div>
             {Object.keys(data.properties).length > 0 && (
                 <div className="p-3 bg-white border-t border-slate-200 flex flex-col gap-1 items-center justify-center text-center">
-                    {Object.entries(data.properties).map(([key, value]) => (
+                    {Object.entries(data.properties).filter(([key]) => !['origin_pattern', 'composition_alias', 'composition_id', 'status', 'aac_layout'].includes(key)).map(([key, value]) => (
                         <div key={key} className="text-[11px] text-slate-600 font-medium whitespace-nowrap overflow-hidden text-ellipsis w-full">
                             {String(value)}
                         </div>
@@ -298,7 +298,7 @@ export const ComponentNode = ({ data, selected }: NodeProps<NodeData>) => {
             </div>
             {Object.keys(data.properties || {}).length > 0 && (
                 <div className="px-2 py-1.5 flex flex-col gap-0.5 border-t border-slate-100 bg-white">
-                    {Object.entries(data.properties).map(([k, v]) => (
+                    {Object.entries(data.properties).filter(([k]) => !['origin_pattern', 'composition_alias', 'composition_id', 'status', 'aac_layout'].includes(k)).map(([k, v]) => (
                         <div key={k} className="flex justify-between text-[10px]">
                             <span className="text-slate-400">{k}:</span>
                             <span className="font-medium text-slate-600 truncate max-w-[100px]">{String(v)}</span>

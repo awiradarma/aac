@@ -149,8 +149,11 @@ export default function App() {
       // to route 800 pixels into thin air) when a boundary container returns back to a normal view.
       const sanitizedStyle: any = { ...n.style };
       if (!layout || !layout.width) {
-        delete sanitizedStyle.width;
-        delete sanitizedStyle.height;
+        // Prevent layout strip mechanism from destroying baseline registry shapes for infrastructure structures
+        if (n.type !== 'deploymentNode') {
+          delete sanitizedStyle.width;
+          delete sanitizedStyle.height;
+        }
       } else {
         sanitizedStyle.width = layout.width;
         sanitizedStyle.height = layout.height;
@@ -442,6 +445,7 @@ export default function App() {
           id: child.id,
           properties: {
             widget_ref: child.data.widget_ref,
+            aac_layout: serializeLayout(child),
             origin_pattern: (child.data as any).origin_pattern,
             composition_alias: (child.data as any).composition_alias,
             composition_id: (child.data as any).composition_id,
@@ -736,11 +740,17 @@ export default function App() {
             }
 
             const newProps = { ...props };
+            let importedLayout: any = undefined;
+            if (newProps.aac_layout) {
+              try { importedLayout = JSON.parse(newProps.aac_layout as string); } catch (e) { }
+            }
+
             delete newProps.widget_ref;
             delete newProps.status;
             delete newProps.origin_pattern;
             delete newProps.composition_alias;
             delete newProps.composition_id;
+            delete newProps.aac_layout;
 
             newNodes.push({
               id: dn.id,
@@ -755,6 +765,7 @@ export default function App() {
                 widget_ref: props.widget_ref || '',
                 c4Level: pattern ? pattern.c4Level : 'DeploymentNode',
                 layer: pattern?.layer,
+                layoutMap: importedLayout || {},
                 properties: newProps,
                 status: props.status || 'existing',
                 icon: pattern?.display_metadata?.icon,
