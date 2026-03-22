@@ -164,8 +164,7 @@ export default function App() {
           ...n,
           position: { x: layout.x, y: layout.y },
           style: sanitizedStyle,
-          parentNode: layout.parentNode,
-          extent: layout.parentNode ? 'parent' : undefined
+          parentNode: layout.parentNode !== undefined ? layout.parentNode : n.parentNode
         };
       }
 
@@ -678,7 +677,6 @@ export default function App() {
               type: 'containerNode',
               position: importedLayout?.[targetViewId] ? { x: importedLayout[targetViewId].x, y: importedLayout[targetViewId].y } : (importedLayout && Object.keys(importedLayout).length > 0 ? { x: Object.values<any>(importedLayout)[0]!.x, y: Object.values<any>(importedLayout)[0]!.y } : { x: Math.random() * 400 + 100, y: Math.random() * 300 + 100 }),
               parentNode: cn.logical_parent_id,
-              extent: cn.logical_parent_id ? 'parent' : undefined,
               zIndex: 15,
               style: importedLayout?.[targetViewId]?.width ? { width: importedLayout[targetViewId].width, height: importedLayout[targetViewId].height } : undefined,
               data: {
@@ -854,7 +852,6 @@ export default function App() {
                   type: 'containerNode',
                   position: importedLayoutInst?.[targetViewId] ? { x: importedLayoutInst[targetViewId].x, y: importedLayoutInst[targetViewId].y } : (importedLayoutInst && Object.keys(importedLayoutInst).length > 0 ? { x: Object.values<any>(importedLayoutInst)[0]!.x, y: Object.values<any>(importedLayoutInst)[0]!.y } : { x: 50, y: containerY }),
                   parentNode: dn.id,
-                  extent: 'parent',
                   zIndex: 20,
                   data: {
                     layoutMap: importedLayoutInst || {},
