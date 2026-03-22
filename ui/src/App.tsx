@@ -753,49 +753,6 @@ export default function App() {
         });
 
         const dNodes = arch.deployment?.nodes || [];
-        if (importedViews.length > 0) {
-          // Build a set of all node IDs that exist after import
-          const allNewNodeIds = new Set(newNodes.map(n => n.id));
-
-          setViews(importedViews.map((v: any) => {
-            let remappedInclude = (v.include || ['*']).filter((id: string) => {
-              // Keep IDs that exist in the graph, or wildcard
-              return id === '*' || allNewNodeIds.has(id);
-            });
-
-            // For scoped views (Container/Component), ensure scope entity & its children are included
-            if (v.scope_entity_id) {
-              if (!remappedInclude.includes(v.scope_entity_id)) {
-                remappedInclude.push(v.scope_entity_id);
-              }
-              // Also include direct children of the scope entity (components inside a container, containers inside a system)
-              newNodes.forEach(n => {
-                if (n.data?.logical_parent_id === v.scope_entity_id && !remappedInclude.includes(n.id)) {
-                  // Only include nodes of the right level for this view type
-                  if (v.type === 'Component' && (n.data?.c4Level === 'Component' || n.data?.c4Level === 'Container')) {
-                    remappedInclude.push(n.id);
-                  } else if (v.type === 'Container' && n.data?.c4Level === 'Container') {
-                    remappedInclude.push(n.id);
-                  }
-                }
-              });
-            }
-
-            return {
-              id: v.key || `v-${Date.now()}`,
-              name: v.name || 'Imported View',
-              type: v.type || 'Container',
-              include: remappedInclude,
-              exclude: v.exclude || [],
-              exclude_edges: v.exclude_edges || [],
-              scope_entity_id: v.scope_entity_id
-            };
-          }));
-          setActiveViewId(importedViews[0].key || importedViews[0].id);
-        } else {
-          setViews([{ ...initialViews[0], include: ['*'] }]);
-          setActiveViewId('default');
-        }
 
         // Layout algorithm
         let yOffset = 50;
@@ -930,6 +887,47 @@ export default function App() {
         };
 
         parseHierarchy(dNodes);
+
+        // Process views AFTER all nodes are created (containers + deployment) so allNewNodeIds is complete
+        if (importedViews.length > 0) {
+          const allNewNodeIds = new Set(newNodes.map(n => n.id));
+
+          setViews(importedViews.map((v: any) => {
+            let remappedInclude = (v.include || ['*']).filter((id: string) => {
+              return id === '*' || allNewNodeIds.has(id);
+            });
+
+            // For scoped views (Container/Component), ensure scope entity & its children are included
+            if (v.scope_entity_id) {
+              if (!remappedInclude.includes(v.scope_entity_id)) {
+                remappedInclude.push(v.scope_entity_id);
+              }
+              newNodes.forEach(n => {
+                if (n.data?.logical_parent_id === v.scope_entity_id && !remappedInclude.includes(n.id)) {
+                  if (v.type === 'Component' && (n.data?.c4Level === 'Component' || n.data?.c4Level === 'Container')) {
+                    remappedInclude.push(n.id);
+                  } else if (v.type === 'Container' && n.data?.c4Level === 'Container') {
+                    remappedInclude.push(n.id);
+                  }
+                }
+              });
+            }
+
+            return {
+              id: v.key || `v-${Date.now()}`,
+              name: v.name || 'Imported View',
+              type: v.type || 'Container',
+              include: remappedInclude,
+              exclude: v.exclude || [],
+              exclude_edges: v.exclude_edges || [],
+              scope_entity_id: v.scope_entity_id
+            };
+          }));
+          setActiveViewId(importedViews[0].key || importedViews[0].id);
+        } else {
+          setViews([{ ...initialViews[0], include: ['*'] }]);
+          setActiveViewId('default');
+        }
 
         const newEdges: any[] = [];
         const rels = arch.model?.relationships || [];
