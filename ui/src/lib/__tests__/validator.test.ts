@@ -119,7 +119,7 @@ describe('Validator Engine Regression Suite', () => {
                         ],
                         infrastructureNodes: [
                             // LB dropped organically from Component window natively, lacks origin_pattern
-                            { id: 'lb', widget_ref: 'local-load-balancer', properties: { provider: 'avi' } },
+                            { id: 'lb', widget_ref: 'local-load-balancer@1.0.0', properties: { provider: 'avi' } },
                             { id: 'gw', properties: { origin_pattern: 'internal-api-ocp@3.0.0', composition_alias: 'gw', composition_id: 'exp1', provider: 'apigee' } }
                         ]
                     }
@@ -238,5 +238,48 @@ describe('Validator Engine Regression Suite', () => {
         const errors = validateArchitecture(ast, mockRegistry);
         expect(errors.some(e => e.includes("Standardization Violation"))).toBe(true);
         expect(errors.some(e => e.includes("technology=MQ"))).toBe(true);
+    });
+
+    it('should strictly throw error when a required architectural relationship is graphically completely deleted natively in the AST', () => {
+        const ast = {
+            model: {
+                softwareSystems: [{
+                    containers: [
+                        { id: 'api-container', properties: { origin_pattern: 'point-to-point-messaging@1.0.0', composition_alias: 'producer', composition_id: 'exp-p2p' } },
+                        { id: 'message-queue', properties: { origin_pattern: 'point-to-point-messaging@1.0.0', composition_alias: 'queue', composition_id: 'exp-p2p' } },
+                        { id: 'batch-container', properties: { origin_pattern: 'point-to-point-messaging@1.0.0', composition_alias: 'consumer', composition_id: 'exp-p2p' } }
+                    ]
+                }],
+                relationships: [
+                    { sourceId: 'api-container', destinationId: 'message-queue' }
+                    // MISSING relationship from queue -> consumer
+                ]
+            },
+            deployment: { nodes: [] }
+        };
+
+        const errors = validateArchitecture(ast, mockRegistry);
+        expect(errors.some(e => e.includes("mandatory connection from 'queue' to 'consumer' is missing"))).toBe(true);
+    });
+
+    it('should strictly throw error when a required architectural node is graphically completely deleted natively in the AST', () => {
+        const ast = {
+            model: {
+                softwareSystems: [{
+                    containers: [
+                        { id: 'api-container', properties: { origin_pattern: 'point-to-point-messaging@1.0.0', composition_alias: 'producer', composition_id: 'exp-p2p' } },
+                        { id: 'message-queue', properties: { origin_pattern: 'point-to-point-messaging@1.0.0', composition_alias: 'queue', composition_id: 'exp-p2p' } }
+                        // MISSING consumer node completely
+                    ]
+                }],
+                relationships: [
+                    { sourceId: 'api-container', destinationId: 'message-queue' }
+                ]
+            },
+            deployment: { nodes: [] }
+        };
+
+        const errors = validateArchitecture(ast, mockRegistry);
+        expect(errors.some(e => e.includes("mandatory component 'consumer' is missing"))).toBe(true);
     });
 });

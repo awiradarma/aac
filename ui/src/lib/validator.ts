@@ -216,11 +216,16 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
             const hasIt = instanceNodes.some(n => getSuffixForExp(n, expId) === item.suffix);
             if (!hasIt) {
                 // Feature: Smart Adoption search
-                // Find ANY free-floating node in the same parent vicinity that matches the required blueprint reference
-                const candidate = flatDeployments.find(n =>
-                    (n.properties?.widget_ref === item.widget_ref || n.widget_ref === item.widget_ref) &&
-                    !getSuffixForExp(n, expId)
-                );
+                // Find ANY strictly unowned free-floating node in the exact same parent vicinity that matches the required blueprint reference
+                const candidate = flatDeployments.find(n => {
+                    const mMem = getMemberships(n);
+                    const isUnowned = !n.properties?.composition_id && !n.composition_id && Object.keys(mMem).length === 0;
+                    const nRef = n.properties?.widget_ref || n.widget_ref || '';
+                    const iRef = item.widget_ref || '';
+                    const wMatch = !!iRef && !!nRef && (nRef === iRef || nRef.split('@')[0] === iRef.split('@')[0]);
+
+                    return wMatch && isUnowned && !getSuffixForExp(n, expId);
+                });
                 if (candidate) {
                     // Update state to bind the orphan back into this pattern instance. Validated temporarily.
                     if (!candidate.properties) candidate.properties = {};

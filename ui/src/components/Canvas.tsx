@@ -230,7 +230,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     min_width: pattern.min_width,
                     min_height: pattern.min_height,
                     memberships: {},
-                    logical_parent_id: (activeView?.scope_entity_id && (pattern.c4Level === 'Container' || pattern.c4Level === 'Component')) ? activeView.scope_entity_id : undefined,
+                    logical_parent_id: (activeView?.scope_entity_id && (pattern.c4Level === 'Container' || pattern.c4Level === 'Component')) ? activeView.scope_entity_id : ((pattern.c4Level === 'Container' || pattern.c4Level === 'Component') ? nodes.find(n => n.type === 'systemNode')?.id : undefined),
                     origin_pattern: pattern.composition ? `${pattern.id}@${pattern.version}` : undefined,
                 },
             };
@@ -428,7 +428,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                     memberships: {
                                         [expansionId]: macroNode.id_suffix
                                     },
-                                    logical_parent_id: (activeView?.scope_entity_id && (macroNode.c4Level === 'Container' || macroNode.c4Level === 'Component')) ? activeView.scope_entity_id : undefined,
+                                    logical_parent_id: (activeView?.scope_entity_id && (macroNode.c4Level === 'Container' || macroNode.c4Level === 'Component')) ? activeView.scope_entity_id : ((macroNode.c4Level === 'Container' || macroNode.c4Level === 'Component') ? nodes.find(n => n.type === 'systemNode')?.id : undefined),
                                 }
                             };
 

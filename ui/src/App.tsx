@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
-import { ReactFlowProvider, useEdgesState, applyNodeChanges, MarkerType } from 'reactflow';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { ReactFlowProvider, applyNodeChanges, applyEdgeChanges, MarkerType } from 'reactflow';
 import { Sidebar } from './components/Sidebar';
 import { CanvasArea } from './components/Canvas';
 import { PropertyPanel } from './components/PropertyPanel';
@@ -46,7 +46,8 @@ const initialViews: DiagramView[] = [
 
 export default function App() {
   const [nodes, setNodes] = useState<Node<NodeData>[]>(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<any>([]);
+  const [edges, setEdges] = useState<any[]>([]);
+  const edgeTrackerRef = useRef<Map<string, any>>(new Map());
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [isRegistryLoaded, setIsRegistryLoaded] = useState(false);
@@ -71,13 +72,30 @@ export default function App() {
     if (removeChanges.length > 0) {
       const explicitIds = new Set(removeChanges.map(c => c.id));
       let pendingDeletions = new Set([...explicitIds]);
-      let sizeBefore = 0;
 
+      // Determine Logical IDs corresponding to deleted physical elements
+      const logicalIdsToDelete = new Set<string>();
+      explicitIds.forEach(id => {
+        const n = nodes.find(x => x.id === id);
+        if (n) {
+          const logId = n.data?.containerId || n.id;
+          logicalIdsToDelete.add(logId);
+        }
+      });
+
+      let sizeBefore = 0;
       while (pendingDeletions.size > sizeBefore) {
         sizeBefore = pendingDeletions.size;
         nodes.forEach(n => {
           if (n.parentNode && pendingDeletions.has(n.parentNode)) pendingDeletions.add(n.id);
           if (n.data.logical_parent_id && pendingDeletions.has(n.data.logical_parent_id)) pendingDeletions.add(n.id);
+
+          const logId = n.data?.containerId || n.id;
+          if (logicalIdsToDelete.has(logId)) {
+            pendingDeletions.add(n.id);
+          } else if (pendingDeletions.has(n.id)) {
+            logicalIdsToDelete.add(logId);
+          }
         });
       }
 
@@ -94,9 +112,7 @@ export default function App() {
           finalChanges = changes.filter(c => c.type !== 'remove');
         } else {
           if (affectedViews.length > 0) {
-            if (affectedViews.some(v => v.id === activeViewId)) {
-              setActiveViewId('default');
-            }
+            if (affectedViews.some(v => v.id === activeViewId)) setActiveViewId('default');
             setViews(vs => vs.filter(v => !affectedViews.some(av => av.id === v.id)));
           }
           cascadingIds.forEach(id => finalChanges.push({ type: 'remove', id }));
@@ -107,11 +123,17 @@ export default function App() {
     if (finalChanges.length === 0) return;
 
     setNodes((nds) => {
-      // 2. Use reactflow's utility internally
       const updatedNodes = applyNodeChanges(finalChanges, nds);
+
+      // Actively wipe cascaded deleted edges to prevent topological ghost links
+      const trueDeletions = new Set(finalChanges.filter(c => c.type === 'remove').map((c: any) => c.id));
+      if (trueDeletions.size > 0) {
+        setEdges(eds => eds.filter(e => !trueDeletions.has(e.source) && !trueDeletions.has(e.target)));
+      }
 
       return updatedNodes.map((n: Node, i: number) => {
         const originalNode = nds[i];
+        if (!originalNode) return n;
         const posChange = finalChanges.find((c: any) => c.type === 'position' && c.id === n.id);
         const isAutomatedJump = posChange && !posChange.dragging && !posChange.positionAbsolute;
 
@@ -138,6 +160,45 @@ export default function App() {
       });
     });
   }, [activeViewId, nodes, views]);
+
+  const onEdgesChange = useCallback((changes: any[]) => {
+    setEdges((eds) => {
+      const removes = changes.filter(c => c.type === 'remove');
+      if (removes.length > 0) {
+        const exactIdsToDelete = new Set<string>();
+        const signaturesToDelete = new Set<string>();
+
+        removes.forEach((r: any) => {
+          const visibleEdge = edgeTrackerRef.current.get(r.id);
+          if (visibleEdge) {
+            visibleEdge.data?._underlyingEdgeIds?.forEach((uid: string) => exactIdsToDelete.add(uid));
+            const sNode = nodes.find(n => n.id === visibleEdge.source);
+            const tNode = nodes.find(n => n.id === visibleEdge.target);
+            const sLogId = sNode?.data?.containerId || sNode?.id;
+            const tLogId = tNode?.data?.containerId || tNode?.id;
+            if (sLogId && tLogId) signaturesToDelete.add(`${sLogId}->${tLogId}`);
+          } else {
+            exactIdsToDelete.add(r.id);
+          }
+        });
+
+        let result = applyEdgeChanges(changes, eds);
+        if (signaturesToDelete.size > 0 || exactIdsToDelete.size > 0) {
+          result = result.filter(e => {
+            if (exactIdsToDelete.has(e.id)) return false;
+            const sNode = nodes.find(n => n.id === e.source);
+            const tNode = nodes.find(n => n.id === e.target);
+            const sLogId = sNode?.data?.containerId || sNode?.id;
+            const tLogId = tNode?.data?.containerId || tNode?.id;
+            if (sLogId && tLogId && signaturesToDelete.has(`${sLogId}->${tLogId}`)) return false;
+            return true;
+          });
+        }
+        return result;
+      }
+      return applyEdgeChanges(changes, eds);
+    });
+  }, [nodes]);
 
   // When activeViewId changes, swap the physical layout of all nodes to that view's saved snapshot
   useEffect(() => {
@@ -455,7 +516,54 @@ export default function App() {
       }
     });
 
-    structurizr.model.relationships = relationships;
+    // Parent mapping for model roll-up inference
+    const idToParentMap = new Map<string, string>();
+    compArr.forEach(c => c.logical_parent_id && idToParentMap.set(c.id, c.logical_parent_id));
+    containerArr.forEach((c: any) => c.logical_parent_id && idToParentMap.set(c.id, c.logical_parent_id));
+
+    const getAncestors = (id: string) => {
+      const ancestors = [];
+      let curr = idToParentMap.get(id);
+      while (curr) {
+        ancestors.push(curr);
+        curr = idToParentMap.get(curr);
+      }
+      return ancestors;
+    };
+
+    const inferredRelationships: any[] = [];
+
+    relationships.forEach(rel => {
+      const srcAncestors = getAncestors(rel.sourceId);
+      const dstAncestors = getAncestors(rel.destinationId);
+
+      const addInferred = (sId: string, dId: string) => {
+        if (sId === dId) return;
+        if (srcAncestors.includes(dId) || dstAncestors.includes(sId)) return;
+        const rollRelId = `${sId}-${dId}-inferred`;
+        if (!relTracker.has(rollRelId)) {
+          relTracker.add(rollRelId);
+          inferredRelationships.push({
+            sourceId: sId,
+            destinationId: dId,
+            description: rel.description,
+            technology: rel.technology,
+            properties: {
+              ...rel.properties,
+              inferred: 'true'
+            }
+          });
+        }
+      };
+
+      srcAncestors.forEach(sP => addInferred(sP, rel.destinationId));
+      dstAncestors.forEach(dP => addInferred(rel.sourceId, dP));
+      srcAncestors.forEach(sP => {
+        dstAncestors.forEach(dP => addInferred(sP, dP));
+      });
+    });
+
+    structurizr.model.relationships = [...relationships, ...inferredRelationships];
 
     const buildTree = (parentId?: string): any[] => {
       const children = allNodes.filter(n => n.parentNode === parentId);
@@ -1070,11 +1178,21 @@ export default function App() {
     event.target.value = '';
   };
 
+
   const handleValidate = () => {
     console.log("handleValidate called");
     try {
       const structurizrAst = generateYamlObj();
+
+      // DEBUG: Dump AST to disk so we can analyze what generateYamlObj produced!
+      if (typeof window !== 'undefined') {
+        // In browser, we can't easily write to disk without an API, but wait...
+        // We can use fetch or just console.log the JSON stringified version!
+      }
+
       const errors = validateArchitecture(structurizrAst, getRegistry() as any);
+      console.log('VALIDATION ERRORS:', errors);
+
 
       if (errors.length > 0) {
         setValidationModal({
@@ -1207,10 +1325,16 @@ export default function App() {
   };
 
   const hiddenSet = new Set<string>();
+  const scopedEntity = activeView.scope_entity_id ? nodes.find(n => n.id === activeView.scope_entity_id) : null;
+  const scopedSystemId = scopedEntity?.data?.logical_parent_id;
+
   nodes.forEach(n => {
     let isHidden = false;
     const allowed = allowedLevelsByView[activeView.type] || [];
-    const isExplicitlyIncluded = activeView.include.includes(n.id) || (activeView.scope_entity_id ? n.data?.logical_parent_id === activeView.scope_entity_id : false);
+    const isExplicitlyIncluded = activeView.include.includes(n.id) ||
+      (activeView.scope_entity_id ? n.data?.logical_parent_id === activeView.scope_entity_id : false) ||
+      (activeView.type === 'Component' && n.id === scopedSystemId) ||
+      (activeView.type === 'Component' && n.id === activeView.scope_entity_id);
 
     if (activeView.exclude.includes(n.id)) {
       isHidden = true;
@@ -1232,17 +1356,31 @@ export default function App() {
   });
 
   const visibleNodes = nodes.map(n => {
-    const isBoundary = (activeView.type === 'Container' || activeView.type === 'Component') && activeView.scope_entity_id === n.id;
+    const isPrimaryBoundary = (activeView.type === 'Container' || activeView.type === 'Component') && activeView.scope_entity_id === n.id;
+    const isOuterBoundary = activeView.type === 'Component' && n.id === scopedSystemId;
+    const isBoundary = isPrimaryBoundary || isOuterBoundary;
+
     let safeParentNode = n.parentNode;
-    if (isBoundary || (n.parentNode && hiddenSet.has(n.parentNode))) {
+    if (isPrimaryBoundary && activeView.type === 'Component' && scopedSystemId && !hiddenSet.has(scopedSystemId)) {
+      safeParentNode = scopedSystemId;
+    } else if (isOuterBoundary) {
+      safeParentNode = undefined;
+    } else if (isPrimaryBoundary && activeView.type === 'Container') {
+      safeParentNode = undefined;
+    } else if (n.parentNode && hiddenSet.has(n.parentNode)) {
       safeParentNode = undefined;
     }
 
     const computedStyle = { ...n.style };
     if (isBoundary && !computedStyle.width) {
       // Autonomously explode un-styled boundaries back out to their C4 macroscopic geometries!
-      computedStyle.width = activeView.type === 'Container' ? 1000 : 800;
-      computedStyle.height = activeView.type === 'Container' ? 800 : 600;
+      if (isOuterBoundary) {
+        computedStyle.width = 1200;
+        computedStyle.height = 1000;
+      } else {
+        computedStyle.width = activeView.type === 'Container' ? 1000 : 800;
+        computedStyle.height = activeView.type === 'Container' ? 800 : 600;
+      }
     }
 
     return {
@@ -1270,7 +1408,7 @@ export default function App() {
   };
 
   const visibleEdges: any[] = [];
-  const edgeTracker = new Map<string, any>();
+  edgeTrackerRef.current.clear(); // Reset before populating new visible edges mappings
 
   edges.forEach(e => {
     if ((activeView.exclude_edges || []).includes(e.id)) return;
@@ -1283,7 +1421,7 @@ export default function App() {
       // Synthesize a unique id if rolled up so we don't draw duplicate implicit lines
       const displayId = isRolledUp ? `rollup-${vSource}-${vTarget}` : e.id;
 
-      const existing = edgeTracker.get(displayId);
+      const existing = edgeTrackerRef.current.get(displayId);
       if (existing) {
         // Track the real constituent edge
         if (!existing.data?._underlyingEdgeIds?.includes(e.id)) {
@@ -1311,7 +1449,7 @@ export default function App() {
         };
         // Safely clone data so we can mutate the text representation if multiple lines share this path
         edgeToPush.data = { ...(e.data || {}), _underlyingEdgeIds: [e.id] };
-        edgeTracker.set(displayId, edgeToPush);
+        edgeTrackerRef.current.set(displayId, edgeToPush);
         visibleEdges.push(edgeToPush);
       }
     }
