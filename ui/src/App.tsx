@@ -691,7 +691,11 @@ export default function App() {
                 min_width: pattern?.min_width || 200,
                 min_height: pattern?.min_height || 150,
                 logical_parent_id: cn.logical_parent_id,
-                layoutMap: importedLayout
+                layoutMap: importedLayout,
+                origin_pattern: rawProps.origin_pattern,
+                composition_alias: rawProps.composition_alias,
+                composition_id: rawProps.composition_id,
+                memberships: rawProps.memberships
               }
             });
           }
@@ -737,7 +741,11 @@ export default function App() {
                   min_width: cpPattern?.min_width || 150,
                   min_height: cpPattern?.min_height || 100,
                   logical_parent_id: cn.id,
-                  layoutMap: importedLayoutComp
+                  layoutMap: importedLayoutComp,
+                  origin_pattern: rawCpProps.origin_pattern,
+                  composition_alias: rawCpProps.composition_alias,
+                  composition_id: rawCpProps.composition_id,
+                  memberships: rawCpProps.memberships
                 }
               });
             }
@@ -846,6 +854,9 @@ export default function App() {
                 if (ciProps.aac_layout) {
                   try { importedLayoutInst = JSON.parse(ciProps.aac_layout as string); } catch (e) { }
                 }
+                const patternInstId = ciProps.widget_ref?.split('@')[0];
+                const patternInst = patternInstId ? getPatternById(patternInstId) : null;
+                const statusInst = ciProps.status || cProps.status || 'existing';
 
                 newNodes.push({
                   id: instanceNodeId,
@@ -855,22 +866,22 @@ export default function App() {
                   zIndex: 20,
                   data: {
                     layoutMap: importedLayoutInst || {},
-                    label: cn.name.replace(/-/g, ' '),
-                    widget_ref: cProps.widget_ref || '',
-                    c4Level: cPattern ? cPattern.c4Level : 'Container',
-                    layer: cPattern?.layer,
+                    label: cn.name?.replace(/-/g, ' ') || 'Container Instance',
+                    widget_ref: ciProps.widget_ref || cProps.widget_ref || undefined,
+                    c4Level: patternInst ? patternInst.c4Level : (cPattern ? cPattern.c4Level : 'Container'),
+                    layer: patternInst?.layer || cPattern?.layer,
                     properties: cleanCProps,
-                    status: cProps.status || 'existing',
-                    icon: cPattern?.display_metadata?.icon,
-                    color: cPattern?.display_metadata?.color,
-                    min_width: cPattern?.min_width,
-                    min_height: cPattern?.min_height,
+                    status: statusInst,
+                    icon: patternInst?.display_metadata?.icon || cPattern?.display_metadata?.icon,
+                    color: patternInst?.display_metadata?.color || cPattern?.display_metadata?.color,
+                    min_width: patternInst?.min_width || cPattern?.min_width || 200,
+                    min_height: patternInst?.min_height || cPattern?.min_height || 150,
+                    containerId: ci.containerId,
+                    logical_parent_id: cn.logical_parent_id,
                     origin_pattern: ciProps.origin_pattern || cProps.origin_pattern,
                     composition_alias: ciProps.composition_alias || cProps.composition_alias,
                     composition_id: ciProps.composition_id || cProps.composition_id,
                     memberships: ciProps.memberships || cProps.memberships || {},
-                    containerId: ci.containerId,
-                    logical_parent_id: cn.logical_parent_id
                   }
                 });
                 containerY += 150;
