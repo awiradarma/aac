@@ -323,7 +323,13 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
 
         allExpContexts.forEach(ctx => {
             const expNodes = expansionInstances[ctx.id];
-            const master = expNodes?.find(n => n.properties?.origin_pattern || n.origin_pattern);
+            // Prioritize finding a master whose composition_id matches this expansion
+            let master = expNodes?.find(n => {
+                const pExp = n.properties?.composition_id || n.composition_id;
+                return pExp === ctx.id && (n.properties?.origin_pattern || n.origin_pattern);
+            });
+            // Fallback: any node with origin_pattern if no primary match
+            if (!master) master = expNodes?.find(n => n.properties?.origin_pattern || n.origin_pattern);
             const originPattern = getPatternFromOriginVal(master?.properties?.origin_pattern || master?.origin_pattern);
 
             if (originPattern?.composition) {

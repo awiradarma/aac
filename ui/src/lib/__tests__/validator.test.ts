@@ -32,6 +32,23 @@ describe('Validator Engine Regression Suite', () => {
                         ]
                     }
                 ]
+            },
+            {
+                id: 'point-to-point-messaging',
+                version: '1.0.0',
+                name: 'Point-to-Point Messaging',
+                c4Level: 'Container',
+                composition: {
+                    nodes: [
+                        { id_suffix: 'producer', widget_ref: 'executable@1.0.0' },
+                        { id_suffix: 'queue', widget_ref: 'message-queue@1.0.0', properties: { technology: 'MQ' } },
+                        { id_suffix: 'consumer', widget_ref: 'executable@1.0.0' }
+                    ],
+                    edges: [
+                        { source_suffix: 'producer', target_suffix: 'queue' },
+                        { source_suffix: 'queue', target_suffix: 'consumer' }
+                    ]
+                }
             }
         ]
     };
@@ -162,5 +179,64 @@ describe('Validator Engine Regression Suite', () => {
         // If the topological regionalization engine structurally fails, gw_b mathematically assaults api_a returning Cross-Contamination Bypassing Errors!
         const errors = validateArchitecture(ast, mockRegistry);
         expect(errors.some(e => e.includes("Connectivity Violation: entry 'gw_b' bypassing security"))).toBe(false);
+    });
+
+    it('should enforce standardization constraints on purely logical patterns like point-to-point messaging after import', () => {
+        const ast = {
+            model: {
+                softwareSystems: [{
+                    id: 'default-system',
+                    name: 'Core',
+                    properties: { widget_ref: 'software-system@1.0.0' },
+                    containers: [
+                        {
+                            id: 'api-container',
+                            name: 'API-Container',
+                            properties: {
+                                widget_ref: 'api-container@1.0.0',
+                                origin_pattern: 'internal-api-ocp@3.0.0',
+                                composition_alias: 'api',
+                                composition_id: 'exp-iapi-1',
+                                memberships: { 'exp-p2p-1': 'producer', 'exp-iapi-1': 'api' },
+                                language: 'java'
+                            }
+                        },
+                        {
+                            id: 'batch-container',
+                            name: 'Batch-Container',
+                            properties: {
+                                widget_ref: 'batch-container@1.0.0',
+                                origin_pattern: 'point-to-point-messaging@1.0.0',
+                                composition_alias: 'consumer',
+                                composition_id: 'exp-p2p-1',
+                                memberships: { 'exp-p2p-1': 'consumer' },
+                                language: 'python'
+                            }
+                        },
+                        {
+                            id: 'message-queue',
+                            name: 'Message-Queue',
+                            properties: {
+                                widget_ref: 'message-queue@1.0.0',
+                                origin_pattern: 'point-to-point-messaging@1.0.0',
+                                composition_alias: 'queue',
+                                composition_id: 'exp-p2p-1',
+                                memberships: { 'exp-p2p-1': 'queue' },
+                                technology: 'kafka'  // WRONG! Pattern requires 'MQ'
+                            }
+                        }
+                    ]
+                }],
+                relationships: [
+                    { sourceId: 'api-container', destinationId: 'message-queue' },
+                    { sourceId: 'message-queue', destinationId: 'batch-container' }
+                ]
+            },
+            deployment: { nodes: [] }
+        };
+
+        const errors = validateArchitecture(ast, mockRegistry);
+        expect(errors.some(e => e.includes("Standardization Violation"))).toBe(true);
+        expect(errors.some(e => e.includes("technology=MQ"))).toBe(true);
     });
 });
