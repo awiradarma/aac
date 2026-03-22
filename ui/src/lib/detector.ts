@@ -135,6 +135,37 @@ export function detectPatterns(arch: any, registry: Registry): DiscoveryResult[]
                 if (n.properties?.origin_pattern === detector.target_pattern) {
                     if (n.isInstance) {
                         const getMemberships = (n: any) => n.properties?.memberships || n.memberships || {};
+
+                        // First check: for purely logical patterns (e.g. point-to-point messaging)
+                        // that don't have deployment hierarchy representation, check if the node's own
+                        // memberships link it to an expansion that's purely logical (no deployment node owns it).
+                        const nMem = getMemberships(n);
+                        const nExpIds = Object.keys(nMem);
+                        const nPrime = n.properties?.composition_id || n.composition_id;
+                        if (nPrime) nExpIds.push(nPrime);
+
+                        const logicallyGoverned = nExpIds.some(expId => {
+                            // Check if this expansion ID exists on ANY deployment/infrastructure node
+                            const hasDeploymentPresence = flatDeployments.some(d =>
+                                (d.type === 'DeploymentNode' || d.type === 'InfrastructureNode' ||
+                                    d.c4Level === 'DeploymentNode' || d.c4Level === 'InfrastructureNode') &&
+                                (d.properties?.composition_id === expId || d.composition_id === expId ||
+                                    (getMemberships(d))[expId])
+                            );
+                            // Only use logical governance for expansions with NO deployment presence
+                            if (hasDeploymentPresence) return false;
+
+                            // Check if any other node shares this expansion and has matching origin_pattern
+                            return flatDeployments.some(other =>
+                                other.id !== n.id &&
+                                (other.properties?.origin_pattern === detector.target_pattern) &&
+                                (other.properties?.composition_id === expId || other.composition_id === expId ||
+                                    (getMemberships(other))[expId])
+                            );
+                        });
+                        if (logicallyGoverned) return false;
+
+                        // Second check: walk deployment hierarchy for infrastructure-level pattern governance
                         let currentP = flatDeployments.find(p => p.id === n.parentId);
                         let physicallyGoverned = false;
                         while (currentP) {
@@ -142,10 +173,10 @@ export function detectPatterns(arch: any, registry: Registry): DiscoveryResult[]
                             const pPrime = currentP.properties?.composition_id || currentP.composition_id;
 
                             // Check if the current parent container structurally participates in ANY of this node's declared composition instances
-                            const nMem = getMemberships(n);
-                            const nPrime = n.properties?.composition_id || n.composition_id;
-                            const nIds = new Set(Object.keys(nMem));
-                            if (nPrime) nIds.add(nPrime);
+                            const nMemInner = getMemberships(n);
+                            const nPrimeInner = n.properties?.composition_id || n.composition_id;
+                            const nIds = new Set(Object.keys(nMemInner));
+                            if (nPrimeInner) nIds.add(nPrimeInner);
 
                             if (nIds.has(pPrime) || Array.from(nIds).some(id => pMem[id])) {
                                 physicallyGoverned = true;
@@ -153,6 +184,7 @@ export function detectPatterns(arch: any, registry: Registry): DiscoveryResult[]
                             }
                             currentP = flatDeployments.find(p => p.id === currentP.parentId);
                         }
+
                         if (physicallyGoverned) return false;
                     } else {
                         // For logical containers natively placed directly on the root canvas (no bounded deployment) we assume default governance block

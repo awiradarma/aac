@@ -153,6 +153,19 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
                     currentP = flatDeployments.find(p => p.id === currentP.parentId);
                 }
 
+                // Fallback: for purely logical patterns (e.g. point-to-point messaging) that
+                // don't have deployment hierarchy representation, check if there's a logical
+                // container that shares this expansion ID — proving the expansion is valid.
+                if (!validForThisId) {
+                    const logicalPeer = flatDeployments.find(other =>
+                        !other.isInstance &&
+                        other.id !== n.id &&
+                        (other.properties?.composition_id === id || other.composition_id === id ||
+                            (getMemberships(other))[id])
+                    );
+                    if (logicalPeer) validForThisId = true;
+                }
+
                 // If the instance natively floats outside the bounds of this specific deployment pattern instance, decouple it.
                 if (!validForThisId) return;
             }
