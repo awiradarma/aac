@@ -332,15 +332,24 @@ export default function App() {
     const containerIdMap = new Map<string, string>(); // React Flow ID -> Logical ID
 
     // Group workloads into unique Model Containers based on widget_ref and label
+    // IMPORTANT: Prefer logical containers (no containerId) over physical deployment instances.
+    // Users edit properties on the logical container (visible in container/component diagrams),
+    // but physical instances (in deployment diagram) may appear first due to React Flow node ordering.
     containerNodes.forEach(w => {
       const patternId = w.data.widget_ref?.split('@')[0] || 'unknown';
       const logicalId = `${patternId}-${w.data.label.replace(/\s+/g, '-')}`.toLowerCase();
 
-      if (!uniqueContainers.has(logicalId)) {
+      const isPhysicalInstance = !!(w.data as any).containerId;
+      const existing = uniqueContainers.get(logicalId);
+
+      // Store this container if: (a) no entry exists yet, or (b) existing is a physical instance
+      // and current is a logical container (logical containers have the user-edited properties)
+      if (!existing || (existing._isPhysicalInstance && !isPhysicalInstance)) {
         uniqueContainers.set(logicalId, {
           name: w.data.label.replace(/\s+/g, '-'),
           id: logicalId,
           logical_parent_id: w.data.logical_parent_id,
+          _isPhysicalInstance: isPhysicalInstance, // Track for priority comparison
           properties: {
             widget_ref: w.data.widget_ref,
             origin_pattern: (w.data as any).origin_pattern,
@@ -392,7 +401,7 @@ export default function App() {
       };
       if (systemContainers.length > 0) {
         out.containers = systemContainers.map((c: any) => {
-          const { logical_parent_id, ...rest } = c; // Filter out from standard DSL
+          const { logical_parent_id, _isPhysicalInstance, ...rest } = c; // Filter internal tracking from standard DSL
           return rest;
         });
       }
@@ -400,7 +409,7 @@ export default function App() {
     });
 
     const orphanedContainers = containerArr.filter((c: any) => !c.logical_parent_id).map((c: any) => {
-      const { logical_parent_id, ...rest } = c;
+      const { logical_parent_id, _isPhysicalInstance, ...rest } = c;
       return rest;
     });
 
@@ -1065,20 +1074,7 @@ export default function App() {
     console.log("handleValidate called");
     try {
       const structurizrAst = generateYamlObj();
-      console.log("AST generated:", JSON.stringify(structurizrAst, null, 2));
-      // Debug: find MQ container and log its properties
-      const allContainers = [
-        ...(structurizrAst.model?.containers || []),
-        ...(structurizrAst.model?.softwareSystems || []).flatMap((s: any) => s.containers || [])
-      ];
-      const mq = allContainers.find((c: any) => c.properties?.widget_ref?.startsWith('message-queue'));
-      console.log("DEBUG MQ container:", JSON.stringify(mq, null, 2));
-      console.log("DEBUG MQ technology:", mq?.properties?.technology);
-      console.log("DEBUG MQ memberships:", JSON.stringify(mq?.properties?.memberships));
-      console.log("DEBUG MQ origin_pattern:", mq?.properties?.origin_pattern);
-      console.log("DEBUG MQ composition_id:", mq?.properties?.composition_id);
       const errors = validateArchitecture(structurizrAst, getRegistry() as any);
-      console.log("Validation errors:", errors);
 
       if (errors.length > 0) {
         setValidationModal({
