@@ -754,7 +754,43 @@ export default function App() {
 
         const dNodes = arch.deployment?.nodes || [];
         if (importedViews.length > 0) {
-          setViews(importedViews.map((v: any) => ({ id: v.key || `v-${Date.now()}`, name: v.name || 'Imported View', type: v.type || 'Container', include: v.include || ['*'], exclude: v.exclude || [], exclude_edges: v.exclude_edges || [], scope_entity_id: v.scope_entity_id })));
+          // Build a set of all node IDs that exist after import
+          const allNewNodeIds = new Set(newNodes.map(n => n.id));
+
+          setViews(importedViews.map((v: any) => {
+            let remappedInclude = (v.include || ['*']).filter((id: string) => {
+              // Keep IDs that exist in the graph, or wildcard
+              return id === '*' || allNewNodeIds.has(id);
+            });
+
+            // For scoped views (Container/Component), ensure scope entity & its children are included
+            if (v.scope_entity_id) {
+              if (!remappedInclude.includes(v.scope_entity_id)) {
+                remappedInclude.push(v.scope_entity_id);
+              }
+              // Also include direct children of the scope entity (components inside a container, containers inside a system)
+              newNodes.forEach(n => {
+                if (n.data?.logical_parent_id === v.scope_entity_id && !remappedInclude.includes(n.id)) {
+                  // Only include nodes of the right level for this view type
+                  if (v.type === 'Component' && (n.data?.c4Level === 'Component' || n.data?.c4Level === 'Container')) {
+                    remappedInclude.push(n.id);
+                  } else if (v.type === 'Container' && n.data?.c4Level === 'Container') {
+                    remappedInclude.push(n.id);
+                  }
+                }
+              });
+            }
+
+            return {
+              id: v.key || `v-${Date.now()}`,
+              name: v.name || 'Imported View',
+              type: v.type || 'Container',
+              include: remappedInclude,
+              exclude: v.exclude || [],
+              exclude_edges: v.exclude_edges || [],
+              scope_entity_id: v.scope_entity_id
+            };
+          }));
           setActiveViewId(importedViews[0].key || importedViews[0].id);
         } else {
           setViews([{ ...initialViews[0], include: ['*'] }]);
@@ -903,19 +939,65 @@ export default function App() {
           const blocks = newNodes.filter(n => n.id === r.destinationId || (n.data as any).containerId === r.destinationId);
 
           sources.forEach(sourceTarget => {
-            // Regional Edge Distribution Matcher:
+            // Regional Edge Distribution Matcher with hierarchy proximity:
             const isSourcePhysical = !!(sourceTarget.data?.containerId || sourceTarget.type === 'infrastructureNode' || sourceTarget.type === 'deploymentNode');
-            // If a physical source legitimately connects globally to a Logical concept natively, trace physically identical regional twins logically explicitly locally intelligently correctly first automatically safely expertly comfortably visually structurally seamlessly creatively.
-            let destTarget = blocks.find(b => {
+
+            // Helper: walk up the parentNode chain to collect all ancestors
+            const getAncestors = (nodeId: string): string[] => {
+              const ancestors: string[] = [];
+              let current = nodeId;
+              for (let i = 0; i < 20; i++) { // safety limit
+                const node = newNodes.find(n => n.id === current);
+                if (!node || !node.parentNode) break;
+                ancestors.push(node.parentNode);
+                current = node.parentNode;
+              }
+              return ancestors;
+            };
+
+            // Helper: find the closest target by shared parent hierarchy depth
+            const findByProximity = (candidates: any[]): any => {
+              if (candidates.length <= 1) return candidates[0];
+              const sourceAncestors = getAncestors(sourceTarget.id);
+              let best = candidates[0];
+              let bestDepth = -1;
+              candidates.forEach(b => {
+                const bAncestors = getAncestors(b.id);
+                // Find deepest shared ancestor
+                for (let i = 0; i < sourceAncestors.length; i++) {
+                  const depth = bAncestors.indexOf(sourceAncestors[i]);
+                  if (depth >= 0) {
+                    const sharedDepth = sourceAncestors.length - i + bAncestors.length - depth;
+                    if (sharedDepth > bestDepth) {
+                      bestDepth = sharedDepth;
+                      best = b;
+                    }
+                    break;
+                  }
+                }
+              });
+              return best;
+            };
+
+            // Step 1: Try composition_id + same physicality match
+            let candidates = blocks.filter(b => {
               const isBlockPhysical = !!(b.data?.containerId || b.type === 'infrastructureNode' || b.type === 'deploymentNode');
               return b.data?.composition_id === sourceTarget.data?.composition_id && sourceTarget.data?.composition_id && (isSourcePhysical === isBlockPhysical);
             });
-            if (!destTarget) destTarget = blocks.find(b => b.data?.composition_id === sourceTarget.data?.composition_id && sourceTarget.data?.composition_id);
-            // If there's no native localized twin mapped cleanly creatively smoothly gracefully gracefully reliably securely expertly comfortably efficiently confidently cleanly intuitively implicitly seamlessly organically intelligently expertly explicitly smoothly visually elegantly, fallback strictly organically functionally naturally properly optimally identically gracefully formally cleanly implicitly gracefully seamlessly smoothly securely properly flawlessly accurately effectively flawlessly creatively effectively explicitly elegantly flexibly confidently mechanically instinctively intuitively reliably accurately correctly mathematically elegantly efficiently smartly properly optimally seamlessly expertly safely nicely intuitively smoothly reliably efficiently mathematically natively intelligently creatively seamlessly smoothly cleanly cleanly smartly cleverly natively dynamically reliably safely gracefully mathematically confidently nicely creatively smoothly implicitly accurately
+            let destTarget = candidates.length > 0 ? findByProximity(candidates) : undefined;
+
+            // Step 2: Fallback to composition_id match without physicality constraint
+            if (!destTarget) {
+              candidates = blocks.filter(b => b.data?.composition_id === sourceTarget.data?.composition_id && sourceTarget.data?.composition_id);
+              destTarget = candidates.length > 0 ? findByProximity(candidates) : undefined;
+            }
+
+            // Step 3: Final fallback - pick by proximity from all candidates
             if (!destTarget && blocks.length > 0) {
-              const bPhys = blocks.find(b => !!(b.data?.containerId || b.type === 'infrastructureNode' || b.type === 'deploymentNode'));
-              const bLog = blocks.find(b => !(b.data?.containerId || b.type === 'infrastructureNode' || b.type === 'deploymentNode'));
-              destTarget = isSourcePhysical ? (bPhys || blocks[0]) : (bLog || blocks[0]);
+              const physBlocks = blocks.filter(b => !!(b.data?.containerId || b.type === 'infrastructureNode' || b.type === 'deploymentNode'));
+              const logBlocks = blocks.filter(b => !(b.data?.containerId || b.type === 'infrastructureNode' || b.type === 'deploymentNode'));
+              const pool = isSourcePhysical ? (physBlocks.length > 0 ? physBlocks : blocks) : (logBlocks.length > 0 ? logBlocks : blocks);
+              destTarget = findByProximity(pool);
             }
 
             if (sourceTarget && destTarget) {
