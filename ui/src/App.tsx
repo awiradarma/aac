@@ -1065,7 +1065,18 @@ export default function App() {
     console.log("handleValidate called");
     try {
       const structurizrAst = generateYamlObj();
-      console.log("AST generated:", structurizrAst);
+      console.log("AST generated:", JSON.stringify(structurizrAst, null, 2));
+      // Debug: find MQ container and log its properties
+      const allContainers = [
+        ...(structurizrAst.model?.containers || []),
+        ...(structurizrAst.model?.softwareSystems || []).flatMap((s: any) => s.containers || [])
+      ];
+      const mq = allContainers.find((c: any) => c.properties?.widget_ref?.startsWith('message-queue'));
+      console.log("DEBUG MQ container:", JSON.stringify(mq, null, 2));
+      console.log("DEBUG MQ technology:", mq?.properties?.technology);
+      console.log("DEBUG MQ memberships:", JSON.stringify(mq?.properties?.memberships));
+      console.log("DEBUG MQ origin_pattern:", mq?.properties?.origin_pattern);
+      console.log("DEBUG MQ composition_id:", mq?.properties?.composition_id);
       const errors = validateArchitecture(structurizrAst, getRegistry() as any);
       console.log("Validation errors:", errors);
 
