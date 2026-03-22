@@ -1,0 +1,43 @@
+# ==============================================================================
+# PATTERN SPECIFICATION: Autosys Batch on OpenShift
+# ==============================================================================
+# Defines an asynchronous batch processing job triggered externally by Autosys.
+# Mandates the presence of the `batch-container` widget physically hosted inside
+# a compliant `openshift-cluster-v4` instance.
+id: batch-workload-ocp
+name: Autosys Batch on OpenShift
+version: 1.0.0
+c4Level: Container
+description: Batch job triggered by Autosys via Kubernetes Plugin.
+parameters:
+  scheduler:
+    type: string
+    const: autosys
+deployment_constraints:
+  host_capability: openshift-cluster-v4
+  required_plugins:
+    - autosys-k8s-agent
+  allowed_hierarchies:
+    - on-prem-ocp
+composition:
+  nodes:
+    - id_suffix: cluster
+      type: deploymentNode
+      widget_ref: openshift-cluster-v4@4.12.0
+      label: Standard OpenShift Cluster Instance
+      layer: Cluster
+      c4Level: DeploymentNode
+      layout_hint: { x: 0, y: 0 }
+      children:
+        - id_suffix: workload
+          type: containerNode
+          widget_ref: batch-container@1.0.0
+          label: Autosys Batch Job
+          c4Level: Container
+          layout_hint: { x: 50, y: 80 }
+  edges: []
+  workload_target_suffix: cluster
+display_metadata:
+  icon: Box
+  color: blue
+  category: Container

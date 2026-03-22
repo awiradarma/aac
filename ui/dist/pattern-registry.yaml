@@ -1,0 +1,46 @@
+# =========================================================================================
+# PATTERN REGISTRY (MACRO EXPANSIONS)
+# =========================================================================================
+# This registry maps governed composite architecture patterns. 
+# When a user drags one of these patterns into the canvas, they "explode" into multiple
+# mandatory sub-components dictated by the specific version schema referenced inside the `/patterns` directory.
+registryName: Enterprise-Architecture-Patterns
+version: 2026.03.01
+
+patterns:
+  - id: internal-api-ocp
+    name: Internal API on OpenShift
+    versions:
+      - "2.1.0"
+      - "3.0.0"
+    latest: "3.0.0"
+  - id: batch-workload-ocp
+    name: Autosys Batch on OpenShift
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: on-prem-ocp-active-passive
+    name: On-Prem OpenShift Active-Passive Hierarchy
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: single-dc-ocp-cluster
+    name: Single DataCenter OpenShift Cluster
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: point-to-point-messaging
+    name: Point-to-Point Messaging
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: pub-sub-messaging
+    name: Pub/Sub Broadcast
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: cqrs-pattern
+    name: CQRS Architecture
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"

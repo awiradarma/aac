@@ -1,0 +1,11 @@
+id: person
+name: Person / User
+version: 1.0.0
+c4Level: Person
+capabilities:
+  - user-actor
+parameters: {}
+display_metadata:
+  icon: User
+  color: amber
+  category: Person

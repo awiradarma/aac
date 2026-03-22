@@ -1,0 +1,99 @@
+# =========================================================================================
+# WIDGET REGISTRY
+# =========================================================================================
+# This registry defines the base atomic infrastructure components available in the palette.
+# These cannot be decomposed further. They represent the lowest-level nodes that can exist.
+registryName: Enterprise-Architecture-Widgets
+version: 2026.03.01
+
+widgets:
+  - id: api-gateway
+    name: API Gateway
+    versions:
+      - "2.0.0"
+    latest: "2.0.0"
+  - id: local-load-balancer
+    name: Local Load Balancer
+    versions:
+      - "2.0.0"
+    latest: "2.0.0"
+  - id: openshift-cluster-v4
+    name: Standard OpenShift Cluster
+    versions:
+      - "4.12.0"
+    latest: "4.12.0"
+  - id: region
+    name: Cloud Region
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: datacenter
+    name: Datacenter
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: virtual-machine
+    name: Virtual Machine
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: api-container
+    name: API Container
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: batch-container
+    name: Batch Container
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: person
+    name: Person / User
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: software-system
+    name: Software System
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: object-storage-bucket
+    name: Object Storage
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: database-instance
+    name: Relational Database
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: user-interface
+    name: Web Interface
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: directory
+    name: Directory / Filesystem
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: topic
+    name: Event Topic
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: message-queue
+    name: Message Queue
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: executable
+    name: Executable Workload
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"
+  - id: generic-component
+    name: Application Component
+    versions:
+      - "1.0.0"
+    latest: "1.0.0"

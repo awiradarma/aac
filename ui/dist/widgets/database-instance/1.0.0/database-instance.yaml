@@ -1,0 +1,17 @@
+id: database-instance
+name: Relational Database
+version: 1.0.0
+c4Level: Container
+display_metadata:
+  icon: Database
+  color: amber
+  category: Container
+parameters:
+  technology:
+    type: string
+    options:
+      - Postgres
+      - MySQL
+      - Oracle
+      - SQL Server
+    default: "Postgres"

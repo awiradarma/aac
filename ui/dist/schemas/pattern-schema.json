@@ -1,0 +1,183 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "C4 Pattern Definition Schema",
+    "type": "object",
+    "required": [
+        "id",
+        "name",
+        "version",
+        "c4Level",
+        "composition"
+    ],
+    "properties": {
+        "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$"
+        },
+        "name": {
+            "type": "string"
+        },
+        "version": {
+            "type": "string"
+        },
+        "c4Level": {
+            "type": "string",
+            "enum": [
+                "SoftwareSystem",
+                "Person",
+                "Container",
+                "Component",
+                "DeploymentNode",
+                "InfrastructureNode"
+            ]
+        },
+        "description": {
+            "type": "string"
+        },
+        "parameters": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string"
+                    },
+                    "options": {
+                        "type": "array"
+                    },
+                    "default": {},
+                    "const": {}
+                },
+                "required": [
+                    "type"
+                ]
+            }
+        },
+        "constraints": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "condition": {
+                        "type": "string"
+                    },
+                    "assert": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": [
+                    "id",
+                    "assert"
+                ]
+            }
+        },
+        "composition": {
+            "type": "object",
+            "required": [
+                "nodes"
+            ],
+            "properties": {
+                "edges": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "source_suffix": {
+                                "type": "string"
+                            },
+                            "target_suffix": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "source_suffix",
+                            "target_suffix"
+                        ]
+                    }
+                },
+                "workload_target_suffix": {
+                    "type": "string"
+                },
+                "nodes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/nodeExpansion"
+                    }
+                }
+            }
+        },
+        "custom_properties": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string"
+            },
+            "description": "User-defined key-value properties aligned with Structurizr DSL."
+        },
+        "deployment_constraints": {
+            "type": "object",
+            "properties": {
+                "host_capability": {
+                    "type": "string"
+                },
+                "required_plugins": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "nodeExpansion": {
+            "type": "object",
+            "required": [
+                "id_suffix",
+                "type",
+                "widget_ref",
+                "label",
+                "c4Level"
+            ],
+            "properties": {
+                "id_suffix": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "widget_ref": {
+                    "type": "string",
+                    "pattern": "^.*@\\d+\\.\\d+\\.\\d+$"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "layer": {
+                    "type": "string"
+                },
+                "c4Level": {
+                    "type": "string"
+                },
+                "properties": {
+                    "type": "object"
+                },
+                "children": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/nodeExpansion"
+                    },
+                    "description": "Recursive definition of nested children for establishing spatial hierarchies like Region -> Datacenter -> Cluster."
+                }
+            }
+        }
+    }
+}

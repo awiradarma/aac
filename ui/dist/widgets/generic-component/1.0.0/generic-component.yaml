@@ -1,0 +1,8 @@
+id: generic-component
+name: Application Component
+version: 1.0.0
+c4Level: Component
+display_metadata:
+  icon: Blocks
+  color: emerald
+  category: Component

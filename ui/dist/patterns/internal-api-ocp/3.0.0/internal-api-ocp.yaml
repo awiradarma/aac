@@ -1,0 +1,85 @@
+# ==============================================================================
+# PATTERN SPECIFICATION: Internal API on OpenShift
+# ==============================================================================
+# Version 3.0.0: Pure Macro Composition (Choice A)
+# This version defines a pattern that expands into four components.
+# It uses the generic 'api-container' widget as its core workload child.
+# ==============================================================================
+
+id: internal-api-ocp
+name: Internal API on OpenShift
+version: 3.0.0
+c4Level: Container
+description: Enterprise API deployment using standardized API Container on OCP.
+
+# ------------------------------------------------------------------------------
+# PLACEMENT CONSTRAINTS
+# ------------------------------------------------------------------------------
+deployment_constraints:
+  host_capability: openshift-cluster-v4
+  allowed_hierarchies:
+    - on-prem-ocp
+
+# ------------------------------------------------------------------------------
+# EXISTENCE & STANDARDIZATION (Pure Macro Composition)
+# ------------------------------------------------------------------------------
+composition:
+  nodes:
+    - id_suffix: cluster
+      type: deploymentNode
+      widget_ref: openshift-cluster-v4@4.12.0
+      label: API Hosting Cluster
+      layer: Cluster
+      c4Level: DeploymentNode
+      layout_hint: { x: 450, y: 80 }
+      property_mappings:
+        datacenter_id: parent.properties.dc_id
+      children:
+        - id_suffix: api
+          type: containerNode
+          widget_ref: api-container@1.0.0
+          label: Application Endpoint
+          c4Level: Container
+          layout_hint: { x: 50, y: 80 }
+    
+    - id_suffix: lb
+      type: infrastructureNode
+      widget_ref: local-load-balancer@2.0.0
+      label: LB
+      c4Level: InfrastructureNode
+      layout_hint: { x: 0, y: 80 }
+      properties:
+        provider: avi
+    
+    - id_suffix: gw
+      type: infrastructureNode
+      widget_ref: api-gateway@2.0.0
+      label: Gateway
+      c4Level: InfrastructureNode
+      layout_hint: { x: 0, y: 0 }
+      properties:
+        provider: apigee
+
+  edges:
+    - source_suffix: gw
+      target_suffix: lb
+    - source_suffix: lb
+      target_suffix: api # Flow logic targeting 'api' workload directly
+
+  # By NOT defining a workload_target_suffix, the pattern itself 'disappears' 
+  # and only leaves behind the 4 objects above. No redundant box!
+
+display_metadata:
+  icon: Box
+  color: blue
+  category: Container
+
+# ------------------------------------------------------------------------------
+# GOVERNANCE RULES
+# ------------------------------------------------------------------------------
+rules:
+  - id: secure-path-v3
+    description: Ensures traffic to the 'api' widget passes through GW/LB
+    connectivity_assertions:
+      - to: "id_suffix:api"
+        must_pass_through: ["id_suffix:gw", "id_suffix:lb"]

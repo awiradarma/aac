@@ -1,0 +1,93 @@
+detectors:
+  # ---------------------------------------------------------------------------------------------------------
+  # AUTOSYS BATCH ON OPENSHIFT
+  # ---------------------------------------------------------------------------------------------------------
+  # This detector looks for a generic 'Batch Container' placed physically inside an 'OpenShift Cluster'
+  - id: detect-batch-on-ocp
+    target_pattern: batch-workload-ocp@1.0.0
+    name: Autosys Batch Discovery
+    description: Identifies batch/job containers running on OpenShift clusters.
+    conditions:
+      # We define aliases (arbitrary string keys) to map to literal nodes on the canvas
+      - node_match:
+          alias: "workload"
+          widget_ref: "batch-container"
+      - node_match:
+          alias: "cluster"
+          widget_ref: "openshift-cluster-v4"
+      
+      # We define relationship constraints between the aliases matched above
+      - relationship:
+          type: "hosted_on" # 'hosted_on' means 'source' is geometrically inside 'target'
+          source: "workload"
+          target: "cluster"
+
+  # ---------------------------------------------------------------------------------------------------------
+  # INTERNAL API ON OPENSHIFT (APIGEE + LB)
+  # ---------------------------------------------------------------------------------------------------------
+  # This detector relies heavily on regex to find ambiguously named boxes, and explicit 'connects_to' lines
+  - id: detect-internal-api-v3
+    target_pattern: internal-api-ocp@3.0.0
+    name: Internal API (Apigee + LB) Discovery
+    description: Identifies Apigee Gateway -> LB -> API Container pattern on OpenShift.
+    conditions:
+      - node_match:
+          alias: "api"
+          widget_ref: "api-container"
+      - node_match:
+          alias: "lb"
+          widget_ref: "local-load-balancer"
+      - node_match:
+          alias: "gw"
+          widget_ref: "api-gateway"
+      - node_match:
+          alias: "cluster"
+          widget_ref: "openshift-cluster-v4"
+      - node_match:
+          alias: "datacenter"
+          widget_ref: "datacenter"
+      - relationship:
+          type: "hosted_on"
+          source: "api"
+          target: "cluster"
+      - relationship:
+          type: "hosted_on"
+          source: "gw"
+          target: "datacenter"
+      - relationship:
+          type: "hosted_on"
+          source: "lb"
+          target: "datacenter"
+      - relationship:
+          type: "hosted_on"
+          source: "cluster"
+          target: "datacenter"
+
+  # ---------------------------------------------------------------------------------------------------------
+  # POINT-TO-POINT MESSAGING
+  # ---------------------------------------------------------------------------------------------------------
+  # This detector looks for two generics communicating strictly via a message queue pipeline
+  - id: detect-p2p-messaging
+    target_pattern: point-to-point-messaging@1.0.0
+    name: Point-to-Point Messaging Discovery
+    description: Identifies a producer sending data to a queue which is then polled by a consumer service.
+    conditions:
+      - node_match:
+          alias: "producer"
+          widget_ref: "executable"
+      - node_match:
+          alias: "queue"
+          widget_ref: "message-queue"
+      - node_match:
+          alias: "consumer"
+          widget_ref: "executable"
+      
+      # The producer connects to the queue, and the queue connects to the consumer natively.
+      - relationship:
+          type: "connects_to"
+          source: "producer"
+          target: "queue"
+      - relationship:
+          type: "connects_to"
+          source: "queue"
+          target: "consumer"

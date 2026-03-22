@@ -1,0 +1,30 @@
+# =========================================================================================
+# HIERARCHY REGISTRY (STRUCTURAL GOVERNANCE)
+# =========================================================================================
+# Defines "legal" stacking orders of deployment layers. 
+# Used by the validator to flag "Architecture Boundary/Structural Violations" 
+# (e.g. dragging a Namespace directly into a Region instead of a Cluster).
+registryName: Enterprise-Architecture-Hierarchies
+version: 2026.03.01
+
+hierarchies:
+  - id: on-prem-ocp
+    name: On-Prem OpenShift Deployment
+    valid_layer_chain:
+      - Region
+      - Datacenter
+      - Cluster
+      - Namespace
+  - id: cots-vm
+    name: COTS VMs Deployment
+    valid_layer_chain:
+      - Region
+      - Datacenter
+      - VirtualMachine
+  - id: azure-serverless
+    name: Azure Serverless Deployment
+    valid_layer_chain:
+      - Azure Region
+      - Resource Group
+      - App Service Plan
+      - Function

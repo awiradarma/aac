@@ -1,0 +1,15 @@
+id: openshift-cluster-v4
+name: Standard OpenShift Cluster
+version: 4.12.0
+c4Level: DeploymentNode
+layer: Cluster
+default_width: 600
+default_height: 500
+capabilities:
+  - openshift-cluster-v4
+  - k8s-api-access
+  - haproxy-ingress
+display_metadata:
+  icon: Server
+  color: slate
+  category: DeploymentNode

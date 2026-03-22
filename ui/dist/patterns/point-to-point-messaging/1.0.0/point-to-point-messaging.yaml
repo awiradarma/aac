@@ -1,0 +1,53 @@
+id: point-to-point-messaging
+name: Point-to-Point Messaging
+version: 1.0.0
+c4Level: Container
+description: "A standard producer-consumer messaging topology."
+
+composition:
+  nodes:
+    - id_suffix: producer
+      type: containerNode
+      widget_ref: executable@1.0.0
+      label: Producer Service
+      c4Level: Container
+      reuse_existing: false
+      layout_hint: { x: 0, y: 50 }
+
+    - id_suffix: queue
+      type: containerNode
+      widget_ref: message-queue@1.0.0
+      label: Ingestion Queue
+      c4Level: Container
+      reuse_existing: false
+      layout_hint: { x: 250, y: 50 }
+      properties:
+        technology: "MQ"
+
+    - id_suffix: consumer
+      type: containerNode
+      widget_ref: executable@1.0.0
+      label: Consumer Service
+      c4Level: Container
+      reuse_existing: false
+      layout_hint: { x: 500, y: 50 }
+
+  edges:
+    - source_suffix: producer
+      target_suffix: queue
+      source_handle: source-bottom
+      target_handle: target-left
+      styleVariant: dashed
+      label: send
+    - source_suffix: queue
+      target_suffix: consumer
+      source_handle: source-right
+      target_handle: target-bottom  
+      direction: forward
+      styleVariant: dashed
+      label: receive
+
+display_metadata:
+  icon: FastForward
+  color: slate
+  category: Container
