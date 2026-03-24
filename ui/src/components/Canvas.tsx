@@ -97,6 +97,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
             if (existingNodeId) {
                 const position = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
                 const possibleParents = nodes.filter(n => {
+                    if ((n as any).hidden) return false;
                     if (n.type !== 'deploymentNode' && n.type !== 'infrastructureNode') return false;
                     let posx = n.position.x; let posy = n.position.y;
                     let cId = n.parentNode;
@@ -113,13 +114,25 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     const srcNode = nds.find(n => n.id === existingNodeId);
                     if (!srcNode) return nds;
 
-                    let px = 0; let py = 0;
-                    let cId = closestParent ? closestParent.parentNode : undefined;
-                    while (cId) { const p = nds.find(x => x.id === cId); if (p) { px += p.position.x; py += p.position.y; cId = p.parentNode; } else break; }
-                    const parentAbsX = closestParent ? closestParent.position.x + px : 0;
-                    const parentAbsY = closestParent ? closestParent.position.y + py : 0;
+                    // Scoped views (Container/Component) require cursor-accurate relative placement inside the active scope boundary.
+                    // Guardrail: only force parenting for logical (non-physical) nodes at the same C4 level as the scoped view.
+                    const isScopedView = !!activeView?.scope_entity_id && (activeView.type === 'Container' || activeView.type === 'Component');
+                    const srcIsPhysicalInstance = !!(srcNode.data as any)?.container_id;
+                    const shouldForceScopeParent = isScopedView && !srcIsPhysicalInstance && (
+                        (activeView?.type === 'Container' && srcNode.data?.c4Level === 'Container') ||
+                        (activeView?.type === 'Component' && srcNode.data?.c4Level === 'Component')
+                    );
 
-                    const newPosition = closestParent ? { x: Math.max(50, position.x - parentAbsX), y: Math.max(50, position.y - parentAbsY) } : position;
+                    const forcedParent = shouldForceScopeParent ? nds.find(n => n.id === activeView!.scope_entity_id) : null;
+                    const effectiveParent = forcedParent || closestParent;
+
+                    let px = 0; let py = 0;
+                    let cId = effectiveParent ? effectiveParent.parentNode : undefined;
+                    while (cId) { const p = nds.find(x => x.id === cId); if (p) { px += p.position.x; py += p.position.y; cId = p.parentNode; } else break; }
+                    const parentAbsX = effectiveParent ? effectiveParent.position.x + px : 0;
+                    const parentAbsY = effectiveParent ? effectiveParent.position.y + py : 0;
+
+                    const newPosition = effectiveParent ? { x: Math.max(20, position.x - parentAbsX), y: Math.max(20, position.y - parentAbsY) } : position;
 
                     // Support multiple Container Instances natively across Deployment diagram scales
                     if (activeView?.type === 'Deployment' && srcNode.type === 'containerNode') {
@@ -128,9 +141,9 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                             ...srcNode,
                             id: `${srcNode.id}_inst_${getId()}`, // Creates a distinct replica uniquely
                             position: newPosition,
-                            parentNode: closestParent ? closestParent.id : undefined,
-                            extent: closestParent ? 'parent' : undefined,
-                            zIndex: closestParent ? (closestParent.zIndex || 0) + 5 : 15,
+                            parentNode: effectiveParent ? effectiveParent.id : undefined,
+                            extent: effectiveParent ? 'parent' : undefined,
+                            zIndex: effectiveParent ? (effectiveParent.zIndex || 0) + 5 : 15,
                             data: {
                                 ...srcNode.data,
                                 logical_parent_id: srcNode.id // Traces explicitly back to logical architectural root
@@ -146,9 +159,9 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                             updatedNode = {
                                 ...n,
                                 position: newPosition,
-                                parentNode: closestParent ? closestParent.id : undefined,
-                                extent: closestParent ? 'parent' : undefined,
-                                zIndex: closestParent ? (closestParent.zIndex || 0) + 5 : 15,
+                                parentNode: effectiveParent ? effectiveParent.id : undefined,
+                                extent: effectiveParent ? 'parent' : undefined,
+                                zIndex: effectiveParent ? (effectiveParent.zIndex || 0) + 5 : 15,
                             };
                             return false;
                         }
@@ -237,8 +250,9 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
 
             // Generic bounding-box hit detection for infinite hierarchy depth
             const possibleParents = nodes.filter(n => {
+                if ((n as any).hidden) return false;
                 // Hierarchies and Hosts are containers. Infrastructure nodes can be drop targets for macro merging.
-                if (n.type !== 'deploymentNode' && n.type !== 'deploymentNode' && n.type !== 'infrastructureNode') return false;
+                if (n.type !== 'deploymentNode' && n.type !== 'infrastructureNode') return false;
                 const pos = getAbsolutePosition(n);
                 const nPattern = getPatternById(n.data.widget_ref?.split('@')[0]);
                 const width = n.width ?? (n.style?.width ? Number(n.style.width) : (nPattern?.default_width || 500));
@@ -263,7 +277,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
 
             if (mockTargetId) {
                 const targetNode = nodes.find(n => n.id === mockTargetId);
-                if (targetNode && (targetNode.type === 'deploymentNode' || targetNode.type === 'deploymentNode' || targetNode.type === 'infrastructureNode')) {
+                if (targetNode && (targetNode.type === 'deploymentNode' || targetNode.type === 'infrastructureNode')) {
                     closestParent = targetNode;
                     isMockTarget = true;
                 }
@@ -279,7 +293,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
             if (pattern.composition) {
                 const targetNode = closestParent;
                 const isHierarchyParent = targetNode && targetNode.type === 'deploymentNode';
-                const isHostParent = targetNode && targetNode.type === 'deploymentNode';
+                const isHostParent = false; // Previously a distinct node type, now merged. Adjust if host logic diverges.
                 const isInfraParent = targetNode && targetNode.type === 'infrastructureNode';
 
                 // Helper to resolve generic property mappings
@@ -303,7 +317,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 let anchorMatchFound = false;
                 if (targetNode && pattern.composition.nodes) {
                     anchorMatchFound = pattern.composition.nodes.some((mNode: any) => {
-                        const checkType = (mNode.type === 'deploymentNode' || mNode.type === 'deploymentNode' || mNode.type === 'deploymentNode') ? 'deploymentNode' : mNode.type;
+                        const checkType = (mNode.type === 'deploymentNode') ? 'deploymentNode' : mNode.type;
                         return targetNode.data.widget_ref === mNode.widget_ref &&
                             targetNode.data.layer === mNode.layer &&
                             targetNode.type === checkType;
@@ -334,7 +348,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 const processNodes = (nodeList: any[], parentId: string | undefined, depth: number, startX: number, startY: number, extent?: 'parent') => {
                     nodeList.forEach((macroNode: any, index: number) => {
                         let existingNode = null;
-                        const checkType = (macroNode.type === 'deploymentNode' || macroNode.type === 'deploymentNode' || macroNode.type === 'deploymentNode') ? 'deploymentNode' : macroNode.type;
+                        const checkType = (macroNode.type === 'deploymentNode') ? 'deploymentNode' : macroNode.type;
 
                         // Priority 1: Direct match with the node we actually dropped on
                         if (depth === 0 && closestParent && macroNode.reuse_existing !== false) {
@@ -638,6 +652,10 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 onNodeDragStop={(event, node) => {
                     if (node.type === 'deploymentNode' || node.type === 'infrastructureNode') return;
 
+                    // In Component scoped views, the scope container boundary must remain anchored under its Software System boundary.
+                    // Detaching/re-parenting it during drag-stop causes cursor-offset jumps until a view reload re-applies layout.
+                    const isComponentScopeBoundary = activeView?.type === 'Component' && activeView.scope_entity_id === node.id;
+
                     const position = { x: event.clientX, y: event.clientY };
                     const flowPos = reactFlowInstance.screenToFlowPosition(position);
 
@@ -653,8 +671,25 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                         return { x: px, y: py };
                     };
 
+                    const isScoped = !!activeView?.scope_entity_id && (activeView.type === 'Container' || activeView.type === 'Component');
+                    const allowScopedParent = isScoped && !(node.data as any)?.container_id && (
+                        (activeView?.type === 'Container' && node.data?.c4Level === 'Container') ||
+                        (activeView?.type === 'Component' && node.data?.c4Level === 'Component')
+                    );
+
                     const possibleParents = nodes.filter(n => {
-                        if (n.id === node.id || (n.type !== 'deploymentNode' && n.type !== 'infrastructureNode')) return false;
+                        if ((n as any).hidden) return false;
+                        if (n.id === node.id) return false;
+
+                        // In scoped views, allow the active scope boundary to be a drop / drag parent for the same-level logical nodes.
+                        if (allowScopedParent && n.id === activeView!.scope_entity_id) {
+                            const pos = getAbsolutePosition(n);
+                            const width = n.width || (n.style?.width ? Number(n.style.width) : 1000);
+                            const height = n.height || (n.style?.height ? Number(n.style.height) : 800);
+                            return flowPos.x >= pos.x && flowPos.x <= pos.x + width && flowPos.y >= pos.y && flowPos.y <= pos.y + height;
+                        }
+
+                        if (n.type !== 'deploymentNode' && n.type !== 'infrastructureNode') return false;
                         const pos = getAbsolutePosition(n);
                         const width = n.width || (n.style?.width ? Number(n.style.width) : 500);
                         const height = n.height || (n.style?.height ? Number(n.style.height) : 400);
@@ -662,6 +697,11 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     });
                     possibleParents.sort((a, b) => ((a.width || 500) * (a.height || 400)) - ((b.width || 500) * (b.height || 400)));
                     const closestParent = possibleParents.length > 0 ? possibleParents[0] : null;
+
+                    // Guardrail: never allow the scoped container boundary to change parents in Component view.
+                    if (isComponentScopeBoundary) {
+                        return;
+                    }
 
                     if (closestParent && closestParent.id !== node.parentNode) {
                         setNodes((nds: Node[]) => {
@@ -682,6 +722,34 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                             return updatedNode ? [...remaining, updatedNode] : remaining;
                         });
                     } else if (!closestParent && node.parentNode) {
+                        // In scoped views, don't allow same-level logical nodes to detach from their scope boundary.
+                        if (allowScopedParent) {
+                            const scopeNode = nodes.find(n => n.id === activeView!.scope_entity_id);
+                            if (scopeNode) {
+                                setNodes((nds: Node[]) => {
+                                    let updatedNode: Node | null = null;
+                                    const remaining = nds.filter(n => {
+                                        if (n.id === node.id) {
+                                            updatedNode = {
+                                                ...n,
+                                                position: {
+                                                    x: Math.max(20, flowPos.x - getAbsolutePosition(scopeNode).x),
+                                                    y: Math.max(20, flowPos.y - getAbsolutePosition(scopeNode).y),
+                                                },
+                                                parentNode: scopeNode.id,
+                                                extent: 'parent',
+                                                zIndex: (scopeNode.zIndex || 0) + 5,
+                                            };
+                                            return false;
+                                        }
+                                        return true;
+                                    });
+                                    return updatedNode ? [...remaining, updatedNode] : remaining;
+                                });
+                                return;
+                            }
+                        }
+
                         setNodes((nds: Node[]) => {
                             let updatedNode: Node | null = null;
                             const remaining = nds.filter(n => {
