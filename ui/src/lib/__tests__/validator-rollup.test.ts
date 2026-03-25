@@ -10,23 +10,27 @@ describe('Validator Rollup Line Testing', () => {
                 name: 'Secure Zone Macro',
                 c4Level: 'SoftwareSystem',
                 composition: {
-                    nodes: [
-                        { id_suffix: 'gateway', widget_ref: 'api-gateway' },
-                        { id_suffix: 'core_db', widget_ref: 'database' }
-                    ],
-                    edges: [
-                        { source_suffix: 'gateway', target_suffix: 'core_db' }
-                    ]
+                    container: {
+                        nodes: [
+                            { id_suffix: 'gateway', widget_ref: 'api-gateway' },
+                            { id_suffix: 'core_db', widget_ref: 'database' }
+                        ],
+                        edges: [
+                            { source_suffix: 'gateway', target_suffix: 'core_db' }
+                        ]
+                    }
                 },
                 rules: [
+                    { id: '1', scope: 'all', severity: 'mandatory', type: 'node_existence', node: 'id_suffix:gateway' },
+                    { id: '2', scope: 'all', severity: 'mandatory', type: 'node_existence', node: 'id_suffix:core_db' },
+                    { id: '3', scope: 'all', severity: 'mandatory', type: 'edge_existence', source: 'id_suffix:gateway', target: 'id_suffix:core_db' },
                     {
                         id: 'strict-ingress',
-                        connectivity_assertions: [
-                            {
-                                to: 'id_suffix:core_db',
-                                must_pass_through: ['id_suffix:gateway']
-                            }
-                        ]
+                        scope: 'all',
+                        severity: 'mandatory',
+                        type: 'connectivity',
+                        to: 'id_suffix:core_db',
+                        must_pass_through: ['id_suffix:gateway']
                     }
                 ]
             }
@@ -66,7 +70,7 @@ describe('Validator Rollup Line Testing', () => {
         const errors = validateArchitecture(ast, mockRegistry);
 
         // Due to Rollup validation, it should identify that the External System/Container is illegally reaching the DB
-        expect(errors.some(e => e.includes("Connectivity Violation"))).toBe(true);
-        expect(errors.some(e => e.includes("Traffic to 'Secure Vault' MUST pass through 'gateway'.")) || errors.some(e => e.includes("bypassing security"))).toBe(true);
+        expect(errors.some(e => e.message.includes("Connectivity Violation"))).toBe(true);
+        expect(errors.some(e => e.message.includes("Traffic to 'Secure Vault' MUST pass through 'gateway'.")) || errors.some(e => e.message.includes("bypassing security"))).toBe(true);
     });
 });

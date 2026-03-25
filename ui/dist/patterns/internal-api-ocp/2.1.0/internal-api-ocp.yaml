@@ -1,94 +1,95 @@
-# ==============================================================================
-# PATTERN SPECIFICATION: Internal API on OpenShift
-# ==============================================================================
-# This pattern serves as the primary implementation for secure internal APIs.
-# It enforces architectural governance across four major "Buckets":
-# 1. Existence (Macro Expansion)
-# 2. Technology Standardization (Property Overrides)
-# 3. Placement (Hierarchy & Structural Boundaries)
-# 4. Connectivity (Golden Paths)
-# ==============================================================================
-
 id: internal-api-ocp
 name: Internal API on OpenShift
 version: 2.1.0
-c4Level: Container
 description: Multi-region API deployment with GSLB and API Gateway ingress.
+scopes: [deployment]
 
-# ------------------------------------------------------------------------------
-# PLACEMENT CONSTRAINTS (Bucket 3: Hierarchy Enforcement)
-# ------------------------------------------------------------------------------
-# The 'infrastructure_requirements' block ensures that this pattern can ONLY
-# be dropped or moved into specific approved infrastructure stacks.
+composition:
+  deployment:
+    nodes:
+      - id_suffix: cluster
+        type: deploymentNode
+        widget_ref: openshift-cluster-v4@4.12.0
+        label: Standard OpenShift Cluster Instance
+        layer: Cluster
+        c4Level: DeploymentNode
+        layout_hint: { x: 450, y: 80 }
+        property_mappings:
+          datacenter_id: parent.properties.dc_id
+      - id_suffix: lb
+        type: infrastructureNode
+        widget_ref: local-load-balancer@2.0.0
+        label: Local Load Balancer Instance
+        c4Level: InfrastructureNode
+        layout_hint: { x: 0, y: 80 }
+      - id_suffix: gw
+        type: infrastructureNode
+        widget_ref: api-gateway@2.0.0
+        label: API Gateway Instance
+        c4Level: InfrastructureNode
+        layout_hint: { x: 0, y: 0 }
+    edges:
+      - source_suffix: gw
+        target_suffix: lb
+      - source_suffix: lb
+        target_suffix: cluster
+    workload_target_suffix: cluster
+
+rules:
+  - id: require-cluster
+    scope: deployment
+    severity: mandatory
+    type: node_existence
+    node: "id_suffix:cluster"
+  - id: require-lb
+    scope: deployment
+    severity: mandatory
+    type: node_existence
+    node: "id_suffix:lb"
+  - id: require-gw
+    scope: deployment
+    severity: mandatory
+    type: node_existence
+    node: "id_suffix:gw"
+  - id: enforce-avi-lb
+    scope: deployment
+    severity: mandatory
+    type: property_constraint
+    node: "id_suffix:lb"
+    property: provider
+    allowed_values: [avi]
+  - id: enforce-apigee-gw
+    scope: deployment
+    severity: mandatory
+    type: property_constraint
+    node: "id_suffix:gw"
+    property: provider
+    allowed_values: [apigee]
+  - id: require-gw-lb-edge
+    scope: deployment
+    severity: mandatory
+    type: edge_existence
+    source: "id_suffix:gw"
+    target: "id_suffix:lb"
+  - id: require-lb-cluster-edge
+    scope: deployment
+    severity: mandatory
+    type: edge_existence
+    source: "id_suffix:lb"
+    target: "id_suffix:cluster"
+  - id: secure-path
+    scope: deployment
+    severity: mandatory
+    type: connectivity
+    to: "id_suffix:cluster"
+    must_pass_through: ["id_suffix:gw", "id_suffix:lb"]
+
 deployment_constraints:
   host_capability: openshift-cluster-v4
   allowed_hierarchies:
-    # Restricts deployment to on-prem OpenShift stacks defined in the registry.
     - on-prem-ocp
-
-# ------------------------------------------------------------------------------
-# EXISTENCE & STANDARDIZATION CONSTRAINTS (Buckets 1 & 2)
-# ------------------------------------------------------------------------------
-# The 'composition' block defines the "Atomic Architectural Unit".
-# 1. EXISTENCE: Every node here is mandatory. Deleting one triggers an "Architecture Gap".
-# 2. STANDARDIZATION: Hard-coding properties here enforces specific tech standards.
-composition:
-  nodes:
-    - id_suffix: cluster
-      type: deploymentNode
-      widget_ref: openshift-cluster-v4@4.12.0
-      label: Standard OpenShift Cluster Instance
-      layer: Cluster
-      c4Level: DeploymentNode
-      layout_hint: { x: 450, y: 80 }
-      property_mappings:
-        datacenter_id: parent.properties.dc_id
-    
-    - id_suffix: lb
-      type: infrastructureNode
-      widget_ref: local-load-balancer@2.0.0
-      label: Local Load Balancer Instance
-      c4Level: InfrastructureNode
-      layout_hint: { x: 0, y: 80 }
-      properties:
-        # TECHNOLOGY LOCK: This pattern mandates AVI. Even an adopted manual node 
-        # will trigger a violation if the provider is changed to F5.
-        provider: avi
-    
-    - id_suffix: gw
-      type: infrastructureNode
-      widget_ref: api-gateway@2.0.0
-      label: API Gateway Instance
-      c4Level: InfrastructureNode
-      layout_hint: { x: 0, y: 0 }
-      properties:
-        # TECHNOLOGY LOCK: Mandates Apigee for internal API management.
-        provider: apigee
-
-  edges:
-    # Internal routing topology for the pattern.
-    - source_suffix: gw
-      target_suffix: lb
-    - source_suffix: lb
-      target_suffix: cluster
-
-  workload_target_suffix: cluster
 
 display_metadata:
   icon: Box
   color: blue
   category: Container
-
-# ------------------------------------------------------------------------------
-# GOVERNANCE RULES & CONNECTIVITY (Bucket 4: Path Limits)
-# ------------------------------------------------------------------------------
-rules:
-  - id: secure-path
-    description: All API traffic must flow through GW and LB
-    # GOLDEN PATH ENFORCEMENT:
-    # Ensures that any path from a foreign node (outside this expansion) to the 
-    # 'cluster' (or its children) MUST pass through BOTH 'gw' and 'lb'. 
-    # This renders bypassing the gateway architecturaly illegal.
-    connectivity_assertions:
-      - to: "id_suffix:cluster"
-        must_pass_through: ["id_suffix:gw", "id_suffix:lb"]

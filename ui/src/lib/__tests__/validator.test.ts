@@ -11,25 +11,33 @@ describe('Validator Engine Regression Suite', () => {
                 name: 'Internal API on OpenShift',
                 c4Level: 'Container',
                 composition: {
-                    nodes: [
-                        { id_suffix: 'api' }, // Core workload
-                        { id_suffix: 'gw', widget_ref: 'api-gateway', properties: { provider: 'apigee' } },
-                        { id_suffix: 'lb', widget_ref: 'local-load-balancer', properties: { provider: 'avi' } }
-                    ],
-                    edges: [
-                        { source_suffix: 'gw', target_suffix: 'lb' },
-                        { source_suffix: 'lb', target_suffix: 'api' }
-                    ]
+                    container: {
+                        nodes: [
+                            { id_suffix: 'api' },
+                            { id_suffix: 'gw', widget_ref: 'api-gateway' },
+                            { id_suffix: 'lb', widget_ref: 'local-load-balancer' }
+                        ],
+                        edges: [
+                            { source_suffix: 'gw', target_suffix: 'lb' },
+                            { source_suffix: 'lb', target_suffix: 'api' }
+                        ]
+                    }
                 },
                 rules: [
+                    { id: '1', scope: 'all', severity: 'mandatory', type: 'node_existence', node: 'id_suffix:api' },
+                    { id: '2', scope: 'all', severity: 'mandatory', type: 'node_existence', node: 'id_suffix:gw' },
+                    { id: '3', scope: 'all', severity: 'mandatory', type: 'node_existence', node: 'id_suffix:lb' },
+                    { id: 'e1', scope: 'all', severity: 'mandatory', type: 'edge_existence', source: 'id_suffix:gw', target: 'id_suffix:lb' },
+                    { id: 'e2', scope: 'all', severity: 'mandatory', type: 'edge_existence', source: 'id_suffix:lb', target: 'id_suffix:api' },
+                    { id: 'p1', scope: 'all', severity: 'mandatory', type: 'property_constraint', node: 'id_suffix:gw', property: 'provider', allowed_values: ['apigee'] },
+                    { id: 'p2', scope: 'all', severity: 'mandatory', type: 'property_constraint', node: 'id_suffix:lb', property: 'provider', allowed_values: ['avi'] },
                     {
                         id: 'secure-path-v3',
-                        connectivity_assertions: [
-                            {
-                                to: 'id_suffix:api',
-                                must_pass_through: ['id_suffix:gw', 'id_suffix:lb']
-                            }
-                        ]
+                        scope: 'all',
+                        severity: 'mandatory',
+                        type: 'connectivity',
+                        to: 'id_suffix:api',
+                        must_pass_through: ['id_suffix:gw', 'id_suffix:lb']
                     }
                 ]
             },
@@ -39,16 +47,26 @@ describe('Validator Engine Regression Suite', () => {
                 name: 'Point-to-Point Messaging',
                 c4Level: 'Container',
                 composition: {
-                    nodes: [
-                        { id_suffix: 'producer', widget_ref: 'executable@1.0.0' },
-                        { id_suffix: 'queue', widget_ref: 'message-queue@1.0.0', properties: { technology: 'MQ' } },
-                        { id_suffix: 'consumer', widget_ref: 'executable@1.0.0' }
-                    ],
-                    edges: [
-                        { source_suffix: 'producer', target_suffix: 'queue' },
-                        { source_suffix: 'queue', target_suffix: 'consumer' }
-                    ]
-                }
+                    container: {
+                        nodes: [
+                            { id_suffix: 'producer', widget_ref: 'executable@1.0.0' },
+                            { id_suffix: 'queue', widget_ref: 'message-queue@1.0.0' },
+                            { id_suffix: 'consumer', widget_ref: 'executable@1.0.0' }
+                        ],
+                        edges: [
+                            { source_suffix: 'producer', target_suffix: 'queue' },
+                            { source_suffix: 'queue', target_suffix: 'consumer' }
+                        ]
+                    }
+                },
+                rules: [
+                    { id: '1', scope: 'all', severity: 'mandatory', type: 'node_existence', node: 'id_suffix:producer' },
+                    { id: '2', scope: 'all', severity: 'mandatory', type: 'node_existence', node: 'id_suffix:queue' },
+                    { id: '3', scope: 'mandatory', severity: 'mandatory', type: 'node_existence', node: 'id_suffix:consumer' },
+                    { id: 'e1', scope: 'all', severity: 'mandatory', type: 'edge_existence', source: 'id_suffix:producer', target: 'id_suffix:queue' },
+                    { id: 'e2', scope: 'all', severity: 'mandatory', type: 'edge_existence', source: 'id_suffix:queue', target: 'id_suffix:consumer' },
+                    { id: 'p1', scope: 'all', severity: 'mandatory', type: 'property_constraint', node: 'id_suffix:queue', property: 'technology', allowed_values: ['MQ'] }
+                ]
             }
         ]
     };
@@ -80,7 +98,7 @@ describe('Validator Engine Regression Suite', () => {
         };
 
         const errors = validateArchitecture(ast, mockRegistry);
-        expect(errors.some(e => e.includes("mandatory component 'gw' is missing"))).toBe(true);
+        expect(errors.some(e => e.message.includes("is missing mandatory component 'gw'"))).toBe(true);
     });
 
     it('should throw an error when standardization governance properties are violated (e.g. dragging F5 instead of AVI)', () => {
@@ -103,8 +121,8 @@ describe('Validator Engine Regression Suite', () => {
         };
 
         const errors = validateArchitecture(ast, mockRegistry);
-        expect(errors.some(e => e.includes("Standardization Violation"))).toBe(true);
-        expect(errors.some(e => e.includes("provider=avi"))).toBe(true);
+        expect(errors.some(e => e.message.includes("Standardization Violation"))).toBe(true);
+        expect(errors.some(e => e.message.includes("provider=avi"))).toBe(true);
     });
 
     it('should smartly adopt independently drawn identical resources visually mapped inside the target boundary if they perfectly match', () => {
@@ -129,7 +147,7 @@ describe('Validator Engine Regression Suite', () => {
 
         // If it creatively adopts it, it won't throw a "Missing Component" error
         const errors = validateArchitecture(ast, mockRegistry);
-        expect(errors.some(e => e.includes("mandatory component 'lb' is missing"))).toBe(false);
+        expect(errors.some(e => e.message.includes("mandatory component 'lb' is missing"))).toBe(false);
     });
 
     it('should mathematically deduce regional routing and bypass external node violation assertions locally when identical twin replicas structurally exist in independent datacenters', () => {
@@ -178,7 +196,7 @@ describe('Validator Engine Regression Suite', () => {
 
         // If the topological regionalization engine structurally fails, gw_b mathematically assaults api_a returning Cross-Contamination Bypassing Errors!
         const errors = validateArchitecture(ast, mockRegistry);
-        expect(errors.some(e => e.includes("Connectivity Violation: entry 'gw_b' bypassing security"))).toBe(false);
+        expect(errors.some(e => e.message.includes("Connectivity Violation: entry 'gw_b' bypassing security"))).toBe(false);
     });
 
     it('should enforce standardization constraints on purely logical patterns like point-to-point messaging after import', () => {
@@ -236,8 +254,8 @@ describe('Validator Engine Regression Suite', () => {
         };
 
         const errors = validateArchitecture(ast, mockRegistry);
-        expect(errors.some(e => e.includes("Standardization Violation"))).toBe(true);
-        expect(errors.some(e => e.includes("technology=MQ"))).toBe(true);
+        expect(errors.some(e => e.message.includes("Standardization Violation"))).toBe(true);
+        expect(errors.some(e => e.message.includes("technology=MQ"))).toBe(true);
     });
 
     it('should strictly throw error when a required architectural relationship is graphically completely deleted natively in the AST', () => {
@@ -259,7 +277,7 @@ describe('Validator Engine Regression Suite', () => {
         };
 
         const errors = validateArchitecture(ast, mockRegistry);
-        expect(errors.some(e => e.includes("mandatory connection from 'queue' to 'consumer' is missing"))).toBe(true);
+        expect(errors.some(e => e.message.includes("is missing mandatory connection from 'queue' to 'consumer'"))).toBe(true);
     });
 
     it('should strictly throw error when a required architectural node is graphically completely deleted natively in the AST', () => {
@@ -280,6 +298,6 @@ describe('Validator Engine Regression Suite', () => {
         };
 
         const errors = validateArchitecture(ast, mockRegistry);
-        expect(errors.some(e => e.includes("mandatory component 'consumer' is missing"))).toBe(true);
+        expect(errors.some(e => e.message.includes("is missing mandatory component 'consumer'"))).toBe(true);
     });
 });

@@ -1,14 +1,8 @@
-# ==============================================================================
-# PATTERN SPECIFICATION: Autosys Batch on OpenShift
-# ==============================================================================
-# Defines an asynchronous batch processing job triggered externally by Autosys.
-# Mandates the presence of the `batch-container` widget physically hosted inside
-# a compliant `openshift-cluster-v4` instance.
 id: batch-workload-ocp
 name: Autosys Batch on OpenShift
 version: 1.0.0
-c4Level: Container
 description: Batch job triggered by Autosys via Kubernetes Plugin.
+scopes: [container, deployment]
 parameters:
   scheduler:
     type: string
@@ -20,23 +14,42 @@ deployment_constraints:
   allowed_hierarchies:
     - on-prem-ocp
 composition:
-  nodes:
-    - id_suffix: cluster
-      type: deploymentNode
-      widget_ref: openshift-cluster-v4@4.12.0
-      label: Standard OpenShift Cluster Instance
-      layer: Cluster
-      c4Level: DeploymentNode
-      layout_hint: { x: 0, y: 0 }
-      children:
-        - id_suffix: workload
-          type: containerNode
-          widget_ref: batch-container@1.0.0
-          label: Autosys Batch Job
-          c4Level: Container
-          layout_hint: { x: 50, y: 80 }
-  edges: []
-  workload_target_suffix: cluster
+  container:
+    nodes:
+      - id_suffix: workload
+        type: containerNode
+        widget_ref: batch-container@1.0.0
+        label: Autosys Batch Job
+        c4Level: Container
+        layout_hint: { x: 50, y: 80 }
+  deployment:
+    nodes:
+      - id_suffix: cluster
+        type: deploymentNode
+        widget_ref: openshift-cluster-v4@4.12.0
+        label: Standard OpenShift Cluster Instance
+        layer: Cluster
+        c4Level: DeploymentNode
+        layout_hint: { x: 0, y: 0 }
+        children:
+          - id_suffix: workload
+            type: containerNode
+            widget_ref: batch-container@1.0.0
+            label: Autosys Batch Job
+            c4Level: Container
+            layout_hint: { x: 50, y: 80 }
+    workload_target_suffix: cluster
+rules:
+  - id: require-cluster
+    scope: deployment
+    severity: mandatory
+    type: node_existence
+    node: "id_suffix:cluster"
+  - id: require-workload
+    scope: all
+    severity: mandatory
+    type: node_existence
+    node: "id_suffix:workload"
 display_metadata:
   icon: Box
   color: blue

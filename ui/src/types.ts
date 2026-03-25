@@ -12,19 +12,17 @@ export type PatternParameter = {
 /**
  * Validation rules mapping for structural or routing constraints.
  */
-export type PatternRule = {
-    id: string;
-    description: string;
-    condition?: string;
-    allowed_values?: Record<string, string[]>;
-    else_allowed_values?: Record<string, string[]>;
-    structural_assertions?: string[];
-    /** Asserts whether a graph path between 'to' passing through 'must_pass_through' is mandated */
-    connectivity_assertions?: {
-        to: string;
-        must_pass_through: string[];
-    }[];
-};
+export type RuleSeverity = 'mandatory' | 'recommended' | 'optional';
+export type RuleScope = 'container' | 'deployment' | 'all';
+
+/**
+ * Validation rules mapping for structural or routing constraints.
+ */
+export type PatternRule =
+    | { id: string; description?: string; scope: RuleScope; severity: RuleSeverity; type: 'node_existence'; node: string; }
+    | { id: string; description?: string; scope: RuleScope; severity: RuleSeverity; type: 'edge_existence'; source: string; target: string; }
+    | { id: string; description?: string; scope: RuleScope; severity: RuleSeverity; type: 'property_constraint'; node: string; property: string; allowed_values: any[]; }
+    | { id: string; description?: string; scope: RuleScope; severity: RuleSeverity; type: 'connectivity'; to: string; must_pass_through: string[]; };
 
 /** A placeholder template for a child component generated when dropped via a Macro Expansion. */
 export type CompositionNode = {
@@ -47,11 +45,16 @@ export type CompositionEdge = {
     style?: Record<string, any>;
 };
 
-/** Defines composite architecture structures that spawn multiple sub-components when dropped on the canvas */
-export type Composition = {
+export type ScopedComposition = {
     nodes: CompositionNode[];
     edges: CompositionEdge[];
-    workload_target_suffix: string; // Defines where generic compute drops inside this pattern should land
+};
+
+/** Defines composite architecture structures that spawn multiple sub-components when dropped on the canvas */
+export type Composition = {
+    container?: ScopedComposition;
+    deployment?: ScopedComposition;
+    workload_target_suffix?: string; // Defines where generic compute drops inside this pattern should land
 };
 
 /** The unified definition of any component loaded from the Registry */
@@ -59,7 +62,8 @@ export type Pattern = {
     id: string; // e.g. "openshift-cluster-v4"
     name: string; // e.g. "OpenShift v4 Architecture"
     version: string; // SemVer
-    c4Level: "SoftwareSystem" | "Person" | "Container" | "Component" | "DeploymentNode" | "InfrastructureNode";
+    scopes?: ("container" | "deployment" | "component" | "system_context" | "system_landscape")[];
+    c4Level?: "SoftwareSystem" | "Person" | "Container" | "Component" | "DeploymentNode" | "InfrastructureNode";
     base_type?: string; // Establishes structural inheritance (e.g. 'api-container' extends 'executable')
     description?: string;
     layer?: string;

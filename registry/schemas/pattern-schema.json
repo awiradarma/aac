@@ -6,7 +6,6 @@
         "id",
         "name",
         "version",
-        "c4Level",
         "composition"
     ],
     "properties": {

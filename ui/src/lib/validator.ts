@@ -1,7 +1,14 @@
-import type { Registry } from '../types';
+import type { Registry, PatternRule } from '../types';
 
-export function validateArchitecture(arch: any, registry: Registry): string[] {
-    const errors: string[] = [];
+export type ValidationResult = {
+    severity: 'error' | 'warning' | 'info';
+    message: string;
+    ruleId?: string;
+    patternName?: string;
+};
+
+export function validateArchitecture(arch: any, registry: Registry, scope?: 'container' | 'deployment'): ValidationResult[] {
+    const results: ValidationResult[] = [];
     const patterns = registry.patterns || [];
 
     const containerMap: Record<string, any> = {};
@@ -15,8 +22,6 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
     const flatDeployments: any[] = [];
 
     const getMemberships = (n: any) => n.properties?.memberships || n.memberships || {};
-    // Helper to find what alias a node might have map to in a given expansion instance
-    // Important because the same generic node might be 'pAdopted' into multiple patterns (e.g. cluster)
     const getSuffixForExp = (n: any, expId: string) => {
         const memberships = getMemberships(n);
         if (memberships[expId]) return memberships[expId];
@@ -76,7 +81,6 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
     };
     parseTree(dNodes, null, null);
 
-    // Ensure purely logical models not explicitly wrapped in boundary deployments are still fully validated!
     const sNodes = arch.model?.softwareSystems || [];
     const pNodes = arch.model?.people || [];
 
@@ -99,7 +103,6 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
 
     pNodes.forEach((p: any) => flatDeployments.push({ ...p, type: 'Person' }));
 
-    // Securely deduplicate elements while safely preserving dynamic deployment instance aliases
     const uniqueDeployments = Array.from(new Map(flatDeployments.map(item => [item.id, item])).values());
     flatDeployments.length = 0;
     flatDeployments.push(...uniqueDeployments);
@@ -128,7 +131,6 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
         visited.delete(current);
     };
 
-    // Group expansions and perform Smart Adoption
     const expansionInstances: Record<string, any[]> = {};
     flatDeployments.forEach(n => {
         const memberships = getMemberships(n);
@@ -137,9 +139,6 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
         if (primaryExpId) allIds.add(primaryExpId);
 
         allIds.forEach(id => {
-            // Strict Topological Geometric Filtering:
-            // If this node is a physical replica instance of a logical workload, it mathematically should only
-            // participate in the composition pattern that explicitly owns its immediate deployment hierarchy.
             if (n.isInstance) {
                 let currentP = flatDeployments.find(p => p.id === n.parentId);
                 let validForThisId = false;
@@ -153,9 +152,6 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
                     currentP = flatDeployments.find(p => p.id === currentP.parentId);
                 }
 
-                // Fallback: for purely logical patterns (e.g. point-to-point messaging) that
-                // don't have deployment hierarchy representation, check if there's a logical
-                // container that shares this expansion ID — proving the expansion is valid.
                 if (!validForThisId) {
                     const logicalPeer = flatDeployments.find(other =>
                         !other.isInstance &&
@@ -166,7 +162,6 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
                     if (logicalPeer) validForThisId = true;
                 }
 
-                // If the instance natively floats outside the bounds of this specific deployment pattern instance, decouple it.
                 if (!validForThisId) return;
             }
 
@@ -184,15 +179,7 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
         return patterns.find(p => p.id === val);
     };
 
-    // -------------------------------------------------------------------------------------------------
-    // 1. SMART ADOPTION & COMPLETENESS CHECKING
-    // -------------------------------------------------------------------------------------------------
-    // Pattern macro expansions require very specific nodes to exist to be considered 'complete' (e.g. cluster AND lb).
-    // This evaluates a tracked drop session, checks the registry for what *should* be there, and finds gaps.
-    // However, if a user deleted a required component, but manually recreated a generic component of the exact same type/version nearby,
-    // this auto-adopts it into the logical grouping so it can be verified for architectural constraints.
     Object.entries(expansionInstances).forEach(([expId, instanceNodes]) => {
-        // Find origin pattern (prioritize finding a node that natively owns THIS explicitly over arbitrarily overlapping secondary strings)
         let master = instanceNodes.find(n => {
             const pExp = n.properties?.composition_id || n.composition_id;
             return pExp === expId && (n.properties?.origin_pattern || n.origin_pattern);
@@ -201,22 +188,57 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
         const originVal = master ? (master.properties?.origin_pattern || master.origin_pattern) : null;
         const originPattern = getPatternFromOriginVal(originVal);
 
-        if (!originPattern || !originPattern.composition) return;
+        if (!originPattern || (!originPattern.rules && !originPattern.composition)) return;
 
-        const needed: { suffix: string, widget_ref: string }[] = [];
-        const collect = (nodes: any[]) => {
-            nodes.forEach(m => {
-                needed.push({ suffix: m.id_suffix, widget_ref: m.widget_ref });
-                if (m.children) collect(m.children);
+        // Legacy compatibility: synthesize rules if they don't exist
+        let normalizedRules: PatternRule[] = originPattern.rules || [];
+        if (!originPattern.rules && originPattern.composition) {
+            const comp = originPattern.composition as any;
+            if (comp.nodes) {
+                comp.nodes.forEach((m: any) => {
+                    normalizedRules.push({
+                        id: `legacy-${m.id_suffix}`,
+                        scope: 'all', severity: 'mandatory', type: 'node_existence', node: `id_suffix:${m.id_suffix}`
+                    });
+                    if (m.properties) {
+                        Object.entries(m.properties).forEach(([k, v]) => {
+                            normalizedRules.push({
+                                id: `legacy-prop-${m.id_suffix}-${k}`,
+                                scope: 'all', severity: 'mandatory', type: 'property_constraint', node: `id_suffix:${m.id_suffix}`, property: k, allowed_values: [v]
+                            });
+                        });
+                    }
+                });
+            }
+            if (comp.edges) {
+                comp.edges.forEach((e: any, i: number) => {
+                    normalizedRules.push({
+                        id: `legacy-edge-${i}`,
+                        scope: 'all', severity: 'mandatory', type: 'edge_existence', source: `id_suffix:${e.source_suffix}`, target: `id_suffix:${e.target_suffix}`
+                    });
+                });
+            }
+        }
+
+        // Gather all blueprint nodes across scopes for Smart Adoption
+        const neededNodes: any[] = [];
+        const processCompNodes = (nList: any[]) => {
+            nList.forEach(m => {
+                neededNodes.push({ suffix: m.id_suffix, widget_ref: m.widget_ref });
+                if (m.children) processCompNodes(m.children);
             });
         };
-        collect(originPattern.composition.nodes);
+        const anyComp = originPattern.composition as any;
+        if (anyComp) {
+            if (anyComp.nodes) processCompNodes(anyComp.nodes);
+            if (anyComp.container?.nodes) processCompNodes(anyComp.container.nodes);
+            if (anyComp.deployment?.nodes) processCompNodes(anyComp.deployment.nodes);
+        }
 
-        needed.forEach(item => {
+        // 1. SMART ADOPTION
+        neededNodes.forEach(item => {
             const hasIt = instanceNodes.some(n => getSuffixForExp(n, expId) === item.suffix);
             if (!hasIt) {
-                // Feature: Smart Adoption search
-                // Find ANY strictly unowned free-floating node in the exact same parent vicinity that matches the required blueprint reference
                 const candidate = flatDeployments.find(n => {
                     const mMem = getMemberships(n);
                     const isUnowned = !n.properties?.composition_id && !n.composition_id && Object.keys(mMem).length === 0;
@@ -227,84 +249,157 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
                     return wMatch && isUnowned && !getSuffixForExp(n, expId);
                 });
                 if (candidate) {
-                    // Update state to bind the orphan back into this pattern instance. Validated temporarily.
                     if (!candidate.properties) candidate.properties = {};
                     if (!candidate.properties.memberships) candidate.properties.memberships = {};
                     candidate.properties.memberships[expId] = item.suffix;
                     candidate.memberships = { ...getMemberships(candidate), [expId]: item.suffix };
                     instanceNodes.push(candidate);
-                } else {
-                    errors.push(`Pattern '${originPattern.name}' is incomplete: mandatory component '${item.suffix}' is missing.`);
                 }
             }
         });
 
-        // Edge Completeness
-        if (originPattern.composition.edges) {
-            originPattern.composition.edges.forEach((edgeDef: any) => {
-                const sourceNode = instanceNodes.find(n => getSuffixForExp(n, expId) === edgeDef.source_suffix);
-                const targetNode = instanceNodes.find(n => getSuffixForExp(n, expId) === edgeDef.target_suffix);
+        // 2. RULES EVALUATION
+        const applicableRules = normalizedRules.filter(r => !scope || r.scope === scope || r.scope === 'all');
+
+        applicableRules.forEach(rule => {
+            const severityVal: 'error' | 'warning' | 'info' = rule.severity === 'mandatory' ? 'error' : (rule.severity === 'recommended' ? 'warning' : 'info');
+            
+            if (rule.type === 'node_existence') {
+                const requiredSuffix = rule.node.replace('id_suffix:', '');
+                const hasIt = instanceNodes.some(n => getSuffixForExp(n, expId) === requiredSuffix);
+                if (!hasIt) {
+                    if (rule.severity === 'optional') return;
+                    results.push({
+                        severity: severityVal,
+                        message: rule.description || `Pattern '${originPattern.name}' is missing ${severityVal === 'error' ? 'mandatory' : 'recommended'} component '${requiredSuffix}'${scope === 'container' ? '. Switch to Deployment view to add it.' : '.'}`,
+                        ruleId: rule.id,
+                        patternName: originPattern.name
+                    });
+                }
+            } else if (rule.type === 'edge_existence') {
+                const sourceSuffix = rule.source.replace('id_suffix:', '');
+                const targetSuffix = rule.target.replace('id_suffix:', '');
+                const sourceNode = instanceNodes.find(n => getSuffixForExp(n, expId) === sourceSuffix);
+                const targetNode = instanceNodes.find(n => getSuffixForExp(n, expId) === targetSuffix);
 
                 if (sourceNode && targetNode) {
                     const sCid = getCid(sourceNode);
                     const tCid = getCid(targetNode);
-
                     const hasEdge = (adjList[sCid] || []).includes(tCid);
-                    if (!hasEdge) {
-                        errors.push(`Pattern '${originPattern.name}' is incomplete: mandatory connection from '${edgeDef.source_suffix}' to '${edgeDef.target_suffix}' is missing.`);
+                    if (!hasEdge && rule.severity !== 'optional') {
+                        results.push({
+                            severity: severityVal,
+                            message: rule.description || `Pattern '${originPattern.name}' is missing ${severityVal === 'error' ? 'mandatory' : 'recommended'} connection from '${sourceSuffix}' to '${targetSuffix}'.`,
+                            ruleId: rule.id,
+                            patternName: originPattern.name
+                        });
                     }
                 }
-            });
-        }
+            } else if (rule.type === 'property_constraint') {
+                const nodeSuffix = rule.node.replace('id_suffix:', '');
+                const targetNode = instanceNodes.find(n => getSuffixForExp(n, expId) === nodeSuffix);
+                if (targetNode) {
+                    const propVal = targetNode.properties ? targetNode.properties[rule.property] : undefined;
+                    console.log(`[VALIDATOR DEBUG] Validating property_constraint for ${nodeSuffix}`);
+                    console.log(`Target Node Props:`, targetNode.properties);
+                    console.log(`Expected Property [${rule.property}]:`, rule.allowed_values);
+                    console.log(`Actual Property Value:`, propVal);
 
-        // Rules Evaluation
-        if (originPattern.rules) {
-            originPattern.rules.forEach(rule => {
-                if (rule.connectivity_assertions) {
-                    rule.connectivity_assertions.forEach(assertion => {
-                        const targetSuffix = assertion.to.replace('id_suffix:', '');
-                        const targetNode = instanceNodes.find(n => getSuffixForExp(n, expId) === targetSuffix);
-                        if (!targetNode) return;
+                    // Strict match check
+                    const resolvedAllowed = Array.isArray(rule.allowed_values) ? rule.allowed_values : [];
+                    if (!resolvedAllowed.includes(propVal) && rule.severity !== 'optional') {
+                        results.push({
+                            severity: severityVal,
+                            message: rule.description || `Standardization Violation: ${targetNode.name || nodeSuffix} must use ${rule.property}=${resolvedAllowed.join(' or ')} (required by ${originPattern.name}).`,
+                            ruleId: rule.id,
+                            patternName: originPattern.name
+                        });
+                    }
+                }
+            } else if (rule.type === 'connectivity') {
+                const targetSuffix = rule.to.replace('id_suffix:', '');
+                const targetNode = instanceNodes.find(n => getSuffixForExp(n, expId) === targetSuffix);
+                if (!targetNode) return;
 
-                        const protectedNodes = flatDeployments.filter(n => n.id === targetNode.id || isDescendant(n.id, targetNode.id));
-                        const externalNodes = flatDeployments.filter(n => {
-                            if (getSuffixForExp(n, expId)) return false; // Native member of this specific pattern instance
-                            if (protectedNodes.some(p => p.id === n.id)) return false;
+                const protectedNodes = flatDeployments.filter(n => n.id === targetNode.id || isDescendant(n.id, targetNode.id));
+                const externalNodes = flatDeployments.filter(n => {
+                    if (getSuffixForExp(n, expId)) return false; 
+                    if (protectedNodes.some(p => p.id === n.id)) return false;
 
-                            // Topological Edge Regionalization:
-                            // If this external node actually belongs to a DIFFERENT pattern instance (e.g. Region B)
-                            // and the Logical Target ALSO has a replica residing locally in THAT same Region B...
-                            // we mathematically deduce this native C4 logical edge routes regionally, not cross-site!
-                            const nMem = getMemberships(n);
-                            const nPrime = n.properties?.composition_id || n.composition_id;
-                            const nExpIds = [...Object.keys(nMem), nPrime].filter(Boolean);
+                    // If evaluating deployment scope, ONLY care about nodes that are actually deployed
+                    if (scope === 'deployment') {
+                        const isDeployedInstance = !!n.isInstance || n.c4Level === 'DeploymentNode' || n.type === 'DeploymentNode' || n.type === 'InfrastructureNode' || n.parentLayer === 'DeploymentNode';
+                        if (!isDeployedInstance) return false;
+                    }
 
-                            for (const otherExpId of nExpIds) {
-                                if (otherExpId !== expId && expansionInstances[otherExpId]) {
-                                    // Does the other region have its own physical replica of our protected target?
-                                    const hasTwin = expansionInstances[otherExpId].some(peer => getCid(peer) === getCid(targetNode));
-                                    if (hasTwin) return false; // Strip it from assaulting our local region!
-                                }
-                            }
-                            return true;
+                    const nMem = getMemberships(n);
+                    const nPrime = n.properties?.composition_id || n.composition_id;
+                    const nExpIds = [...Object.keys(nMem), nPrime].filter(Boolean);
+
+                    for (const otherExpId of nExpIds) {
+                        if (otherExpId !== expId && expansionInstances[otherExpId]) {
+                            const hasTwin = expansionInstances[otherExpId].some(peer => getCid(peer) === getCid(targetNode));
+                            if (hasTwin) return false; 
+                        }
+                    }
+                    return true;
+                });
+
+                externalNodes.forEach(entry => {
+                    const entryCid = getCid(entry);
+                    protectedNodes.forEach(pNode => {
+                        const pNodeCid = getCid(pNode);
+                        const allPaths: string[][] = [];
+                        findPathsTo(pNodeCid, entryCid, new Set(), [], allPaths);
+
+                        if (allPaths.length === 0) return;
+
+                        // Check if AT LEAST ONE valid path fully routes through the required waypoints
+                        const hasCompliantPath = allPaths.some(path => {
+                            return rule.must_pass_through?.every((waySuffix: string) => {
+                                const cleanSuffix = waySuffix.replace('id_suffix:', '');
+                                const wayNode = instanceNodes.find(n => getSuffixForExp(n, expId) === cleanSuffix);
+                                if (!wayNode) return true; // Waypoint missing from model, can't reliably validate path
+                                return path.includes(getCid(wayNode));
+                            });
                         });
 
-                        externalNodes.forEach(entry => {
+                        if (!hasCompliantPath) {
+                            results.push({
+                                severity: severityVal,
+                                message: rule.description || `Connectivity Violation: entry '${entry.name}' bypassing security. Traffic to '${pNode.name || pNode.id}' MUST pass through '${rule.must_pass_through?.map((w: string) => w.replace('id_suffix:', '')).join("' and '")}'.`,
+                                ruleId: rule.id,
+                                patternName: originPattern.name
+                            });
+                        }
+                    });
+                });
+            } else {
+                // Support legacy connectivity_assertions object structure if someone missed migration
+                const oldRule = rule as any;
+                if (oldRule.connectivity_assertions) {
+                    oldRule.connectivity_assertions.forEach((assertion: any) => {
+                        // Very similar logic to connectivity type above... Simplified for legacy test compat 
+                        const tgtSuffix = assertion.to.replace('id_suffix:', '');
+                        const tgtNode = instanceNodes.find(n => getSuffixForExp(n, expId) === tgtSuffix);
+                        if (!tgtNode) return;
+                        const protNodes = flatDeployments.filter(n => n.id === tgtNode.id || isDescendant(n.id, tgtNode.id));
+                        const extNodes = flatDeployments.filter(n => !getSuffixForExp(n, expId) && !protNodes.some(p => p.id === n.id));
+                        extNodes.forEach(entry => {
                             const entryCid = getCid(entry);
-                            protectedNodes.forEach(pNode => {
+                            protNodes.forEach(pNode => {
                                 const pNodeCid = getCid(pNode);
                                 const allPaths: string[][] = [];
                                 findPathsTo(pNodeCid, entryCid, new Set(), [], allPaths);
-
                                 allPaths.forEach(path => {
                                     assertion.must_pass_through?.forEach((waySuffix: string) => {
                                         const cleanSuffix = waySuffix.replace('id_suffix:', '');
                                         const wayNode = instanceNodes.find(n => getSuffixForExp(n, expId) === cleanSuffix);
-                                        if (wayNode) {
-                                            const wayCid = getCid(wayNode);
-                                            if (!path.includes(wayCid)) {
-                                                errors.push(`Connectivity Violation: entry '${entry.name}' bypassing security Gateway. Traffic to '${pNode.name || pNode.id}' MUST pass through '${cleanSuffix}'.`);
-                                            }
+                                        if (wayNode && !path.includes(getCid(wayNode))) {
+                                            results.push({
+                                                severity: 'error',
+                                                message: `Connectivity Violation: entry '${entry.id}' bypassing security '${cleanSuffix}'.`
+                                            });
                                         }
                                     });
                                 });
@@ -312,53 +407,11 @@ export function validateArchitecture(arch: any, registry: Registry): string[] {
                         });
                     });
                 }
-            });
-        }
-    });
-
-    // Standardization check
-    flatDeployments.forEach(node => {
-        const memberships = getMemberships(node);
-        const primaryExpId = node.properties?.composition_id || node.composition_id;
-        const allExpContexts: { id: string, suffix: string }[] = [];
-        if (primaryExpId) allExpContexts.push({ id: primaryExpId, suffix: node.properties?.composition_alias || node.composition_alias });
-        Object.entries(memberships).forEach(([id, suffix]) => {
-            if (id !== primaryExpId) allExpContexts.push({ id, suffix: suffix as string });
-        });
-
-        allExpContexts.forEach(ctx => {
-            const expNodes = expansionInstances[ctx.id];
-            // Prioritize finding a master whose composition_id matches this expansion
-            let master = expNodes?.find(n => {
-                const pExp = n.properties?.composition_id || n.composition_id;
-                return pExp === ctx.id && (n.properties?.origin_pattern || n.origin_pattern);
-            });
-            // Fallback: any node with origin_pattern if no primary match
-            if (!master) master = expNodes?.find(n => n.properties?.origin_pattern || n.origin_pattern);
-            const originPattern = getPatternFromOriginVal(master?.properties?.origin_pattern || master?.origin_pattern);
-
-            if (originPattern?.composition) {
-                const findMNode = (nodes: any[]): any => {
-                    for (const m of nodes) {
-                        if (m.id_suffix === ctx.suffix) return m;
-                        if (m.children) {
-                            const res = findMNode(m.children);
-                            if (res) return res;
-                        }
-                    }
-                    return null;
-                };
-                const mDef = findMNode(originPattern.composition.nodes);
-                if (mDef?.properties) {
-                    Object.entries(mDef.properties).forEach(([k, v]) => {
-                        if (node.properties[k] !== v) {
-                            errors.push(`Standardization Violation: ${node.name} must use ${k}=${v} (required by ${originPattern.name}).`);
-                        }
-                    });
-                }
             }
         });
     });
 
-    return Array.from(new Set(errors));
+    // Deduplicate results
+    const uniqueResults = Array.from(new Map(results.map(r => [r.message, r])).values());
+    return uniqueResults;
 }

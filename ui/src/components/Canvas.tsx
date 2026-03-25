@@ -234,7 +234,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 data: {
                     label: `${pattern.name} Instance`,
                     widget_ref: `${pattern.id}@${pattern.version}`,
-                    c4Level: pattern.c4Level,
+                    c4Level: pattern.c4Level || 'Container',
                     layer: pattern.layer,
                     properties: defaultProps,
                     status: 'new',
@@ -295,6 +295,26 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 const isHierarchyParent = targetNode && targetNode.type === 'deploymentNode';
                 const isHostParent = false; // Previously a distinct node type, now merged. Adjust if host logic diverges.
                 const isInfraParent = targetNode && targetNode.type === 'infrastructureNode';
+                
+                const isContainerView = activeView?.type === 'Container' || activeView?.type === 'Component' || activeView?.type === 'SystemContext';
+                const scopedComp = isContainerView ? pattern.composition.container : pattern.composition.deployment;
+                
+                // Read from scoped composition, falling back to legacy root properties for unmigrated patterns
+                const rawMacroNodes = scopedComp?.nodes || (pattern.composition as any).nodes || [];
+                const macroEdges = scopedComp?.edges || (pattern.composition as any).edges || [];
+
+                // Detect Role Assignment ambiguity
+                let chosenRole: string | null = null;
+                if (targetNode && targetNode.type === 'containerNode') {
+                    const matches = rawMacroNodes.filter((m: any) => m.widget_ref === targetNode.data.widget_ref && m.type === 'containerNode');
+                    if (matches.length > 1) {
+                        const roleNames = matches.map((m: any) => m.id_suffix).join(', ');
+                        chosenRole = window.prompt(`This container matches multiple roles in the pattern (${roleNames}). Which role should it assume?`, matches[0].id_suffix);
+                    } else if (matches.length === 1) {
+                        chosenRole = matches[0].id_suffix;
+                    }
+                }
+                const macroNodes = rawMacroNodes;
 
                 // Helper to resolve generic property mappings
                 const resolveValue = (path: string, scopeNode: Node<NodeData> | null): any => {
@@ -315,8 +335,8 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
 
                 // 1. Determine if we are merging the macro anchor with the drop target to correctly set the scope for siblings
                 let anchorMatchFound = false;
-                if (targetNode && pattern.composition.nodes) {
-                    anchorMatchFound = pattern.composition.nodes.some((mNode: any) => {
+                if (targetNode && macroNodes.length > 0) {
+                    anchorMatchFound = macroNodes.some((mNode: any) => {
                         const checkType = (mNode.type === 'deploymentNode') ? 'deploymentNode' : mNode.type;
                         return targetNode.data.widget_ref === mNode.widget_ref &&
                             targetNode.data.layer === mNode.layer &&
@@ -355,7 +375,11 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                             const matchesPattern = closestParent.data.widget_ref === macroNode.widget_ref;
                             const matchesLayer = closestParent.data.layer === macroNode.layer;
                             const matchesType = closestParent.type === checkType;
-                            if (matchesPattern && matchesLayer && matchesType) {
+                            
+                            // If ambiguous, respect chosen role. Else default match.
+                            const roleMatch = chosenRole ? macroNode.id_suffix === chosenRole : true;
+
+                            if (matchesPattern && matchesLayer && matchesType && roleMatch) {
                                 existingNode = closestParent;
                             }
                         }
@@ -472,13 +496,13 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 };
 
                 // 1. Generate Nodes recursively
-                if (pattern.composition.nodes) {
-                    processNodes(pattern.composition.nodes, searchParentId, 0, baseX, baseY, isParentExtent ? 'parent' : undefined);
+                if (macroNodes.length > 0) {
+                    processNodes(macroNodes, searchParentId, 0, baseX, baseY, isParentExtent ? 'parent' : undefined);
                 }
 
                 // 2. Generate Edges
-                if (pattern.composition.edges) {
-                    pattern.composition.edges.forEach((macroEdge: any) => {
+                if (macroEdges.length > 0) {
+                    macroEdges.forEach((macroEdge: any) => {
                         const sourceId = nodeMap[macroEdge.source_suffix];
                         const targetId = nodeMap[macroEdge.target_suffix];
                         const edgeId = `e-${sourceId}-${targetId}`;

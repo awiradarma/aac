@@ -29,6 +29,8 @@ export const Sidebar: React.FC<Props> = ({ activeView, hiddenNodes, onRevealNode
     };
 
     let patterns = getRegistry().patterns;
+    let primitivePatterns = patterns.filter(p => !p.composition);
+    let macroPatterns = patterns.filter(p => !!p.composition);
 
     // Filter patterns based on the currently active view type
     if (activeView) {
@@ -42,15 +44,24 @@ export const Sidebar: React.FC<Props> = ({ activeView, hiddenNodes, onRevealNode
 
         const allowed = allowedLevelsByView[activeView.type];
         if (allowed) {
-            patterns = patterns.filter(p => {
-                // Must pass basic layer authorization
-                if (!allowed.includes(p.c4Level)) return false;
+            // Filter Primitives
+            primitivePatterns = primitivePatterns.filter(p => allowed.includes(p.c4Level as any));
 
-                // Smart Filter for Macro Patterns:
-                // If we are strictly mapping logical application boundaries (Container/Component level),
-                // we should exclude pre-orchestrated macro patterns that enforce physical infrastructure or deployment nodes.
+            // Filter Macros based on explicit scopes array or fallback to c4Level
+            macroPatterns = macroPatterns.filter(p => {
+                if (p.scopes && p.scopes.length > 0) {
+                    const vt = activeView.type.toLowerCase();
+                    if (vt === 'deployment' && p.scopes.includes('deployment')) return true;
+                    if ((vt === 'container' || vt === 'component' || vt === 'systemcontext') && p.scopes.includes('container')) return true;
+                    if (vt === 'component' && p.scopes.includes('component')) return true;
+                    return false;
+                }
+                
+                if (!allowed.includes(p.c4Level as any)) return false;
+
+                // Legacy macro smart filter
                 if (activeView.type === 'Container' || activeView.type === 'Component') {
-                    if (p.composition?.nodes?.some(n => n.c4Level === 'DeploymentNode' || n.c4Level === 'InfrastructureNode')) {
+                    if ((p.composition as any)?.nodes?.some((n: any) => n.c4Level === 'DeploymentNode' || n.c4Level === 'InfrastructureNode')) {
                         return false;
                     }
                 }
@@ -59,18 +70,25 @@ export const Sidebar: React.FC<Props> = ({ activeView, hiddenNodes, onRevealNode
         }
     }
 
-    const categories: Record<string, any[]> = {};
+    const primitiveCategories: Record<string, any[]> = {};
+    primitivePatterns.forEach(p => {
+        const cat = p.display_metadata?.category || p.c4Level || 'Other';
+        if (!primitiveCategories[cat]) primitiveCategories[cat] = [];
+        primitiveCategories[cat].push(p);
+    });
 
-    patterns.forEach(p => {
-        const cat = p.display_metadata?.category || p.c4Level;
-        if (!categories[cat]) categories[cat] = [];
-        categories[cat].push(p);
+    const macroCategories: Record<string, any[]> = {};
+    macroPatterns.forEach(p => {
+        const cat = p.display_metadata?.category || 'Macro Patterns';
+        if (!macroCategories[cat]) macroCategories[cat] = [];
+        macroCategories[cat].push(p);
     });
 
     // Define preferred order for standard categories
-    const order = ['DeploymentNode', 'InfrastructureNode', 'Container', 'Component'];
+    const order = ['DeploymentNode', 'InfrastructureNode', 'Container', 'Component', 'Macro Patterns'];
     const hasHiddenNodes = hiddenNodes && hiddenNodes.length > 0;
-    const sortedCategories = Object.keys(categories).sort((a, b) => {
+    
+    const sortCats = (cats: string[]) => cats.sort((a, b) => {
         const idxA = order.indexOf(a);
         const idxB = order.indexOf(b);
         if (idxA !== -1 && idxB !== -1) return idxA - idxB;
@@ -78,6 +96,9 @@ export const Sidebar: React.FC<Props> = ({ activeView, hiddenNodes, onRevealNode
         if (idxB !== -1) return 1;
         return a.localeCompare(b);
     });
+
+    const sortedPrimitiveCategories = sortCats(Object.keys(primitiveCategories));
+    const sortedMacroCategories = sortCats(Object.keys(macroCategories));
 
     return (
         <aside className="w-72 border-r border-slate-200 bg-white flex flex-col h-full shadow-sm">
@@ -128,8 +149,8 @@ export const Sidebar: React.FC<Props> = ({ activeView, hiddenNodes, onRevealNode
                     </div>
                 )}
 
-                {/* Registry Patterns */}
-                {sortedCategories.map(level => (
+                {/* Primitive Elements */}
+                {sortedPrimitiveCategories.map(level => (
                     <div key={level}>
                         <div className="flex items-center gap-2 mb-3">
                             <div className="h-px bg-slate-100 flex-1"></div>
@@ -137,7 +158,7 @@ export const Sidebar: React.FC<Props> = ({ activeView, hiddenNodes, onRevealNode
                             <div className="h-px bg-slate-100 flex-1"></div>
                         </div>
                         <div className="grid grid-cols-1 gap-2">
-                            {categories[level].map(pattern => (
+                            {primitiveCategories[level].map(pattern => (
                                 <div
                                     key={`${pattern.id}-${pattern.version}`}
                                     className="px-3 py-2 bg-white border border-slate-200 rounded-lg cursor-grab hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all group active:cursor-grabbing flex items-center gap-3"
@@ -145,6 +166,8 @@ export const Sidebar: React.FC<Props> = ({ activeView, hiddenNodes, onRevealNode
                                         let flowType = 'containerNode';
                                         if (pattern.c4Level === 'DeploymentNode') flowType = 'deploymentNode';
                                         if (pattern.c4Level === 'InfrastructureNode') flowType = 'infrastructureNode';
+                                        if (pattern.c4Level === 'SoftwareSystem') flowType = 'systemNode';
+                                        if (pattern.c4Level === 'Person') flowType = 'personNode';
                                         if (onAddPattern) {
                                             onAddPattern(flowType, pattern.id, pattern.version);
                                         }
@@ -153,6 +176,8 @@ export const Sidebar: React.FC<Props> = ({ activeView, hiddenNodes, onRevealNode
                                         let flowType = 'containerNode';
                                         if (pattern.c4Level === 'DeploymentNode') flowType = 'deploymentNode';
                                         if (pattern.c4Level === 'InfrastructureNode') flowType = 'infrastructureNode';
+                                        if (pattern.c4Level === 'SoftwareSystem') flowType = 'systemNode';
+                                        if (pattern.c4Level === 'Person') flowType = 'personNode';
                                         onDragStart(e, flowType, pattern.id, pattern.version);
                                     }}
                                     draggable
@@ -174,6 +199,59 @@ export const Sidebar: React.FC<Props> = ({ activeView, hiddenNodes, onRevealNode
                         </div>
                     </div>
                 ))}
+                
+                {/* Macro Patterns Divider */}
+                {sortedMacroCategories.length > 0 && (
+                    <div className="mt-8">
+                        <div className="flex items-center gap-2 mb-4">
+                            <div className="h-px bg-indigo-200 flex-1"></div>
+                            <h3 className="text-[11px] font-black text-indigo-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                                <Box className="w-3 h-3" />
+                                Architecture Patterns
+                            </h3>
+                            <div className="h-px bg-indigo-200 flex-1"></div>
+                        </div>
+                        
+                        {sortedMacroCategories.map(level => (
+                            <div key={level} className="mb-4">
+                                <div className="grid grid-cols-1 gap-2">
+                                    {macroCategories[level].map(pattern => (
+                                        <div
+                                            key={`${pattern.id}-${pattern.version}`}
+                                            className="px-3 py-2 bg-gradient-to-r from-indigo-50 to-white border border-indigo-100 rounded-lg cursor-grab hover:border-indigo-400 hover:shadow-md hover:-translate-y-0.5 transition-all group active:cursor-grabbing flex items-center gap-3"
+                                            onClick={() => {
+                                                const flowType = (pattern.scopes?.includes('deployment') && activeView && activeView.type === 'Deployment') ? 'deploymentNode' : 'containerNode';
+                                                if (onAddPattern) {
+                                                    onAddPattern(flowType, pattern.id, pattern.version);
+                                                }
+                                            }}
+                                            onDragStart={(e) => {
+                                                const flowType = (pattern.scopes?.includes('deployment') && activeView && activeView.type === 'Deployment') ? 'deploymentNode' : 'containerNode';
+                                                onDragStart(e, flowType, pattern.id, pattern.version);
+                                            }}
+                                            draggable
+                                        >
+                                            <div className="w-8 h-8 rounded-md flex items-center justify-center shrink-0 transition-colors bg-indigo-100 text-indigo-600 shadow-inner">
+                                                <DynamicIcon name={pattern.display_metadata?.icon || 'Layers'} className="w-4 h-4" />
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="text-[11px] font-bold text-slate-800 truncate leading-tight group-hover:text-indigo-700 transition-colors">{pattern.name}</div>
+                                                <div className="text-[9px] font-mono text-indigo-400 mt-0.5 truncate uppercase flex items-center gap-1">
+                                                    v{pattern.version}
+                                                    {pattern.scopes && pattern.scopes.length > 0 && (
+                                                        <span className="opacity-70 px-1 py-0.5 bg-indigo-100 rounded text-[7px] ml-1">
+                                                            {pattern.scopes.join(', ')}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             <div className="p-4 bg-slate-50 border-t border-slate-100 shrink-0">

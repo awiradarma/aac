@@ -1,28 +1,45 @@
 id: single-dc-ocp-cluster
 name: Single Data Center OpenShift Cluster
 version: 1.0.0
-c4Level: DeploymentNode
 description: Pre-approved deployment hierarchy with a single Region containing two Datacenters, each containing an OpenShift cluster.
+scopes: [deployment]
 composition:
-  nodes:
-    - id_suffix: region-1
-      type: deploymentNode
-      widget_ref: region@1.0.0
-      label: Primary Region
-      c4Level: DeploymentNode
-      children:
-        - id_suffix: datacenter-1
-          type: deploymentNode
-          widget_ref: datacenter@1.0.0
-          label: Primary Datacenter
-          c4Level: DeploymentNode
-          children:
-            - id_suffix: cluster-1
-              type: deploymentNode
-              widget_ref: openshift-cluster-v4@4.12.0
-              label: Primary OpenShift Cluster
-              layer: Cluster
-              c4Level: DeploymentNode
+  deployment:
+    nodes:
+      - id_suffix: region-1
+        type: deploymentNode
+        widget_ref: region@1.0.0
+        label: Primary Region
+        c4Level: DeploymentNode
+        children:
+          - id_suffix: datacenter-1
+            type: deploymentNode
+            widget_ref: datacenter@1.0.0
+            label: Primary Datacenter
+            c4Level: DeploymentNode
+            children:
+              - id_suffix: cluster-1
+                type: deploymentNode
+                widget_ref: openshift-cluster-v4@4.12.0
+                label: Primary OpenShift Cluster
+                layer: Cluster
+                c4Level: DeploymentNode
+rules:
+  - id: require-region
+    scope: deployment
+    severity: mandatory
+    type: node_existence
+    node: "id_suffix:region-1"
+  - id: require-datacenter
+    scope: deployment
+    severity: mandatory
+    type: node_existence
+    node: "id_suffix:datacenter-1"
+  - id: require-cluster
+    scope: deployment
+    severity: mandatory
+    type: node_existence
+    node: "id_suffix:cluster-1"
 display_metadata:
   icon: Server
   color: slate

@@ -1,62 +1,100 @@
 id: pub-sub-messaging
 name: Pub/Sub Broadcast
 version: 1.0.0
-c4Level: Container
 description: "A standard broadcast topology using a Topic and multiple subscribers."
+scopes: [container]
 
 composition:
-  nodes:
-    - id_suffix: publisher
-      type: containerNode
-      widget_ref: executable@1.0.0
-      label: Publisher Service
-      c4Level: Container
-      reuse_existing: false
-      layout_hint: { x: 250, y: 0 }
+  container:
+    nodes:
+      - id_suffix: publisher
+        type: containerNode
+        widget_ref: executable@1.0.0
+        label: Publisher Service
+        c4Level: Container
+        reuse_existing: false
+        layout_hint: { x: 250, y: 0 }
+      - id_suffix: topic
+        type: containerNode
+        widget_ref: topic@1.0.0
+        label: Event Topic
+        c4Level: Container
+        reuse_existing: false
+        layout_hint: { x: 250, y: 150 }
+      - id_suffix: sub_a
+        type: containerNode
+        widget_ref: executable@1.0.0
+        label: Subscriber A
+        c4Level: Container
+        reuse_existing: false
+        layout_hint: { x: 50, y: 300 }
+      - id_suffix: sub_b
+        type: containerNode
+        widget_ref: executable@1.0.0
+        label: Subscriber B
+        c4Level: Container
+        reuse_existing: false
+        layout_hint: { x: 450, y: 300 }
 
-    - id_suffix: topic
-      type: containerNode
-      widget_ref: topic@1.0.0
-      label: Event Topic
-      c4Level: Container
-      reuse_existing: false
-      layout_hint: { x: 250, y: 150 }
+    edges:
+      - source_suffix: publisher
+        target_suffix: topic
+        source_handle: source-bottom
+        target_handle: target-top
+        styleVariant: dashed
+        label: publish
+      - source_suffix: topic
+        target_suffix: sub_a
+        source_handle: source-bottom
+        target_handle: target-top
+        styleVariant: dashed
+        label: distribute
+      - source_suffix: topic
+        target_suffix: sub_b
+        source_handle: source-bottom
+        target_handle: target-top
+        styleVariant: dashed
+        label: distribute
 
-    - id_suffix: sub_a
-      type: containerNode
-      widget_ref: executable@1.0.0
-      label: Subscriber A
-      c4Level: Container
-      reuse_existing: false
-      layout_hint: { x: 50, y: 300 }
-
-    - id_suffix: sub_b
-      type: containerNode
-      widget_ref: executable@1.0.0
-      label: Subscriber B
-      c4Level: Container
-      reuse_existing: false
-      layout_hint: { x: 450, y: 300 }
-
-  edges:
-    - source_suffix: publisher
-      target_suffix: topic
-      source_handle: source-bottom
-      target_handle: target-top
-      styleVariant: dashed
-      label: publish
-    - source_suffix: topic
-      target_suffix: sub_a
-      source_handle: source-bottom
-      target_handle: target-top
-      styleVariant: dashed
-      label: distribute
-    - source_suffix: topic
-      target_suffix: sub_b
-      source_handle: source-bottom
-      target_handle: target-top
-      styleVariant: dashed
-      label: distribute
+rules:
+  - id: require-publisher
+    scope: container
+    severity: mandatory
+    type: node_existence
+    node: "id_suffix:publisher"
+  - id: require-topic
+    scope: container
+    severity: mandatory
+    type: node_existence
+    node: "id_suffix:topic"
+  - id: require-sub-a
+    scope: container
+    severity: mandatory
+    type: node_existence
+    node: "id_suffix:sub_a"
+  - id: require-sub-b
+    scope: container
+    severity: mandatory
+    type: node_existence
+    node: "id_suffix:sub_b"
+  - id: require-edge-pub-to-topic
+    scope: container
+    severity: mandatory
+    type: edge_existence
+    source: "id_suffix:publisher"
+    target: "id_suffix:topic"
+  - id: require-edge-topic-to-sub-a
+    scope: container
+    severity: mandatory
+    type: edge_existence
+    source: "id_suffix:topic"
+    target: "id_suffix:sub_a"
+  - id: require-edge-topic-to-sub-b
+    scope: container
+    severity: mandatory
+    type: edge_existence
+    source: "id_suffix:topic"
+    target: "id_suffix:sub_b"
 
 display_metadata:
   icon: Wifi

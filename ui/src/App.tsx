@@ -59,7 +59,7 @@ export default function App() {
   const [isPropertyPanelOpen, setIsPropertyPanelOpen] = useState(false);
   const [patternToAdd, setPatternToAdd] = useState<{ type: string; patternId: string; version: string } | null>(null);
   const [linkingNodeId, setLinkingNodeId] = useState<string | null>(null);
-  const [validationModal, setValidationModal] = useState<{ isOpen: boolean, type: 'success' | 'error', message: string }>({ isOpen: false, type: 'success', message: '' });
+  const [validationModal, setValidationModal] = useState<{ isOpen: boolean, type: 'success' | 'warning' | 'error', message: string }>({ isOpen: false, type: 'success', message: '' });
   const [viewModal, setViewModal] = useState<{ isOpen: boolean, mode: 'create' | 'edit', viewId?: string }>({ isOpen: false, mode: 'create' });
   const [viewModalForm, setViewModalForm] = useState({ name: '', type: 'SystemLandscape' });
   const [discoveryResults, setDiscoveryResults] = useState<DiscoveryResult[] | null>(null);
@@ -716,7 +716,7 @@ export default function App() {
             data: {
               label: sn.name.replace(/-/g, ' '),
               widget_ref: widgetRef,
-              c4Level: pattern ? pattern.c4Level : 'SoftwareSystem',
+              c4Level: pattern?.c4Level || 'SoftwareSystem',
               layer: pattern?.layer,
               properties: props,
               status: status,
@@ -754,7 +754,7 @@ export default function App() {
             data: {
               label: pn.name.replace(/-/g, ' '),
               widget_ref: widgetRef,
-              c4Level: pattern ? pattern.c4Level : 'Person',
+              c4Level: pattern?.c4Level || 'Person',
               layer: pattern?.layer,
               properties: props,
               status: status,
@@ -799,7 +799,7 @@ export default function App() {
               data: {
                 label: cn.name?.replace(/-/g, ' ') || 'Container',
                 widget_ref: widgetRef,
-                c4Level: pattern ? pattern.c4Level : 'Container',
+                c4Level: pattern?.c4Level || 'Container',
                 layer: pattern?.layer,
                 properties: props,
                 status: status,
@@ -849,7 +849,7 @@ export default function App() {
                 data: {
                   label: cmp.name?.replace(/-/g, ' ') || 'Component',
                   widget_ref: widgetRef,
-                  c4Level: cpPattern ? cpPattern.c4Level : 'Component',
+                  c4Level: cpPattern?.c4Level || 'Component',
                   layer: cpPattern?.layer,
                   properties: cpProps,
                   status: status,
@@ -920,7 +920,7 @@ export default function App() {
               data: {
                 label: dn.name.replace(/-/g, ' '),
                 widget_ref: props.widget_ref || '',
-                c4Level: pattern ? pattern.c4Level : 'DeploymentNode',
+                c4Level: pattern?.c4Level || 'DeploymentNode',
                 layer: pattern?.layer,
                 layoutMap: importedLayout || {},
                 properties: newProps,
@@ -978,7 +978,7 @@ export default function App() {
                     layoutMap: importedLayoutInst || {},
                     label: cn.name?.replace(/-/g, ' ') || 'Container Instance',
                     widget_ref: ciProps.widget_ref || cProps.widget_ref || undefined,
-                    c4Level: patternInst ? patternInst.c4Level : (cPattern ? cPattern.c4Level : 'Container'),
+                    c4Level: patternInst?.c4Level || cPattern?.c4Level || 'Container',
                     layer: patternInst?.layer || cPattern?.layer,
                     properties: cleanCProps,
                     status: statusInst,
@@ -1190,15 +1190,24 @@ export default function App() {
         // We can use fetch or just console.log the JSON stringified version!
       }
 
-      const errors = validateArchitecture(structurizrAst, getRegistry() as any);
-      console.log('VALIDATION ERRORS:', errors);
+      const scopeParam = (activeView.type === 'Container' || activeView.type === 'Component' || activeView.type === 'SystemContext') ? 'container' : 'deployment';
+      const results = validateArchitecture(structurizrAst, getRegistry() as any, scopeParam);
+      console.log('VALIDATION RESULTS:', results);
 
+      const errors = results.filter(r => r.severity === 'error');
+      const warnings = results.filter(r => r.severity === 'warning');
 
       if (errors.length > 0) {
         setValidationModal({
           isOpen: true,
           type: 'error',
-          message: "⚠️ Architecture Validation Failed:\n\n" + errors.map(e => "• " + e).join("\n")
+          message: "⚠️ Architecture Validation Failed:\n\n" + errors.map(e => "• " + e.message).join("\n") + (warnings.length > 0 ? "\n\nWarnings:\n" + warnings.map(w => "• " + w.message).join("\n") : "")
+        });
+      } else if (warnings.length > 0) {
+        setValidationModal({
+          isOpen: true,
+          type: 'warning', // Assuming the modal component supports 'warning' implicitly via styles or defaults to general info
+          message: "✅ Architecture Valid, but has suggestions:\n\n" + warnings.map(w => "• " + w.message).join("\n")
         });
       } else {
         setValidationModal({
