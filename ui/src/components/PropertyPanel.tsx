@@ -342,22 +342,90 @@ export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, act
             {data.memberships && Object.keys(data.memberships).length > 0 && (
                 <div className="mb-6 p-4 bg-indigo-50/50 rounded-lg border border-indigo-100 flex flex-col gap-3">
                     <div className="flex items-center justify-between">
-                        <label className="block text-xs font-bold text-indigo-800 uppercase tracking-wider">Pattern Memberships</label>
+                        <label className="block text-xs font-bold text-indigo-800 uppercase tracking-wider">Pattern Governance</label>
                         {Object.keys(data.memberships).length > 1 && (
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">Shared Resource</span>
                         )}
                     </div>
-                    {Object.entries(data.memberships).map(([expId, alias]) => (
-                        <div key={expId} className="flex flex-col text-sm border border-indigo-200 bg-white p-2.5 rounded shadow-sm">
-                            <div className="flex items-center justify-between mb-1">
-                                <span className="font-semibold text-indigo-900"><span className="text-slate-500 font-normal text-xs mr-1">Alias:</span>{alias as string}</span>
+                    {Object.entries(data.memberships).map(([expId, alias]) => {
+                        const originPatternId = (data.origin_pattern && data.composition_id === expId) ? data.origin_pattern : null;
+                        const patId = originPatternId?.split('@')[0];
+                        const pat = patId ? getPatternById(patId) : null;
+                        
+                        // Find other compatible roles in the same pattern
+                        const otherRoles = pat?.composition?.container?.nodes?.filter((n: any) => {
+                            if (n.id_suffix === alias) return false;
+                            const pnWidgetId = n.widget_ref?.split('@')[0];
+                            const targetWidgetId = data.widget_ref?.split('@')[0];
+                            if (pnWidgetId === targetWidgetId) return true;
+                            // Basic inheritance check
+                            let currId: string | undefined = targetWidgetId;
+                            while (currId) {
+                                const p = getPatternById(currId);
+                                if (!p) break;
+                                if (p.base_type === pnWidgetId) return true;
+                                currId = p.base_type;
+                            }
+                            return false;
+                        }) || [];
+
+                        return (
+                            <div key={expId} className="flex flex-col text-sm border border-indigo-200 bg-white p-3 rounded shadow-sm gap-2">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] text-slate-400 font-mono uppercase tracking-tighter leading-none mb-1">Current Role</span>
+                                        <span className="font-bold text-indigo-900 text-base">{alias as string}</span>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            const newMemberships = { ...data.memberships };
+                                            delete newMemberships[expId];
+                                            const update: any = { memberships: newMemberships };
+                                            if (data.composition_id === expId) {
+                                                update.composition_id = null;
+                                                update.composition_alias = null;
+                                                update.origin_pattern = null;
+                                            }
+                                            onUpdateNodeData(selectedNode.id, update);
+                                        }}
+                                        className="text-slate-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors"
+                                        title="Detach from Pattern"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                                
+                                {otherRoles.length > 0 && (
+                                    <div className="mt-2 pt-2 border-t border-slate-100">
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase mb-2 block">Switch to Role</span>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {otherRoles.map((role: any) => (
+                                                <button
+                                                    key={role.id_suffix}
+                                                    onClick={() => {
+                                                        const newMemberships = { ...data.memberships, [expId]: role.id_suffix };
+                                                        const update: any = { memberships: newMemberships };
+                                                        if (data.composition_id === expId) {
+                                                            update.composition_alias = role.id_suffix;
+                                                        }
+                                                        onUpdateNodeData(selectedNode.id, update);
+                                                    }}
+                                                    className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded text-[10px] font-bold border border-indigo-100 transition-colors"
+                                                >
+                                                    {role.label || role.id_suffix}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                <span className="text-[9px] text-slate-400 font-mono mt-1 pt-1 border-t border-slate-50 italic">Deployment ID: {expId}</span>
                             </div>
-                            <span className="text-[10px] text-slate-500 font-mono mt-0.5 break-all">ID: {expId}</span>
-                        </div>
-                    ))}
+                        );
+                    })}
                     {data.origin_pattern && (
                         <div className="mt-1 flex items-center gap-1.5 text-[11px] text-indigo-600 bg-indigo-100/50 p-2 rounded border border-indigo-100 w-fit">
-                            <span className="font-semibold">Source Pattern:</span> {data.origin_pattern}
+                            <span className="font-semibold">Contextual Blueprint:</span> {data.origin_pattern}
                         </div>
                     )}
                 </div>

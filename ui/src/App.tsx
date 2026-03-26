@@ -63,13 +63,8 @@ export default function App() {
   const [viewModal, setViewModal] = useState<{ isOpen: boolean, mode: 'create' | 'edit', viewId?: string }>({ isOpen: false, mode: 'create' });
   const [viewModalForm, setViewModalForm] = useState({ name: '', type: 'SystemLandscape' });
   const [discoveryResults, setDiscoveryResults] = useState<DiscoveryResult[] | null>(null);
-  const [roleAssignment, setRoleAssignment] = useState<{ 
-    isOpen: boolean, 
-    roles: string[], 
-    patternName: string, 
-    onSelect: (role: string) => void,
-    onCancel: () => void
-  } | null>(null);
+  const [roleAssignment, setRoleAssignment] = useState<{ node: Node<NodeData>, pattern: any, roles: any[] } | null>(null);
+  const [adoptionData, setAdoptionData] = useState<{ patternId: string, version: string, nodeId: string, roleAlias: string } | null>(null);
   const [validationResults, setValidationResults] = useState<ValidationResult[]>([]);
 
   // Custom node changes to track per-view coordinates dynamically
@@ -1687,6 +1682,8 @@ export default function App() {
             patternToAdd={patternToAdd}
             onPatternAdded={() => setPatternToAdd(null)}
             onShowRoleAssignment={setRoleAssignment}
+            adoptionData={adoptionData}
+            onAdoptionComplete={() => setAdoptionData(null)}
             onRevealNode={(id: string) => {
               setViews(vs => vs.map(v => v.id === activeViewId ? { ...v, include: Array.from(new Set([...v.include, id])), exclude: v.exclude.filter(e => e !== id) } : v));
             }}
@@ -1814,7 +1811,7 @@ export default function App() {
         )}
 
         {/* Role Assignment Modal */}
-      {roleAssignment?.isOpen && (
+      {roleAssignment && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-slate-100 bg-slate-50/50">
@@ -1823,20 +1820,28 @@ export default function App() {
                 </div>
               <h3 className="text-xl font-bold text-slate-900">Assign Implementation Role</h3>
               <p className="text-slate-500 text-sm mt-1">
-                The pattern <span className="font-bold text-slate-800">{roleAssignment.patternName}</span> defines multiple roles matching this container. 
+                The pattern <span className="font-bold text-slate-800">{roleAssignment.pattern.name}</span> defines multiple roles matching this container. 
                 Which role should it assume?
               </p>
             </div>
             <div className="p-4 max-h-[400px] overflow-y-auto space-y-2">
-              {roleAssignment.roles.map((role) => (
+              {roleAssignment.roles.map((role: any) => (
                 <button
-                  key={role}
-                  onClick={() => roleAssignment.onSelect(role)}
+                  key={role.id_suffix}
+                  onClick={() => {
+                    setAdoptionData({
+                      patternId: roleAssignment.pattern.id,
+                      version: roleAssignment.pattern.version,
+                      nodeId: roleAssignment.node.id,
+                      roleAlias: role.id_suffix
+                    });
+                    setRoleAssignment(null);
+                  }}
                   className="w-full flex items-center justify-between p-4 hover:bg-indigo-50 border border-slate-100 hover:border-indigo-200 rounded-xl transition-all group text-left"
                 >
                   <div className="flex flex-col">
-                    <span className="font-bold text-slate-800 group-hover:text-indigo-900">{role}</span>
-                    <span className="text-xs text-slate-400 font-mono mt-0.5">composition_alias: {role}</span>
+                    <span className="font-bold text-slate-800 group-hover:text-indigo-900">{role.label || role.id_suffix}</span>
+                    <span className="text-xs text-slate-400 font-mono mt-0.5">Role: {role.id_suffix}</span>
                   </div>
                   <div className="w-6 h-6 rounded-full border-2 border-slate-200 group-hover:border-indigo-500 flex items-center justify-center transition-colors">
                     <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -1846,7 +1851,7 @@ export default function App() {
             </div>
             <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
               <button
-                onClick={roleAssignment.onCancel}
+                onClick={() => setRoleAssignment(null)}
                 className="px-6 py-2.5 font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 rounded-xl transition-colors"
               >
                 Cancel Drop

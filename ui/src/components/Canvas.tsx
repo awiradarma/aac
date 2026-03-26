@@ -41,9 +41,16 @@ interface Props {
     onShowRoleAssignment?: (data: any) => void;
     activeView?: DiagramView;
     selectedNodeId?: string | null;
+    adoptionData?: { 
+        patternId: string, 
+        version: string, 
+        nodeId: string, 
+        roleAlias: string 
+    } | null;
+    onAdoptionComplete?: () => void;
 }
 
-export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange, onNodeSelect, onEdgeSelect, patternToAdd, onPatternAdded, onRevealNode, selectedNodeId, activeView, onShowRoleAssignment }) => {
+export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange, onNodeSelect, onEdgeSelect, patternToAdd, onPatternAdded, onRevealNode, selectedNodeId, activeView, onShowRoleAssignment, adoptionData, onAdoptionComplete }) => {
     const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
     const draggingEdgeId = useRef<string | null>(null);
 
@@ -109,6 +116,8 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
             const version = event.dataTransfer.getData('application/patternVersion');
             const mockTargetId = event.dataTransfer.getData('application/mockTargetId');
             const existingNodeId = event.dataTransfer.getData('application/existingNodeId');
+            const adoptionNodeId = event.dataTransfer.getData('application/adoptionNodeId');
+            const adoptionRoleAlias = event.dataTransfer.getData('application/adoptionRoleAlias');
             let isMockTarget = false;
 
             const scale = window.innerWidth < 768 ? 0.6 : 1;
@@ -223,6 +232,49 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 },
             };
 
+            const possibleTargets = nodes.filter(n => {
+                if ((n as any).hidden) return false;
+                const pos = getAbsolutePosition(n);
+                const nPattern = getPatternById(n.data.widget_ref?.split('@')[0]);
+                const width = n.width ?? (n.style?.width ? Number(n.style.width) : (nPattern?.default_width || 200));
+                const height = n.height ?? (n.style?.height ? Number(n.style.height) : (nPattern?.default_height || 150));
+                return position.x >= pos.x && position.x <= pos.x + width && position.y >= pos.y && position.y <= pos.y + height;
+            });
+
+            const dropTargetNode = possibleTargets.sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0)).pop();
+
+            if (dropTargetNode && pattern.composition) {
+                const isContainerView = activeView?.type === 'Container' || activeView?.type === 'Component' || activeView?.type === 'SystemContext';
+                const scopedComp = isContainerView ? pattern.composition.container : pattern.composition.deployment;
+                const patternNodes = scopedComp?.nodes || (pattern.composition as any).nodes || [];
+
+                const matchingRoles = patternNodes.filter((pn: any) => {
+                    const pnWidgetId = pn.widget_ref?.split('@')[0];
+                    const targetWidgetId = dropTargetNode.data.widget_ref?.split('@')[0];
+
+                    if (pnWidgetId === targetWidgetId) return true;
+
+                    // Walk inheritance
+                    let currId: string | undefined = targetWidgetId;
+                    while (currId) {
+                        const pDef = getPatternById(currId);
+                        if (!pDef) break;
+                        if (pDef.base_type === pnWidgetId) return true;
+                        currId = pDef.base_type;
+                    }
+                    return false;
+                });
+
+                if (matchingRoles.length > 0 && onShowRoleAssignment) {
+                    onShowRoleAssignment({
+                        node: dropTargetNode,
+                        pattern: pattern,
+                        roles: matchingRoles
+                    });
+                    return;
+                }
+            }
+
             const possibleParents = nodes.filter(n => {
                 if ((n as any).hidden) return false;
                 if (n.type !== 'deploymentNode' && n.type !== 'infrastructureNode') return false;
@@ -284,6 +336,12 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     }
 
                     let searchParentId = (anchorMatchFound && targetNode) ? targetNode.parentNode : (isHierarchyParent && targetNode ? targetNode.id : ((isInfraParent) && targetNode ? targetNode.parentNode : undefined));
+                    
+                    if (adoptionNodeId) {
+                        const aNode = nodes.find(n => n.id === adoptionNodeId);
+                        if (aNode) searchParentId = aNode.parentNode;
+                    }
+
                     if (!searchParentId && activeView?.scope_entity_id && (pattern.c4Level === 'Container' || pattern.c4Level === 'Component')) {
                         searchParentId = activeView.scope_entity_id;
                     }
@@ -293,8 +351,8 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     const generatedEdges: Edge[] = [];
                     const nodeMap: Record<string, string> = {};
                     const mergedNodeMetadata: Record<string, any> = {};
-                    const baseX = isParentExtent ? (isMockTarget ? 50 * scale : 50) : position.x - 200;
-                    const baseY = isParentExtent ? (isMockTarget ? 80 * scale : 100) : position.y;
+                    const baseX = adoptionNodeId ? (nodes.find(n => n.id === adoptionNodeId)?.position.x || (isParentExtent ? 50 : position.x - 200)) : (isParentExtent ? (isMockTarget ? 50 * scale : 50) : position.x - 200);
+                    const baseY = adoptionNodeId ? (nodes.find(n => n.id === adoptionNodeId)?.position.y || (isParentExtent ? 80 : position.y)) : (isParentExtent ? (isMockTarget ? 80 * scale : 100) : position.y);
                     const expansionId = `exp-${pattern.id}-${Date.now()}`;
 
                     const processNodesHelper = (nodeList: any[], parentId: string | undefined, depth: number, startX: number, startY: number, extent?: 'parent') => {
@@ -302,7 +360,9 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                             let existingNode = null;
                             const checkType = (macroNode.type === 'deploymentNode') ? 'deploymentNode' : macroNode.type;
 
-                            if (depth === 0 && closestParent && macroNode.reuse_existing !== false) {
+                            if (adoptionNodeId && macroNode.id_suffix === adoptionRoleAlias) {
+                                existingNode = nodes.find(n => n.id === adoptionNodeId);
+                            } else if (depth === 0 && closestParent && macroNode.reuse_existing !== false) {
                                 const matchesPattern = closestParent.data.widget_ref === macroNode.widget_ref;
                                 const matchesLayer = closestParent.data.layer === macroNode.layer;
                                 const matchesType = closestParent.type === checkType;
@@ -510,6 +570,29 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
         },
         [reactFlowInstance, setNodes, nodes, activeView, onRevealNode, onShowRoleAssignment, getAbsolutePosition]
     );
+
+    useEffect(() => {
+        if (adoptionData && reactFlowInstance) {
+            const mockEvent: any = {
+                preventDefault: () => { },
+                clientX: window.innerWidth / 2,
+                clientY: window.innerHeight / 2,
+                dataTransfer: {
+                    dropEffect: 'move',
+                    getData: (key: string) => {
+                        if (key === 'application/reactflow') return 'containerNode'; // Generic
+                        if (key === 'application/patternId') return adoptionData.patternId;
+                        if (key === 'application/patternVersion') return adoptionData.version;
+                        if (key === 'application/adoptionNodeId') return adoptionData.nodeId;
+                        if (key === 'application/adoptionRoleAlias') return adoptionData.roleAlias;
+                        return '';
+                    }
+                }
+            };
+            onDrop(mockEvent);
+            onAdoptionComplete?.();
+        }
+    }, [adoptionData, reactFlowInstance, onDrop, onAdoptionComplete]);
 
     useEffect(() => {
         if (patternToAdd && reactFlowInstance) {
