@@ -351,8 +351,7 @@ export default function App() {
 
     // Group workloads into unique Model Containers based on widget_ref and label
     containerNodes.forEach(w => {
-      const patternId = w.data.widget_ref?.split('@')[0] || 'unknown';
-      const logicalId = `${patternId}-${w.data.label.replace(/\s+/g, '-')}`.toLowerCase();
+      const logicalId = (w.data as any).containerId || w.id;
       allIdMap.set(w.id, logicalId);
       (w as any)._logicalContainerId = logicalId;
     });
@@ -402,8 +401,7 @@ export default function App() {
     // Users edit properties on the logical container (visible in container/component diagrams),
     // but physical instances (in deployment diagram) may appear first due to React Flow node ordering.
     containerNodes.forEach(w => {
-      const patternId = w.data.widget_ref?.split('@')[0] || 'unknown';
-      const logicalId = `${patternId}-${w.data.label.replace(/\s+/g, '-')}`.toLowerCase();
+      const logicalId = (w.data as any).containerId || w.id;
 
       const isPhysicalInstance = !!(w.data as any).containerId;
       const existing = uniqueContainers.get(logicalId);

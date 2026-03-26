@@ -22,6 +22,7 @@ composition:
         c4Level: Container
         reuse_existing: false
         layout_hint: { x: 250, y: 50 }
+        properties: { technology: MQ }
 
       - id_suffix: consumer
         type: containerNode

@@ -351,6 +351,13 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                 let offsetX = (macroNode.layout_hint?.x ?? (index * 220)) * scale;
                                 let offsetY = (macroNode.layout_hint?.y ?? (depth * 150)) * scale;
                                 const nPattern = macroNode.widget_ref ? getPatternById(macroNode.widget_ref.split('@')[0]) : null;
+                                const nDefaults: Record<string, any> = {};
+                                if (nPattern?.parameters) {
+                                    Object.entries(nPattern.parameters).forEach(([pk, pv]) => {
+                                        if (pv.default !== undefined) nDefaults[pk] = pv.default;
+                                        if (pv.const !== undefined) nDefaults[pk] = pv.const;
+                                    });
+                                }
 
                                 const gNode: Node<NodeData> = {
                                     id: currentNodeId,
@@ -365,7 +372,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                         widget_ref: macroNode.widget_ref,
                                         c4Level: macroNode.c4Level,
                                         layer: macroNode.layer,
-                                        properties: macroNode.properties ? { ...macroNode.properties } : {},
+                                        properties: { ...nDefaults, ...(macroNode.properties || {}) },
                                         status: 'new',
                                         icon: nPattern?.display_metadata?.icon,
                                         color: nPattern?.display_metadata?.color,

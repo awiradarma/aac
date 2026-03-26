@@ -205,7 +205,7 @@ export function detectPatterns(arch: any, registry: Registry): DiscoveryResult[]
                         while (currId) {
                             const pNode = registry.patterns.find(p => p.id === currId);
                             if (!pNode) break;
-                            if (pNode.base_type === rules.widget_ref) {
+                            if (pNode.id === rules.widget_ref || pNode.base_type === rules.widget_ref) {
                                 isMatch = true;
                                 break;
                             }
