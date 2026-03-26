@@ -5,6 +5,7 @@ export type ValidationResult = {
     message: string;
     ruleId?: string;
     patternName?: string;
+    patternId?: string;
 };
 
 export function validateArchitecture(arch: any, registry: Registry, scope?: 'container' | 'deployment'): ValidationResult[] {
@@ -273,7 +274,8 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
                         severity: severityVal,
                         message: rule.description || `Pattern '${originPattern.name}' is missing ${severityVal === 'error' ? 'mandatory' : 'recommended'} component '${requiredSuffix}'${scope === 'container' ? '. Switch to Deployment view to add it.' : '.'}`,
                         ruleId: rule.id,
-                        patternName: originPattern.name
+                        patternName: originPattern.name,
+                        patternId: originPattern.id
                     });
                 }
             } else if (rule.type === 'edge_existence') {
@@ -291,7 +293,8 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
                             severity: severityVal,
                             message: rule.description || `Pattern '${originPattern.name}' is missing ${severityVal === 'error' ? 'mandatory' : 'recommended'} connection from '${sourceSuffix}' to '${targetSuffix}'.`,
                             ruleId: rule.id,
-                            patternName: originPattern.name
+                            patternName: originPattern.name,
+                            patternId: originPattern.id
                         });
                     }
                 }
@@ -312,7 +315,8 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
                             severity: severityVal,
                             message: rule.description || `Standardization Violation: ${targetNode.name || nodeSuffix} must use ${rule.property}=${resolvedAllowed.join(' or ')} (required by ${originPattern.name}).`,
                             ruleId: rule.id,
-                            patternName: originPattern.name
+                            patternName: originPattern.name,
+                            patternId: originPattern.id
                         });
                     }
                 }
@@ -369,7 +373,8 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
                                 severity: severityVal,
                                 message: rule.description || `Connectivity Violation: entry '${entry.name}' bypassing security. Traffic to '${pNode.name || pNode.id}' MUST pass through '${rule.must_pass_through?.map((w: string) => w.replace('id_suffix:', '')).join("' and '")}'.`,
                                 ruleId: rule.id,
-                                patternName: originPattern.name
+                                patternName: originPattern.name,
+                                patternId: originPattern.id
                             });
                         }
                     });

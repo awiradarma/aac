@@ -6,7 +6,7 @@ import { PropertyPanel } from './components/PropertyPanel';
 import type { NodeData, DiagramView } from './types';
 import yaml from 'js-yaml';
 import { initRegistry, getPatternById, getRegistry } from './lib/registry';
-import { validateArchitecture } from './lib/validator';
+import { validateArchitecture, type ValidationResult } from './lib/validator';
 import { detectPatterns, type DiscoveryResult } from './lib/detector';
 import type { Node } from 'reactflow';
 import { Download, Upload, CheckCircle, Settings2, Box, Link2, Wand2, Trash2, Edit2 } from 'lucide-react';
@@ -63,6 +63,14 @@ export default function App() {
   const [viewModal, setViewModal] = useState<{ isOpen: boolean, mode: 'create' | 'edit', viewId?: string }>({ isOpen: false, mode: 'create' });
   const [viewModalForm, setViewModalForm] = useState({ name: '', type: 'SystemLandscape' });
   const [discoveryResults, setDiscoveryResults] = useState<DiscoveryResult[] | null>(null);
+  const [roleAssignment, setRoleAssignment] = useState<{ 
+    isOpen: boolean, 
+    roles: string[], 
+    patternName: string, 
+    onSelect: (role: string) => void,
+    onCancel: () => void
+  } | null>(null);
+  const [validationResults, setValidationResults] = useState<ValidationResult[]>([]);
 
   // Custom node changes to track per-view coordinates dynamically
   const onNodesChange = useCallback((changes: any[]) => {
@@ -236,7 +244,6 @@ export default function App() {
     }));
   }, [activeViewId, setNodes]);
 
-
   useEffect(() => {
     if ((selectedNodeId || selectedEdgeId) && window.innerWidth < 768) {
       setIsPropertyPanelOpen(true);
@@ -246,8 +253,6 @@ export default function App() {
   useEffect(() => {
     initRegistry('').then(() => {
       setIsRegistryLoaded(true);
-    }).catch(err => {
-      console.error("Failed to load registry:", err);
     });
   }, []);
 
@@ -403,6 +408,17 @@ export default function App() {
       const isPhysicalInstance = !!(w.data as any).containerId;
       const existing = uniqueContainers.get(logicalId);
 
+      const existingMemberships = existing?.properties?.memberships || {};
+      const nodeMemberships = (w.data as any).memberships || {};
+
+      // Always union pattern memberships across all nodes that map to the same logical container
+      // This prevents a deployment instance (clone) from carrying memberships that the logical container
+      // would otherwise miss during export / validation
+      if (existing) {
+        existing.properties = existing.properties || {};
+        existing.properties.memberships = { ...existingMemberships, ...nodeMemberships };
+      }
+
       // Store this container if: (a) no entry exists yet, or (b) existing is a physical instance
       // and current is a logical container (logical containers have the user-edited properties)
       if (!existing || (existing._isPhysicalInstance && !isPhysicalInstance)) {
@@ -416,7 +432,7 @@ export default function App() {
             origin_pattern: (w.data as any).origin_pattern,
             composition_alias: (w.data as any).composition_alias,
             composition_id: (w.data as any).composition_id,
-            memberships: (w.data as any).memberships,
+            memberships: { ...existingMemberships, ...nodeMemberships },
             status: 'new',
             aac_layout: serializeLayout(w),
             ...w.data.properties
@@ -1325,6 +1341,18 @@ export default function App() {
 
   const activeView = views.find(v => v.id === activeViewId) || views[0];
 
+  useEffect(() => {
+    if (!isRegistryLoaded) return;
+    try {
+      const structurizrAst = generateYamlObj();
+      const scopeParam = (activeView.type === 'Container' || activeView.type === 'Component' || activeView.type === 'SystemContext') ? 'container' : 'deployment';
+      const results = validateArchitecture(structurizrAst, getRegistry() as any, scopeParam);
+      setValidationResults(results);
+    } catch (err) {
+      console.warn('Reactive validation failed:', err);
+    }
+  }, [nodes, edges, activeViewId, isRegistryLoaded, activeView.type, activeView]);
+
   const allowedLevelsByView: Record<string, string[]> = {
     'SystemLandscape': ['Person', 'SoftwareSystem'],
     'SystemContext': ['Person', 'SoftwareSystem'],
@@ -1660,6 +1688,7 @@ export default function App() {
             onEdgesChange={onEdgesChange}
             patternToAdd={patternToAdd}
             onPatternAdded={() => setPatternToAdd(null)}
+            onShowRoleAssignment={setRoleAssignment}
             onRevealNode={(id: string) => {
               setViews(vs => vs.map(v => v.id === activeViewId ? { ...v, include: Array.from(new Set([...v.include, id])), exclude: v.exclude.filter(e => e !== id) } : v));
             }}
@@ -1709,6 +1738,7 @@ export default function App() {
               onUpdateEdgeData={handleUpdateEdgeData}
               onNavigateToScope={handleNavigateToScope}
               onClose={() => setIsPropertyPanelOpen(false)}
+              validationResults={validationResults}
             />
           </div>
 
@@ -1785,7 +1815,50 @@ export default function App() {
           </div>
         )}
 
-        {/* Discovery Modal Overlay */}
+        {/* Role Assignment Modal */}
+      {roleAssignment?.isOpen && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                <div className="w-12 h-12 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center mb-4">
+                    <Box className="w-6 h-6" />
+                </div>
+              <h3 className="text-xl font-bold text-slate-900">Assign Implementation Role</h3>
+              <p className="text-slate-500 text-sm mt-1">
+                The pattern <span className="font-bold text-slate-800">{roleAssignment.patternName}</span> defines multiple roles matching this container. 
+                Which role should it assume?
+              </p>
+            </div>
+            <div className="p-4 max-h-[400px] overflow-y-auto space-y-2">
+              {roleAssignment.roles.map((role) => (
+                <button
+                  key={role}
+                  onClick={() => roleAssignment.onSelect(role)}
+                  className="w-full flex items-center justify-between p-4 hover:bg-indigo-50 border border-slate-100 hover:border-indigo-200 rounded-xl transition-all group text-left"
+                >
+                  <div className="flex flex-col">
+                    <span className="font-bold text-slate-800 group-hover:text-indigo-900">{role}</span>
+                    <span className="text-xs text-slate-400 font-mono mt-0.5">composition_alias: {role}</span>
+                  </div>
+                  <div className="w-6 h-6 rounded-full border-2 border-slate-200 group-hover:border-indigo-500 flex items-center justify-center transition-colors">
+                    <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </button>
+              ))}
+            </div>
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <button
+                onClick={roleAssignment.onCancel}
+                className="px-6 py-2.5 font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 rounded-xl transition-colors"
+              >
+                Cancel Drop
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Discovery Modal Overlay */}
         {discoveryResults !== null && (
           <div className="fixed inset-0 bg-slate-900/60 z-[200] flex items-center justify-center p-4 backdrop-blur-sm">
             <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">

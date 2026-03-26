@@ -4,7 +4,7 @@ import { useReactFlow } from 'reactflow';
 import type { Edge, Node } from 'reactflow';
 import type { NodeData, DiagramView } from '../types';
 import { Eye, EyeOff } from 'lucide-react';
-import { Trash2, X, Box } from 'lucide-react';
+import { Trash2, X, Box, AlertCircle, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 interface Props {
     selectedNode: Node<NodeData> | null;
@@ -15,6 +15,7 @@ interface Props {
     onUpdateEdgeData?: (id: string, newData: any) => void;
     onNavigateToScope?: (nodeId: string, nodeLabel: string, targetType: string) => void;
     onClose?: () => void;
+    validationResults?: any[];
 }
 
 /**
@@ -23,7 +24,7 @@ interface Props {
  * YAML registries based on the currently selected node (`widget_ref`). 
  * It manages the local instance state without mutating the global registry template.
  */
-export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, activeView, onUpdateView, onUpdateNodeData, onUpdateEdgeData, onNavigateToScope, onClose }) => {
+export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, activeView, onUpdateView, onUpdateNodeData, onUpdateEdgeData, onNavigateToScope, onClose, validationResults }) => {
     const { deleteElements, getNodes } = useReactFlow();
 
     if (selectedEdge) {
@@ -170,25 +171,53 @@ export const PropertyPanel: React.FC<Props> = ({ selectedNode, selectedEdge, act
                                 {activePatterns.size} Types
                             </span>
                         </div>
-                        <div className="space-y-2">
                             {Array.from(activePatterns.entries()).map(([patId, count]) => {
                                 const pattern = getPatternById(patId);
+                                const patternResults = (validationResults || []).filter(r => r.patternId === patId);
+                                const errors = patternResults.filter(r => r.severity === 'error');
+                                const warnings = patternResults.filter(r => r.severity === 'warning');
+                                
                                 return (
-                                    <div key={patId} className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-lg shadow-sm">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-md flex items-center justify-center bg-blue-100 text-blue-600">
-                                                <Box className="w-4 h-4" />
+                                    <div key={patId} className="flex flex-col gap-2 p-3 bg-slate-50 border border-slate-200 rounded-lg shadow-sm">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-8 h-8 rounded-md flex items-center justify-center ${errors.length > 0 ? 'bg-red-100 text-red-600' : warnings.length > 0 ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                    <Box className="w-4 h-4" />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-semibold text-slate-800">{pattern?.name || patId}</span>
+                                                    <span className="text-[10px] font-mono text-slate-500">{patId}</span>
+                                                </div>
                                             </div>
-                                            <div className="flex flex-col">
-                                                <span className="text-sm font-semibold text-slate-800">{pattern?.name || patId}</span>
-                                                <span className="text-[10px] font-mono text-slate-500">{patId}</span>
+                                            <div className="flex items-center gap-2">
+                                                {errors.length === 0 && warnings.length === 0 ? (
+                                                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                                                ) : errors.length > 0 ? (
+                                                    <AlertCircle className="w-4 h-4 text-red-500" />
+                                                ) : (
+                                                    <AlertTriangle className="w-4 h-4 text-amber-500" />
+                                                )}
+                                                <span className="text-xs font-bold text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm">{count}</span>
                                             </div>
                                         </div>
-                                        <span className="text-xs font-bold text-slate-600 bg-white px-2.5 py-1 rounded border border-slate-200 shadow-sm">{count}</span>
+                                        
+                                        {patternResults.length > 0 && (
+                                            <div className="mt-1 space-y-1.5 border-t border-slate-100 pt-2">
+                                                {patternResults.map((res, idx) => (
+                                                    <div key={idx} className="flex gap-2 text-[11px] leading-tight text-slate-600">
+                                                        {res.severity === 'error' ? (
+                                                            <AlertCircle className="w-3 h-3 text-red-500 shrink-0 mt-0.5" />
+                                                        ) : (
+                                                            <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0 mt-0.5" />
+                                                        )}
+                                                        <span>{res.message}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}
-                        </div>
 
                         <div className="mt-8 text-center text-xs text-slate-400">
                             Select a node on the canvas to view or edit its specific properties.

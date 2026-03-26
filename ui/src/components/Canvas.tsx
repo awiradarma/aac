@@ -38,33 +38,44 @@ interface Props {
     patternToAdd?: { type: string, patternId: string, version: string } | null;
     onPatternAdded?: () => void;
     onRevealNode?: (id: string) => void;
+    onShowRoleAssignment?: (data: any) => void;
     activeView?: DiagramView;
     selectedNodeId?: string | null;
 }
 
-export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange, onNodeSelect, onEdgeSelect, patternToAdd, onPatternAdded, onRevealNode, selectedNodeId, activeView }) => {
+export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange, onNodeSelect, onEdgeSelect, patternToAdd, onPatternAdded, onRevealNode, selectedNodeId, activeView, onShowRoleAssignment }) => {
     const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
     const draggingEdgeId = useRef<string | null>(null);
 
+    const getAbsolutePosition = useCallback((node: Node) => {
+        let x = node.position.x;
+        let y = node.position.y;
+        let currentParentId = node.parentNode;
+        while (currentParentId) {
+            const parent = nodes.find(n => n.id === currentParentId);
+            if (parent) {
+                x += parent.position.x;
+                y += parent.position.y;
+                currentParentId = parent.parentNode;
+            } else {
+                break;
+            }
+        }
+        return { x, y };
+    }, [nodes]);
+
     const handleEdgesChange = useCallback((changes: any[]) => {
         let hasInterceptedRemove = false;
-
         const safeChanges = changes.filter(c => {
             if (c.type === 'remove' && draggingEdgeId.current === c.id) {
-                // Intercept the native reactflow remove event triggered by missing a drag
                 hasInterceptedRemove = true;
-                draggingEdgeId.current = null; // Clear lock
+                draggingEdgeId.current = null;
                 return false;
             }
             return true;
         });
-
         if (safeChanges.length > 0) onEdgesChange(safeChanges);
-
-        if (hasInterceptedRemove) {
-            // Force React Flow to physically redraw the aborted connection
-            setEdges((eds: any[]) => [...eds]);
-        }
+        if (hasInterceptedRemove) setEdges((eds: any[]) => [...eds]);
     }, [onEdgesChange, setEdges]);
 
     const onConnect = useCallback((params: Edge | Connection) => {
@@ -93,18 +104,24 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
         (event: React.DragEvent) => {
             event.preventDefault();
 
+            const type = event.dataTransfer.getData('application/reactflow');
+            const patternId = event.dataTransfer.getData('application/patternId');
+            const version = event.dataTransfer.getData('application/patternVersion');
+            const mockTargetId = event.dataTransfer.getData('application/mockTargetId');
             const existingNodeId = event.dataTransfer.getData('application/existingNodeId');
+            let isMockTarget = false;
+
+            const scale = window.innerWidth < 768 ? 0.6 : 1;
+            const position = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+
             if (existingNodeId) {
-                const position = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
                 const possibleParents = nodes.filter(n => {
                     if ((n as any).hidden) return false;
                     if (n.type !== 'deploymentNode' && n.type !== 'infrastructureNode') return false;
-                    let posx = n.position.x; let posy = n.position.y;
-                    let cId = n.parentNode;
-                    while (cId) { const p = nodes.find(x => x.id === cId); if (p) { posx += p.position.x; posy += p.position.y; cId = p.parentNode; } else break; }
+                    const pos = getAbsolutePosition(n);
                     const width = n.width || (n.style?.width ? Number(n.style.width) : 500);
                     const height = n.height || (n.style?.height ? Number(n.style.height) : 400);
-                    return position.x >= posx && position.x <= posx + width && position.y >= posy && position.y <= posy + height;
+                    return position.x >= pos.x && position.x <= pos.x + width && position.y >= pos.y && position.y <= pos.y + height;
                 });
                 possibleParents.sort((a, b) => ((a.width || 500) * (a.height || 400)) - ((b.width || 500) * (b.height || 400)));
                 const closestParent = possibleParents.length > 0 ? possibleParents[0] : null;
@@ -114,8 +131,6 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     const srcNode = nds.find(n => n.id === existingNodeId);
                     if (!srcNode) return nds;
 
-                    // Scoped views (Container/Component) require cursor-accurate relative placement inside the active scope boundary.
-                    // Guardrail: only force parenting for logical (non-physical) nodes at the same C4 level as the scoped view.
                     const isScopedView = !!activeView?.scope_entity_id && (activeView.type === 'Container' || activeView.type === 'Component');
                     const srcIsPhysicalInstance = !!(srcNode.data as any)?.container_id;
                     const shouldForceScopeParent = isScopedView && !srcIsPhysicalInstance && (
@@ -126,33 +141,26 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     const forcedParent = shouldForceScopeParent ? nds.find(n => n.id === activeView!.scope_entity_id) : null;
                     const effectiveParent = forcedParent || closestParent;
 
-                    let px = 0; let py = 0;
-                    let cId = effectiveParent ? effectiveParent.parentNode : undefined;
-                    while (cId) { const p = nds.find(x => x.id === cId); if (p) { px += p.position.x; py += p.position.y; cId = p.parentNode; } else break; }
-                    const parentAbsX = effectiveParent ? effectiveParent.position.x + px : 0;
-                    const parentAbsY = effectiveParent ? effectiveParent.position.y + py : 0;
+                    const parentAbs = effectiveParent ? getAbsolutePosition(effectiveParent) : { x: 0, y: 0 };
+                    const newPosition = effectiveParent ? { x: Math.max(20, position.x - parentAbs.x), y: Math.max(20, position.y - parentAbs.y) } : position;
 
-                    const newPosition = effectiveParent ? { x: Math.max(20, position.x - parentAbsX), y: Math.max(20, position.y - parentAbsY) } : position;
-
-                    // Support multiple Container Instances natively across Deployment diagram scales
                     if (activeView?.type === 'Deployment' && srcNode.type === 'containerNode') {
                         cloned = true;
                         const instanceNode: Node = {
                             ...srcNode,
-                            id: `${srcNode.id}_inst_${getId()}`, // Creates a distinct replica uniquely
+                            id: `${srcNode.id}_inst_${getId()}`,
                             position: newPosition,
                             parentNode: effectiveParent ? effectiveParent.id : undefined,
                             extent: effectiveParent ? 'parent' : undefined,
                             zIndex: effectiveParent ? (effectiveParent.zIndex || 0) + 5 : 15,
                             data: {
                                 ...srcNode.data,
-                                logical_parent_id: srcNode.id // Traces explicitly back to logical architectural root
+                                logical_parent_id: srcNode.id
                             }
                         };
                         return [...nds, instanceNode];
                     }
 
-                    // For non-deployment views or structurally singular abstractions, surgically mutate the reference directly
                     let updatedNode: Node | null = null;
                     const remaining = nds.filter(n => {
                         if (n.id === existingNodeId) {
@@ -173,12 +181,6 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 return;
             }
 
-            const type = event.dataTransfer.getData('application/reactflow');
-            const patternId = event.dataTransfer.getData('application/patternId');
-            const version = event.dataTransfer.getData('application/patternVersion');
-            const mockTargetId = event.dataTransfer.getData('application/mockTargetId');
-            let isMockTarget = false;
-
             if (typeof type === 'undefined' || !type || !patternId) {
                 return;
             }
@@ -186,31 +188,6 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
             const pattern = version ? getPatternByIdAndVersion(patternId, version) : getPatternById(patternId);
             if (!pattern) return;
 
-            const position = reactFlowInstance.screenToFlowPosition({
-                x: event.clientX,
-                y: event.clientY,
-            });
-
-
-
-            const getAbsolutePosition = (node: Node) => {
-                let x = node.position.x;
-                let y = node.position.y;
-                let currentParentId = node.parentNode;
-                while (currentParentId) {
-                    const parent = nodes.find(n => n.id === currentParentId);
-                    if (parent) {
-                        x += parent.position.x;
-                        y += parent.position.y;
-                        currentParentId = parent.parentNode;
-                    } else {
-                        break;
-                    }
-                }
-                return { x, y };
-            };
-
-            // Default properties based on the pattern parameters
             const defaultProps: Record<string, any> = {};
             if (pattern.parameters) {
                 Object.entries(pattern.parameters).forEach(([key, p]) => {
@@ -218,8 +195,6 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     defaultProps[key] = param.default || param.const || '';
                 });
             }
-
-            const scale = window.innerWidth < 768 ? 0.6 : 1;
 
             let nodeType = type;
             if (pattern.c4Level === 'SoftwareSystem') nodeType = 'systemNode';
@@ -248,21 +223,16 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 },
             };
 
-            // Generic bounding-box hit detection for infinite hierarchy depth
             const possibleParents = nodes.filter(n => {
                 if ((n as any).hidden) return false;
-                // Hierarchies and Hosts are containers. Infrastructure nodes can be drop targets for macro merging.
                 if (n.type !== 'deploymentNode' && n.type !== 'infrastructureNode') return false;
                 const pos = getAbsolutePosition(n);
                 const nPattern = getPatternById(n.data.widget_ref?.split('@')[0]);
                 const width = n.width ?? (n.style?.width ? Number(n.style.width) : (nPattern?.default_width || 500));
                 const height = n.height ?? (n.style?.height ? Number(n.style.height) : (nPattern?.default_height || 400));
-
-                return position.x >= pos.x && position.x <= pos.x + width &&
-                    position.y >= pos.y && position.y <= pos.y + height;
+                return position.x >= pos.x && position.x <= pos.x + width && position.y >= pos.y && position.y <= pos.y + height;
             });
 
-            // The closest parent mathematically is the one with the smallest area (deepest nest)
             possibleParents.sort((a, b) => {
                 const aPattern = getPatternById(a.data.widget_ref?.split('@')[0]);
                 const bPattern = getPatternById(b.data.widget_ref?.split('@')[0]);
@@ -274,7 +244,6 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
             });
 
             let closestParent = possibleParents.length > 0 ? possibleParents[0] : null;
-
             if (mockTargetId) {
                 const targetNode = nodes.find(n => n.id === mockTargetId);
                 if (targetNode && (targetNode.type === 'deploymentNode' || targetNode.type === 'infrastructureNode')) {
@@ -283,230 +252,153 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 }
             }
 
-            // =========================================================================================
-            // DYNAMIC MACRO EXPANSION ENGINE
-            // =========================================================================================
-            // When a governed pattern is dropped onto the canvas, it isn't just one node. It's a "macro" 
-            // that expands out into multiple required infrastructure components.
-            // This function recursively parses `pattern.composition.nodes` and creates literal Canvas nodes, 
-            // correctly sizing, placing, and wiring lines between them.
             if (pattern.composition) {
                 const targetNode = closestParent;
                 const isHierarchyParent = targetNode && targetNode.type === 'deploymentNode';
-                const isHostParent = false; // Previously a distinct node type, now merged. Adjust if host logic diverges.
                 const isInfraParent = targetNode && targetNode.type === 'infrastructureNode';
-                
                 const isContainerView = activeView?.type === 'Container' || activeView?.type === 'Component' || activeView?.type === 'SystemContext';
                 const scopedComp = isContainerView ? pattern.composition.container : pattern.composition.deployment;
-                
-                // Read from scoped composition, falling back to legacy root properties for unmigrated patterns
                 const rawMacroNodes = scopedComp?.nodes || (pattern.composition as any).nodes || [];
                 const macroEdges = scopedComp?.edges || (pattern.composition as any).edges || [];
 
-                // Detect Role Assignment ambiguity
-                let chosenRole: string | null = null;
-                if (targetNode && targetNode.type === 'containerNode') {
-                    const matches = rawMacroNodes.filter((m: any) => m.widget_ref === targetNode.data.widget_ref && m.type === 'containerNode');
-                    if (matches.length > 1) {
-                        const roleNames = matches.map((m: any) => m.id_suffix).join(', ');
-                        chosenRole = window.prompt(`This container matches multiple roles in the pattern (${roleNames}). Which role should it assume?`, matches[0].id_suffix);
-                    } else if (matches.length === 1) {
-                        chosenRole = matches[0].id_suffix;
+                const startExpansion = (role?: string) => {
+                    const chosenRole = role;
+                    const resolveValue = (path: string, scopeNode: Node<NodeData> | null): any => {
+                        if (!path.startsWith('parent.') || !scopeNode || !scopeNode.parentNode) return undefined;
+                        const parentNode = nodes.find(n => n.id === scopeNode.parentNode);
+                        if (!parentNode) return undefined;
+                        const subPath = path.substring(7);
+                        if (subPath === 'properties') return parentNode.data.properties;
+                        if (subPath.startsWith('properties.')) return parentNode.data.properties[subPath.substring(11)];
+                        return undefined;
+                    };
+
+                    let anchorMatchFound = false;
+                    if (targetNode && rawMacroNodes.length > 0) {
+                        anchorMatchFound = rawMacroNodes.some((mNode: any) => {
+                            const checkType = (mNode.type === 'deploymentNode') ? 'deploymentNode' : mNode.type;
+                            return targetNode.data.widget_ref === mNode.widget_ref &&
+                                targetNode.data.layer === mNode.layer &&
+                                targetNode.type === checkType;
+                        });
                     }
-                }
-                const macroNodes = rawMacroNodes;
 
-                // Helper to resolve generic property mappings
-                const resolveValue = (path: string, scopeNode: Node<NodeData> | null): any => {
-                    if (!path.startsWith('parent.') || !scopeNode || !scopeNode.parentNode) return undefined;
-                    const parentNode = nodes.find(n => n.id === scopeNode.parentNode);
-                    if (!parentNode) return undefined;
-
-                    const subPath = path.substring(7); // skip 'parent.'
-                    if (subPath === 'properties') return parentNode.data.properties;
-                    if (subPath.startsWith('properties.')) {
-                        return parentNode.data.properties[subPath.substring(11)];
+                    let searchParentId = (anchorMatchFound && targetNode) ? targetNode.parentNode : (isHierarchyParent && targetNode ? targetNode.id : ((isInfraParent) && targetNode ? targetNode.parentNode : undefined));
+                    if (!searchParentId && activeView?.scope_entity_id && (pattern.c4Level === 'Container' || pattern.c4Level === 'Component')) {
+                        searchParentId = activeView.scope_entity_id;
                     }
-                    if (subPath.startsWith('parent.')) {
-                        return resolveValue(subPath, parentNode);
-                    }
-                    return undefined;
-                };
 
-                // 1. Determine if we are merging the macro anchor with the drop target to correctly set the scope for siblings
-                let anchorMatchFound = false;
-                if (targetNode && macroNodes.length > 0) {
-                    anchorMatchFound = macroNodes.some((mNode: any) => {
-                        const checkType = (mNode.type === 'deploymentNode') ? 'deploymentNode' : mNode.type;
-                        return targetNode.data.widget_ref === mNode.widget_ref &&
-                            targetNode.data.layer === mNode.layer &&
-                            targetNode.type === checkType;
-                    });
-                }
+                    const isParentExtent = !!searchParentId;
+                    const generatedNodes: Node<NodeData>[] = [];
+                    const generatedEdges: Edge[] = [];
+                    const nodeMap: Record<string, string> = {};
+                    const mergedNodeMetadata: Record<string, any> = {};
+                    const baseX = isParentExtent ? (isMockTarget ? 50 * scale : 50) : position.x - 200;
+                    const baseY = isParentExtent ? (isMockTarget ? 80 * scale : 100) : position.y;
+                    const expansionId = `exp-${pattern.id}-${Date.now()}`;
 
-                // If dropping on a matching anchor (e.g. cluster), use that anchor's parent for all other nodes in the macro
-                // If dropping on a container without a match (e.g. datacenter), then it's a child.
-                let searchParentId = (anchorMatchFound && targetNode) ? targetNode.parentNode : (isHierarchyParent && targetNode ? targetNode.id : ((isHostParent || isInfraParent) && targetNode ? targetNode.parentNode : undefined));
+                    const processNodesHelper = (nodeList: any[], parentId: string | undefined, depth: number, startX: number, startY: number, extent?: 'parent') => {
+                        nodeList.forEach((macroNode: any, index: number) => {
+                            let existingNode = null;
+                            const checkType = (macroNode.type === 'deploymentNode') ? 'deploymentNode' : macroNode.type;
 
-                // If dropping a container-level macro on a scoped container view, hook it into the system boundary natively
-                if (!searchParentId && activeView?.scope_entity_id && (pattern.c4Level === 'Container' || pattern.c4Level === 'Component')) {
-                    searchParentId = activeView.scope_entity_id;
-                }
-
-                const isParentExtent = !!searchParentId;
-
-                const generatedNodes: Node<NodeData>[] = [];
-                const generatedEdges: Edge[] = [];
-                const nodeMap: Record<string, string> = {}; // maps suffix to generated id
-                const mergedNodeMetadata: Record<string, any> = {}; // Track metadata for existing nodes being 'pAdopted'
-
-                // Base positions relative to parent or canvas
-                const baseX = isParentExtent ? (isMockTarget ? 50 * scale : 50) : position.x - 200;
-                const baseY = isParentExtent ? (isMockTarget ? 80 * scale : 100) : position.y;
-                const expansionId = `exp-${pattern.id}-${Date.now()}`;
-
-                const processNodes = (nodeList: any[], parentId: string | undefined, depth: number, startX: number, startY: number, extent?: 'parent') => {
-                    nodeList.forEach((macroNode: any, index: number) => {
-                        let existingNode = null;
-                        const checkType = (macroNode.type === 'deploymentNode') ? 'deploymentNode' : macroNode.type;
-
-                        // Priority 1: Direct match with the node we actually dropped on
-                        if (depth === 0 && closestParent && macroNode.reuse_existing !== false) {
-                            const matchesPattern = closestParent.data.widget_ref === macroNode.widget_ref;
-                            const matchesLayer = closestParent.data.layer === macroNode.layer;
-                            const matchesType = closestParent.type === checkType;
-                            
-                            // If ambiguous, respect chosen role. Else default match.
-                            const roleMatch = chosenRole ? macroNode.id_suffix === chosenRole : true;
-
-                            if (matchesPattern && matchesLayer && matchesType && roleMatch) {
-                                existingNode = closestParent;
+                            if (depth === 0 && closestParent && macroNode.reuse_existing !== false) {
+                                const matchesPattern = closestParent.data.widget_ref === macroNode.widget_ref;
+                                const matchesLayer = closestParent.data.layer === macroNode.layer;
+                                const matchesType = closestParent.type === checkType;
+                                const roleMatch = chosenRole ? macroNode.id_suffix === chosenRole : true;
+                                if (matchesPattern && matchesLayer && matchesType && roleMatch) {
+                                    existingNode = closestParent;
+                                }
                             }
-                        }
 
-                        // Priority 2: Generic search in the parent scope
-                        if (!existingNode && macroNode.reuse_existing !== false) {
-                            if (parentId) {
+                            if (!existingNode && macroNode.reuse_existing !== false) {
                                 existingNode = nodes.find(n =>
                                     n.parentNode === parentId &&
                                     n.data.widget_ref === macroNode.widget_ref &&
                                     n.data.layer === macroNode.layer &&
                                     n.type === checkType
                                 );
-                            } else {
-                                existingNode = nodes.find(n =>
-                                    !n.parentNode &&
-                                    n.data.widget_ref === macroNode.widget_ref &&
-                                    n.data.layer === macroNode.layer &&
-                                    n.type === checkType
-                                );
-                            }
-                        }
-
-                        let currentNodeId: string;
-
-                        if (existingNode) {
-                            // Merge: node already exists in this scope
-                            currentNodeId = existingNode.id;
-                            nodeMap[macroNode.id_suffix] = currentNodeId;
-
-                            // Track membership for existing node without overwriting primary master
-                            const existingMemberships = existingNode.data.memberships || {};
-                            mergedNodeMetadata[currentNodeId] = {
-                                memberships: {
-                                    ...existingMemberships,
-                                    [expansionId]: macroNode.id_suffix
-                                },
-                                origin_pattern: `${pattern.id}@${pattern.version}`,
-                                composition_alias: macroNode.id_suffix,
-                                composition_id: expansionId,
-                                status: 'existing'
-                            };
-                        } else {
-                            currentNodeId = getId();
-                            nodeMap[macroNode.id_suffix] = currentNodeId;
-
-                            // Use layout hint if provided, else fallback to simple auto-layout
-                            let offsetX = (macroNode.layout_hint?.x ?? 0) * scale;
-                            let offsetY = (macroNode.layout_hint?.y ?? 0) * scale;
-
-                            if (!macroNode.layout_hint) {
-                                if (depth === 0) {
-                                    offsetX = index * 450 * scale;
-                                } else {
-                                    offsetX = (50 + (index * 450)) * scale;
-                                    offsetY = 80 * scale;
-                                }
                             }
 
-                            const nPattern = macroNode.widget_ref ? getPatternById(macroNode.widget_ref.split('@')[0]) : null;
-
-                            const gNode: Node<NodeData> = {
-                                id: currentNodeId,
-                                type: checkType,
-                                position: { x: startX + offsetX, y: startY + offsetY },
-                                style: (checkType === 'deploymentNode') ? { width: (nPattern?.default_width || 500) * scale, height: (nPattern?.default_height || 400) * scale } : undefined,
-                                parentNode: parentId,
-                                extent: extent,
-                                zIndex: 10 + depth,
-                                data: {
-                                    label: macroNode.label,
-                                    widget_ref: macroNode.widget_ref,
-                                    c4Level: macroNode.c4Level,
-                                    layer: macroNode.layer,
-                                    properties: macroNode.properties ? { ...macroNode.properties } : {},
-                                    status: 'new',
-                                    icon: nPattern?.display_metadata?.icon,
-                                    color: nPattern?.display_metadata?.color,
-                                    min_width: nPattern?.min_width,
-                                    min_height: nPattern?.min_height,
+                            let currentNodeId: string;
+                            if (existingNode) {
+                                currentNodeId = existingNode.id;
+                                nodeMap[macroNode.id_suffix] = currentNodeId;
+                                const existingMemberships = existingNode.data.memberships || {};
+                                mergedNodeMetadata[currentNodeId] = {
+                                    memberships: { ...existingMemberships, [expansionId]: macroNode.id_suffix },
                                     origin_pattern: `${pattern.id}@${pattern.version}`,
                                     composition_alias: macroNode.id_suffix,
                                     composition_id: expansionId,
-                                    memberships: {
-                                        [expansionId]: macroNode.id_suffix
-                                    },
-                                    logical_parent_id: (activeView?.scope_entity_id && (macroNode.c4Level === 'Container' || macroNode.c4Level === 'Component')) ? activeView.scope_entity_id : ((macroNode.c4Level === 'Container' || macroNode.c4Level === 'Component') ? nodes.find(n => n.type === 'systemNode')?.id : undefined),
-                                }
-                            };
-
-                            // Apply generic property mappings from pattern
-                            if (macroNode.property_mappings) {
-                                Object.entries(macroNode.property_mappings).forEach(([targetProp, sourcePath]) => {
-                                    const val = resolveValue(sourcePath as string, gNode);
-                                    if (val !== undefined) {
-                                        gNode.data.properties[targetProp] = val;
+                                    status: 'existing'
+                                };
+                                const logicalRootId = (existingNode.data as any)?.logical_parent_id;
+                                if (activeView?.type === 'Deployment' && logicalRootId && logicalRootId !== currentNodeId) {
+                                    const logicalRoot = nodes.find(n => n.id === logicalRootId);
+                                    if (logicalRoot && logicalRoot.type === 'containerNode') {
+                                        const logicalExistingMemberships = (logicalRoot.data as any)?.memberships || {};
+                                        const previouslyQueued = mergedNodeMetadata[logicalRootId]?.memberships || {};
+                                        mergedNodeMetadata[logicalRootId] = {
+                                            ...mergedNodeMetadata[logicalRootId],
+                                            memberships: { ...logicalExistingMemberships, ...previouslyQueued, [expansionId]: macroNode.id_suffix }
+                                        };
                                     }
-                                });
+                                }
+                            } else {
+                                currentNodeId = getId();
+                                nodeMap[macroNode.id_suffix] = currentNodeId;
+                                let offsetX = (macroNode.layout_hint?.x ?? (index * 220)) * scale;
+                                let offsetY = (macroNode.layout_hint?.y ?? (depth * 150)) * scale;
+                                const nPattern = macroNode.widget_ref ? getPatternById(macroNode.widget_ref.split('@')[0]) : null;
+
+                                const gNode: Node<NodeData> = {
+                                    id: currentNodeId,
+                                    type: checkType,
+                                    position: { x: startX + offsetX, y: startY + offsetY },
+                                    style: (checkType === 'deploymentNode') ? { width: (nPattern?.default_width || 500) * scale, height: (nPattern?.default_height || 400) * scale } : undefined,
+                                    parentNode: parentId,
+                                    extent: extent,
+                                    zIndex: 10 + depth,
+                                    data: {
+                                        label: macroNode.label || macroNode.id_suffix,
+                                        widget_ref: macroNode.widget_ref,
+                                        c4Level: macroNode.c4Level,
+                                        layer: macroNode.layer,
+                                        properties: macroNode.properties ? { ...macroNode.properties } : {},
+                                        status: 'new',
+                                        icon: nPattern?.display_metadata?.icon,
+                                        color: nPattern?.display_metadata?.color,
+                                        min_width: nPattern?.min_width,
+                                        min_height: nPattern?.min_height,
+                                        origin_pattern: `${pattern.id}@${pattern.version}`,
+                                        composition_alias: macroNode.id_suffix,
+                                        composition_id: expansionId,
+                                        memberships: { [expansionId]: macroNode.id_suffix },
+                                        logical_parent_id: (activeView?.scope_entity_id && (macroNode.c4Level === 'Container' || macroNode.c4Level === 'Component')) ? activeView.scope_entity_id : ((macroNode.c4Level === 'Container' || macroNode.c4Level === 'Component') ? nodes.find(n => n.type === 'systemNode')?.id : undefined),
+                                    }
+                                };
+                                if (macroNode.property_mappings) {
+                                    Object.entries(macroNode.property_mappings).forEach(([targetProp, sourcePath]) => {
+                                        const val = resolveValue(sourcePath as string, gNode);
+                                        if (val !== undefined) gNode.data.properties[targetProp] = val;
+                                    });
+                                }
+                                generatedNodes.push(gNode);
                             }
 
-                            // Deprecated hardcoded mapping (kept for safety until all patterns updated)
-                            if (isParentExtent && macroNode.layer === 'Cluster' && targetNode?.data.properties?.dc_id && !macroNode.property_mappings) {
-                                gNode.data.properties.datacenter_id = targetNode.data.properties.dc_id;
-                                gNode.data.properties.region = '';
+                            if (macroNode.children && macroNode.children.length > 0) {
+                                processNodesHelper(macroNode.children, currentNodeId, depth + 1, 0, 0, 'parent');
                             }
+                        });
+                    };
 
-                            generatedNodes.push(gNode);
-                        }
+                    processNodesHelper(rawMacroNodes, searchParentId, 0, baseX, baseY, isParentExtent ? 'parent' : undefined);
 
-                        if (macroNode.children && macroNode.children.length > 0) {
-                            processNodes(macroNode.children, currentNodeId, depth + 1, 0, 0, 'parent');
-                        }
-                    });
-                };
-
-                // 1. Generate Nodes recursively
-                if (macroNodes.length > 0) {
-                    processNodes(macroNodes, searchParentId, 0, baseX, baseY, isParentExtent ? 'parent' : undefined);
-                }
-
-                // 2. Generate Edges
-                if (macroEdges.length > 0) {
                     macroEdges.forEach((macroEdge: any) => {
                         const sourceId = nodeMap[macroEdge.source_suffix];
                         const targetId = nodeMap[macroEdge.target_suffix];
                         const edgeId = `e-${sourceId}-${targetId}`;
-
                         if (sourceId && targetId && !edges.some(e => e.id === edgeId)) {
                             const isAnimated = macroEdge.styleVariant === 'animated';
                             const baseEdgeStyle: any = { strokeWidth: 3, stroke: '#64748b', ...macroEdge.style };
@@ -517,39 +409,22 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                 baseEdgeStyle.strokeDasharray = '2, 5';
                                 baseEdgeStyle.strokeLinecap = 'round';
                             }
-
                             const direction = macroEdge.direction || 'forward';
                             const drawMarker = { type: MarkerType.ArrowClosed, width: 20, height: 20, color: baseEdgeStyle.stroke || '#64748b' };
-
-                            let mStart = undefined;
-                            let mEnd = undefined;
+                            let mStart = undefined; let mEnd = undefined;
                             if (direction === 'forward') mEnd = drawMarker;
                             if (direction === 'reverse') mStart = drawMarker;
-                            if (direction === 'both') {
-                                mStart = drawMarker;
-                                mEnd = drawMarker;
-                            }
-
+                            if (direction === 'both') { mStart = drawMarker; mEnd = drawMarker; }
                             let displayLabel = macroEdge.label;
                             if (displayLabel && macroEdge.technology) displayLabel = `${displayLabel}\n[${macroEdge.technology}]`;
 
                             generatedEdges.push({
-                                id: edgeId,
-                                source: sourceId,
-                                target: targetId,
+                                id: edgeId, source: sourceId, target: targetId,
                                 sourceHandle: macroEdge.source_handle || 'source-right',
                                 targetHandle: macroEdge.target_handle || 'target-left',
-                                animated: isAnimated,
-                                type: 'smoothstep',
-                                zIndex: 5000,
-                                markerStart: mStart,
-                                markerEnd: mEnd,
-                                data: {
-                                    label: macroEdge.label || 'Uses',
-                                    technology: macroEdge.technology || '',
-                                    direction: direction,
-                                    styleVariant: macroEdge.styleVariant || 'solid'
-                                },
+                                animated: isAnimated, type: 'smoothstep', zIndex: 5000,
+                                markerStart: mStart, markerEnd: mEnd,
+                                data: { label: macroEdge.label || 'Uses', technology: macroEdge.technology || '', direction: direction, styleVariant: macroEdge.styleVariant || 'solid' },
                                 label: displayLabel,
                                 labelStyle: { fill: '#475569', fontWeight: 700, fontSize: 11, whiteSpace: 'pre-wrap', textAlign: 'center' as any },
                                 labelBgStyle: { fill: '#f8fafc', color: '#f8fafc', fillOpacity: 0.9, stroke: '#e2e8f0', strokeWidth: 1 },
@@ -557,94 +432,78 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                             });
                         }
                     });
-                }
 
-                // 3. Attach actual workload (if applicable)
-                let shouldAddContainerNode = false;
-                newNode.data.composition_id = expansionId; // Ensure the parent node also belongs to the expansion for validation
-
-                if (pattern.composition.workload_target_suffix) {
-                    const targetHostId = nodeMap[pattern.composition.workload_target_suffix];
-                    if (targetHostId) {
-                        newNode.parentNode = targetHostId;
-                        newNode.extent = 'parent';
-                        newNode.position = { x: 50, y: 80 };
-                        newNode.zIndex = 20;
-                        shouldAddContainerNode = true;
-                    }
-                }
-
-                const finalNewNodes = shouldAddContainerNode ? [...generatedNodes, newNode] : generatedNodes;
-
-                setNodes((nds: Node[]) => {
-                    const updatedExistingNodes = nds.map(n => {
-                        if (mergedNodeMetadata[n.id]) {
-                            return {
-                                ...n,
-                                data: {
-                                    ...n.data,
-                                    ...mergedNodeMetadata[n.id]
-                                }
-                            };
+                    newNode.data.composition_id = expansionId;
+                    if (pattern.composition?.workload_target_suffix) {
+                        const targetHostId = nodeMap[pattern.composition.workload_target_suffix];
+                        if (targetHostId) {
+                            newNode.parentNode = targetHostId; newNode.extent = 'parent'; newNode.position = { x: 50, y: 80 }; newNode.zIndex = 20;
+                            generatedNodes.push(newNode);
                         }
-                        return n;
-                    });
-                    return [...updatedExistingNodes, ...finalNewNodes];
-                });
+                    }
 
-                if (generatedEdges.length > 0) {
-                    setEdges((eds: Edge[]) => eds.concat(generatedEdges));
+                    setNodes((nds: Node[]) => {
+                        const updated = nds.map(n => mergedNodeMetadata[n.id] ? { ...n, data: { ...n.data, ...mergedNodeMetadata[n.id] } } : n);
+                        return [...updated, ...generatedNodes];
+                    });
+                    if (generatedEdges.length > 0) setEdges((eds: Edge[]) => eds.concat(generatedEdges));
+                };
+
+                if (targetNode && targetNode.type === 'containerNode') {
+                    const matches = rawMacroNodes.filter((m: any) => m.widget_ref === targetNode.data.widget_ref && m.type === 'containerNode');
+                    if (matches.length > 1) {
+                        const roles = matches.map((m: any) => m.id_suffix);
+                        if (onShowRoleAssignment) {
+                            onShowRoleAssignment({
+                                isOpen: true, roles, patternName: pattern.name,
+                                onCancel: () => onShowRoleAssignment(null),
+                                onSelect: (role: string) => { startExpansion(role); onShowRoleAssignment(null); }
+                            });
+                            return;
+                        } else {
+                            const roleNames = roles.join(', ');
+                            const chosenRole = window.prompt(`This container matches multiple roles in the pattern (${roleNames}). Which role should it assume?`, matches[0].id_suffix);
+                            if (chosenRole) startExpansion(chosenRole);
+                            return;
+                        }
+                    } else if (matches.length === 1) {
+                        startExpansion(matches[0].id_suffix);
+                    } else {
+                        startExpansion();
+                    }
+                } else {
+                    startExpansion();
                 }
                 return;
             }
 
-            // Standard Relationship Resolution based on geometric boundaries
             const scopedParentId = activeView?.scope_entity_id;
-
-            if (pattern.c4Level === 'SoftwareSystem' || pattern.c4Level === 'Person') {
-                // Top-level C4 constructs sit directly on the root canvas, never strictly enforced into infrastructure boxes
+            const c4 = pattern.c4Level as string;
+            if (c4 === 'SoftwareSystem' || c4 === 'Person') {
                 newNode.zIndex = 5;
-            } else if (scopedParentId && (pattern.c4Level === 'Container' || pattern.c4Level === 'Component')) {
+            } else if (scopedParentId && (c4 === 'Container' || c4 === 'Component')) {
                 const systemNodeObj = nodes.find(n => n.id === scopedParentId);
                 const parentAbs = systemNodeObj ? getAbsolutePosition(systemNodeObj) : { x: 0, y: 0 };
-                newNode.parentNode = scopedParentId;
-                newNode.extent = 'parent';
-                newNode.zIndex = (systemNodeObj?.zIndex || 5) + 5;
-                if (isMockTarget) {
-                    newNode.position = { x: 50 * scale, y: 80 * scale };
-                } else {
-                    newNode.position = {
-                        x: position.x - parentAbs.x,
-                        y: position.y - parentAbs.y,
-                    };
-                }
+                newNode.parentNode = scopedParentId; newNode.extent = 'parent'; newNode.zIndex = (systemNodeObj?.zIndex || 5) + 5;
+                if (isMockTarget) { newNode.position = { x: 50 * scale, y: 80 * scale }; }
+                else { newNode.position = { x: position.x - parentAbs.x, y: position.y - parentAbs.y }; }
             } else if (closestParent && (closestParent.type === 'deploymentNode' || closestParent.type === 'infrastructureNode')) {
                 const parentAbs = getAbsolutePosition(closestParent);
-                newNode.parentNode = closestParent.id;
-                newNode.extent = 'parent';
-                newNode.zIndex = (closestParent.zIndex || 5) + 5; // Stack layer
-                if (isMockTarget) {
-                    newNode.position = { x: 50 * scale, y: 80 * scale };
-                } else {
-                    newNode.position = {
-                        x: position.x - parentAbs.x,
-                        y: position.y - parentAbs.y,
-                    };
-                }
+                newNode.parentNode = closestParent.id; newNode.extent = 'parent'; newNode.zIndex = (closestParent.zIndex || 5) + 5;
+                if (isMockTarget) { newNode.position = { x: 50 * scale, y: 80 * scale }; }
+                else { newNode.position = { x: position.x - parentAbs.x, y: position.y - parentAbs.y }; }
             } else if (type === 'containerNode') {
                 alert(`Governance Violation: A ${pattern.name} must be placed inside a valid Infrastructure Host or System Scope.`);
                 return;
             } else if (type === 'deploymentNode') {
-                // Placing hierarchy element on root canvas
                 newNode.zIndex = 5;
             }
 
             setNodes((nds: Node[]) => nds.concat(newNode));
         },
-        [reactFlowInstance, setNodes, nodes]
+        [reactFlowInstance, setNodes, nodes, activeView, onRevealNode, onShowRoleAssignment, getAbsolutePosition]
     );
 
-    // Effect to programmatically add patterns (useful for mobile touch devices)
     useEffect(() => {
         if (patternToAdd && reactFlowInstance) {
             const mockEvent: any = {
@@ -675,26 +534,8 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 onNodesChange={onNodesChange}
                 onNodeDragStop={(event, node) => {
                     if (node.type === 'deploymentNode' || node.type === 'infrastructureNode') return;
-
-                    // In Component scoped views, the scope container boundary must remain anchored under its Software System boundary.
-                    // Detaching/re-parenting it during drag-stop causes cursor-offset jumps until a view reload re-applies layout.
                     const isComponentScopeBoundary = activeView?.type === 'Component' && activeView.scope_entity_id === node.id;
-
-                    const position = { x: event.clientX, y: event.clientY };
-                    const flowPos = reactFlowInstance.screenToFlowPosition(position);
-
-                    const getAbsolutePosition = (n: Node) => {
-                        let px = n.position.x;
-                        let py = n.position.y;
-                        let cParentId = n.parentNode;
-                        while (cParentId) {
-                            const parent = nodes.find(x => x.id === cParentId);
-                            if (parent) { px += parent.position.x; py += parent.position.y; cParentId = parent.parentNode; }
-                            else { break; }
-                        }
-                        return { x: px, y: py };
-                    };
-
+                    const flowPos = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
                     const isScoped = !!activeView?.scope_entity_id && (activeView.type === 'Container' || activeView.type === 'Component');
                     const allowScopedParent = isScoped && !(node.data as any)?.container_id && (
                         (activeView?.type === 'Container' && node.data?.c4Level === 'Container') ||
@@ -704,15 +545,12 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     const possibleParents = nodes.filter(n => {
                         if ((n as any).hidden) return false;
                         if (n.id === node.id) return false;
-
-                        // In scoped views, allow the active scope boundary to be a drop / drag parent for the same-level logical nodes.
                         if (allowScopedParent && n.id === activeView!.scope_entity_id) {
                             const pos = getAbsolutePosition(n);
                             const width = n.width || (n.style?.width ? Number(n.style.width) : 1000);
                             const height = n.height || (n.style?.height ? Number(n.style.height) : 800);
                             return flowPos.x >= pos.x && flowPos.x <= pos.x + width && flowPos.y >= pos.y && flowPos.y <= pos.y + height;
                         }
-
                         if (n.type !== 'deploymentNode' && n.type !== 'infrastructureNode') return false;
                         const pos = getAbsolutePosition(n);
                         const width = n.width || (n.style?.width ? Number(n.style.width) : 500);
@@ -722,10 +560,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     possibleParents.sort((a, b) => ((a.width || 500) * (a.height || 400)) - ((b.width || 500) * (b.height || 400)));
                     const closestParent = possibleParents.length > 0 ? possibleParents[0] : null;
 
-                    // Guardrail: never allow the scoped container boundary to change parents in Component view.
-                    if (isComponentScopeBoundary) {
-                        return;
-                    }
+                    if (isComponentScopeBoundary) return;
 
                     if (closestParent && closestParent.id !== node.parentNode) {
                         setNodes((nds: Node[]) => {
@@ -746,7 +581,6 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                             return updatedNode ? [...remaining, updatedNode] : remaining;
                         });
                     } else if (!closestParent && node.parentNode) {
-                        // In scoped views, don't allow same-level logical nodes to detach from their scope boundary.
                         if (allowScopedParent) {
                             const scopeNode = nodes.find(n => n.id === activeView!.scope_entity_id);
                             if (scopeNode) {
@@ -756,10 +590,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                         if (n.id === node.id) {
                                             updatedNode = {
                                                 ...n,
-                                                position: {
-                                                    x: Math.max(20, flowPos.x - getAbsolutePosition(scopeNode).x),
-                                                    y: Math.max(20, flowPos.y - getAbsolutePosition(scopeNode).y),
-                                                },
+                                                position: { x: Math.max(20, flowPos.x - getAbsolutePosition(scopeNode).x), y: Math.max(20, flowPos.y - getAbsolutePosition(scopeNode).y) },
                                                 parentNode: scopeNode.id,
                                                 extent: 'parent',
                                                 zIndex: (scopeNode.zIndex || 0) + 5,
@@ -773,7 +604,6 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                 return;
                             }
                         }
-
                         setNodes((nds: Node[]) => {
                             let updatedNode: Node | null = null;
                             const remaining = nds.filter(n => {
@@ -818,10 +648,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 elevateEdgesOnSelect={true}
                 connectionMode={ConnectionMode.Loose}
                 connectionRadius={80}
-                defaultEdgeOptions={{
-                    zIndex: 5000,
-                    style: { strokeWidth: 3, stroke: '#64748b' }
-                }}
+                defaultEdgeOptions={{ zIndex: 5000, style: { strokeWidth: 3, stroke: '#64748b' } }}
                 onNodeClick={(_, node) => onNodeSelect(node)}
                 onEdgeClick={(_, edge) => onEdgeSelect(edge)}
                 onPaneClick={() => { onNodeSelect(null); onEdgeSelect(null); }}
