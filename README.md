@@ -68,6 +68,7 @@ default_width: 1200
 default_height: 1000
 min_width: 600      # Prevents resizing smaller than this
 min_height: 400
+```
 
 ### 5. Pattern Blueprints (Standardization)
 When a complex pattern (Macro Expansion) defines specific `properties` for its nodes, these values become mandatory standards for that deployment. The validator will flag a **Standardization Violation** if a user drifts from these values.
@@ -224,20 +225,25 @@ To move toward a production-grade governance engine, the following capabilities 
 *   [ ] **Poison Samples**: Maintaining a library of "Illegal Designs" (e.g., direct-bypass connection samples) to ensure the validator catches security breaches.
 *   [ ] **Headless Validation CLI**: A Node.js runner to execute the validation engine in CI/CD against these samples.
 
-### 3. Advanced Governance
+### 3. Advanced Governance & Modeling
+*   [ ] **True Model Roll-up (Export & Validator Integration)**: Formally integrating implied relationships into the Structurizr YAML export and the `validator.ts` engine so they are mathematically verified, not just visually suggested.
+*   [ ] **Rollup Line Validation**: Evaluate pattern validation logic to ensure that a connection from a nested component (inside a container) reaching out to a target (like a message queue) mathematically counts as a valid connection emerging from the parent container itself.
 *   [ ] **Active-Active Topology Checks**: Expanding the validator to enforce multi-region and multi-datacenter quorum rules.
 *   [ ] **Component Capability Mapping**: Automatically suggesting compatible persistence or security layers based on a workload's declared requirements.
-*   [ ] **Implied Relationships (Model Roll-up)**: Dynamically inferring high-level architecture relationships (e.g. `System A -> System B`) automatically when lower-level granular connections are drawn (e.g. `System A -> Database Container in System B`), preserving strict C4 compliance across view scopes. *(Note: Visual UI roll-up is implemented, but Export logic and Validator Engine still require integration)*.
-*   [ ] **Rollup Line Validation**: Evaluate pattern validation logic to ensure that a line coming from a nested component (inside a container) reaching out to a target (like a message queue) mathematically counts as a valid connection emerging from the parent container itself.
 *   [x] **Cascading Scoped Deletions**: Enforcing strict lifecycle management so that deleting a generic host deletes all of its nested containers, components, and diagrams with proper user confirmation warnings.
 
-### 4. Diagram Creation Lifecycle & Boundaries
-*   [ ] **Deployment vs Container Instantiation Rules**: Formally design and define what can natively be created directly on the Deployment Diagram versus the Container Diagram. 
-    *   *Consideration A:* Should brand new containers exclusively only be allowed to be created natively inside the Container Diagram view? If so, how do we elegantly allow architects to drag and drop Deployment Patterns (which contain containers)?
-    *   *Consideration B:* If we allow new containers to be physically created directly on the Deployment Diagram, what is the safest architectural mechanism to instantly mathematically synchronize that new node back into the root backing model guaranteeing it appears correctly back inside the Container Diagram context natively?
+### 4. Diagram Lifecycle & Visual Boundaries
+*   [ ] **Cross-View Entity Availability (Inventory Sidebar)**: Allow instances created in contextual views (like Containers) to be available in a workspace inventory for placement onto Deployment nodes in other views.
+*   [ ] **Rule-Based Diagram Filtering**: Enable advanced visibility control based on Node Tags, Widget Types, Label Regex, or Property values, allowing architects to showcase different aspects of a system (e.g., Security-only view vs Data-flow view) within the same Software System scope.
+*   [ ] **Deployment vs Container Instantiation Rules**: Formally define what can be created directly on the Deployment Diagram versus the Container Diagram to ensure model synchronization.
 *   [ ] **Nested Component Boundaries**: Extend the React Flow rendering engine to visualize a Container's parent Software System as an outer translucent bounding box natively within a Component Diagram.
+*   [ ] **Diagram Drill-downs**: Interactive navigation transitions between abstraction levels (e.g., double-clicking a System to open its Container diagram).
+*   [ ] **Automated Layouting**: Integrating Dagre/ELK to automatically organize elements on systemic data flow diagrams.
 
 ### 5. Enterprise Integration & Extensibility
 *   [ ] **Component-to-Infrastructure Binding**: Providing a visual and programmatic way to natively map logical Containers/Components to specific physical Infrastructure Nodes (e.g., binding a Docker container to a specific AWS EC2 instance).
-*   [ ] **Sub-graph (Modular) Exports**: Allowing architects to export only a specific system scope or diagram view to YAML, rather than forcing the entire global landscape into a single file.
+*   [ ] **Sub-graph (Modular) Exports**: Allowing architects to export only a specific system scope or diagram view to YAML rather than the entire global landscape.
+*   [ ] **Auto-Documentation Generation**: Generating living Markdown documentation—including visualized diagrams—directly from pattern and widget definitions in the registry.
+*   [ ] **Cross-Workspace (Federated) Relationships**: Enabling an architecture in one domain to reference software systems or infrastructure modeled in separate repository workspaces.
+*   [ ] **Collaborative State Sync**: Supporting real-time multi-user editing for architectural drafting sessions.
 *   [ ] **GitOps / VCS Integration**: Natively storing, diffing, and pulling architecture designs directly from a Git repository to align with modern "Architecture-as-Code" principles.
