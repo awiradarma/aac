@@ -239,6 +239,7 @@ To move toward a production-grade governance engine, the following capabilities 
 *   [ ] **Nested Component Boundaries**: Extend the React Flow rendering engine to visualize a Container's parent Software System as an outer translucent bounding box natively within a Component Diagram.
 *   [ ] **Diagram Drill-downs**: Interactive navigation transitions between abstraction levels (e.g., double-clicking a System to open its Container diagram).
 *   [ ] **Automated Layouting**: Integrating Dagre/ELK to automatically organize elements on systemic data flow diagrams.
+*   [ ] **Multi-Format Diagram Export**: Support for exporting diagrams as high-resolution PNG images and Mermaid.js definitions for external documentation.
 
 ### 5. Enterprise Integration & Extensibility
 *   [ ] **Component-to-Infrastructure Binding**: Providing a visual and programmatic way to natively map logical Containers/Components to specific physical Infrastructure Nodes (e.g., binding a Docker container to a specific AWS EC2 instance).

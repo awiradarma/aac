@@ -1,0 +1,172 @@
+id: ha-api-active-passive
+name: Global HA API (Active-Passive)
+version: 1.0.0
+description: Global API deployment across 2 Regions and 4 Datacenters with GSLB steering.
+scopes: [container, deployment]
+
+composition:
+  deployment:
+    nodes:
+      - id_suffix: gslb
+        type: infrastructureNode
+        widget_ref: global-load-balancer@1.0.0
+        label: Global Traffic Manager
+        layer: Global
+        c4Level: InfrastructureNode
+        logical_identity: gslb
+        layout_hint: { x: 500, y: 0 }
+      
+      # Region 1 (Active)
+      - id_suffix: region-1
+        type: deploymentNode
+        widget_ref: region@1.0.0
+        label: Primary Region (Active)
+        layer: Region
+        c4Level: DeploymentNode
+        layout_hint: { x: 0, y: 200 }
+        children:
+          - id_suffix: dc-1
+            type: deploymentNode
+            widget_ref: datacenter@1.0.0
+            label: DC-1 (Active)
+            layer: Datacenter
+            c4Level: DeploymentNode
+            layout_hint: { x: 0, y: 0 }
+            properties: { traffic_role: active }
+            children:
+              - id_suffix: gw-1
+                type: infrastructureNode
+                widget_ref: api-gateway@2.0.0
+                c4Level: InfrastructureNode
+                logical_identity: gateway
+              - id_suffix: api-1
+                type: containerNode
+                widget_ref: api-container@1.0.0
+                c4Level: Container
+                logical_identity: api-service
+          - id_suffix: dc-2
+            type: deploymentNode
+            widget_ref: datacenter@1.0.0
+            label: DC-2 (Active)
+            layer: Datacenter
+            c4Level: DeploymentNode
+            logical_identity: dc-2
+            layout_hint: { x: 300, y: 0 }
+            properties: { traffic_role: active }
+            children:
+              - id_suffix: gw-2
+                type: infrastructureNode
+                widget_ref: api-gateway@2.0.0
+                c4Level: InfrastructureNode
+                logical_identity: gateway
+              - id_suffix: api-2
+                type: containerNode
+                widget_ref: api-container@1.0.0
+                c4Level: Container
+                logical_identity: api-service
+
+      # Region 2 (Passive)
+      - id_suffix: region-2
+        type: deploymentNode
+        widget_ref: region@1.0.0
+        label: DR Region (Passive)
+        layer: Region
+        c4Level: DeploymentNode
+        logical_identity: region-2
+        layout_hint: { x: 800, y: 200 }
+        children:
+          - id_suffix: dc-3
+            type: deploymentNode
+            widget_ref: datacenter@1.0.0
+            label: DC-3 (Passive)
+            layer: Datacenter
+            c4Level: DeploymentNode
+            logical_identity: dc-3
+            layout_hint: { x: 0, y: 0 }
+            properties: { traffic_role: passive }
+            children:
+              - id_suffix: gw-3
+                type: infrastructureNode
+                widget_ref: api-gateway@2.0.0
+                c4Level: InfrastructureNode
+                logical_identity: gateway
+              - id_suffix: api-3
+                type: containerNode
+                widget_ref: api-container@1.0.0
+                c4Level: Container
+                logical_identity: api-service
+          - id_suffix: dc-4
+            type: deploymentNode
+            widget_ref: datacenter@1.0.0
+            label: DC-4 (Passive)
+            layer: Datacenter
+            c4Level: DeploymentNode
+            logical_identity: dc-4
+            layout_hint: { x: 300, y: 0 }
+            properties: { traffic_role: passive }
+            children:
+              - id_suffix: gw-4
+                type: infrastructureNode
+                widget_ref: api-gateway@2.0.0
+                c4Level: InfrastructureNode
+                logical_identity: gateway
+              - id_suffix: api-4
+                type: containerNode
+                widget_ref: api-container@1.0.0
+                c4Level: Container
+                logical_identity: api-service
+
+    edges:
+      - source_suffix: gslb
+        target_suffix: gw-1
+        style: solid
+        label: active
+      - source_suffix: gslb
+        target_suffix: gw-2
+        style: solid
+        label: active
+      - source_suffix: gslb
+        target_suffix: gw-3
+        style: dashed
+        label: passive
+      - source_suffix: gslb
+        target_suffix: gw-4
+        style: dashed
+        label: passive
+
+rules:
+  - id: api-enterprise-ha
+    type: placement_redundancy
+    severity: mandatory
+    node: "id_suffix:api"
+    constraints:
+      - min_count: 2
+        groupBy: "layer:Region"
+      - min_count: 2
+        groupBy: "layer:Datacenter"
+        within: "layer:Region"
+      - total_count: 4
+        groupBy: "layer:Datacenter"
+
+  - id: gslb-group-alignment
+    type: edge_property_constraint
+    severity: mandatory
+    source: "id_suffix:gslb"
+    target: "id_suffix:gw"
+    groupBy: "layer:Region"
+    enforce_group_cohesion: true
+    group_distribution:
+      - role: active
+        min_groups: 1
+        max_groups: 1
+        edge_property: { style: "solid" }
+        target_node_property: { traffic_role: "active" }
+      - role: passive
+        min_groups: 1
+        edge_property: { style: "dashed" }
+        target_node_property: { traffic_role: "passive" }
+
+display_metadata:
+  icon: Globe
+  color: purple
+  category: Global

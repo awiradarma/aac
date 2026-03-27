@@ -22,7 +22,22 @@ export type PatternRule =
     | { id: string; description?: string; scope: RuleScope; severity: RuleSeverity; type: 'node_existence'; node: string; }
     | { id: string; description?: string; scope: RuleScope; severity: RuleSeverity; type: 'edge_existence'; source: string; target: string; }
     | { id: string; description?: string; scope: RuleScope; severity: RuleSeverity; type: 'property_constraint'; node: string; property: string; allowed_values: any[]; }
-    | { id: string; description?: string; scope: RuleScope; severity: RuleSeverity; type: 'connectivity'; to: string; must_pass_through: string[]; };
+    | { id: string; description?: string; scope: RuleScope; severity: RuleSeverity; type: 'connectivity'; to: string; must_pass_through: string[]; }
+    | { 
+        id: string; description?: string; scope: RuleScope; severity: RuleSeverity; type: 'placement_redundancy'; 
+        node: string; 
+        constraints: { min_count?: number; total_count?: number; groupBy: string; within?: string; description?: string; }[];
+    }
+    | {
+        id: string; description?: string; scope: RuleScope; severity: RuleSeverity; type: 'edge_property_constraint';
+        source: string; target: string; groupBy?: string; enforce_group_cohesion?: boolean;
+        group_distribution?: { 
+            role: string; min_groups?: number; max_groups?: number; 
+            edge_property?: Record<string, any>; 
+            target_node_property?: Record<string, any>; 
+            description?: string; 
+        }[];
+    };
 
 /** A placeholder template for a child component generated when dropped via a Macro Expansion. */
 export type CompositionNode = {
@@ -33,6 +48,7 @@ export type CompositionNode = {
     layer?: string;
     c4Level: string;
     properties?: Record<string, any>;
+    logical_identity?: string;
     layout_hint?: { x: number; y: number };
     property_mappings?: Record<string, string>;
     reuse_existing?: boolean; // Whether to reuse an existing canvas node if it matches, or force generic creation (defaults to true)
@@ -124,6 +140,7 @@ export type NodeData = {
     layoutMap?: Record<string, { x: number, y: number, width?: number, height?: number, parentNode?: string }>; // Per-view layout configurations
     containerId?: string; // Original logical ID from import
     logical_parent_id?: string; // Links this node to a parent scoping entity (e.g. Container to SoftwareSystem)
+    logical_identity?: string;
 };
 
 export type DiagramView = {

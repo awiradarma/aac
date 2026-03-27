@@ -1,0 +1,21 @@
+id: global-load-balancer
+name: Global Traffic Manager (GSLB)
+version: 1.0.0
+c4Level: InfrastructureNode
+layer: Global
+display_metadata:
+  icon: Globe
+  color: purple
+  category: Network
+capabilities:
+  - global-load-balancing
+  - dns-steering
+parameters:
+  provider:
+    type: string
+    options: ["f5-bigip", "azure-traffic-manager", "aws-route53", "cloudflare"]
+    default: "f5-bigip"
+  algorithm:
+    type: string
+    options: ["round-robin", "topology", "weighted", "priority"]
+    default: "topology"

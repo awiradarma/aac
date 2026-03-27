@@ -1500,14 +1500,29 @@ export default function App() {
   const allowedLevelsByView: Record<string, string[]> = {
     'SystemLandscape': ['Person', 'SoftwareSystem'],
     'SystemContext': ['Person', 'SoftwareSystem'],
-    'Container': ['Person', 'SoftwareSystem', 'Container'],
-    'Component': ['Person', 'SoftwareSystem', 'Container', 'Component'],
+    'Container': ['Person', 'SoftwareSystem', 'Container', 'InfrastructureNode'],
+    'Component': ['Person', 'SoftwareSystem', 'Container', 'Component', 'InfrastructureNode'],
     'Deployment': ['DeploymentNode', 'InfrastructureNode', 'Container']
   };
 
   const hiddenSet = new Set<string>();
   const scopedEntity = activeView.scope_entity_id ? nodes.find(n => n.id === activeView.scope_entity_id) : null;
   const scopedSystemId = scopedEntity?.data?.logical_parent_id;
+  
+  const replicaMap = new Map<string, string>();
+  const masterMap = new Map<string, string>();
+  if (activeView.type !== 'Deployment') {
+    nodes.forEach(n => {
+      if (n.data?.logical_identity && n.data?.composition_id) {
+        const key = `${n.data.composition_id}-${n.data.logical_identity}`;
+        if (!masterMap.has(key)) {
+          masterMap.set(key, n.id);
+        } else {
+          replicaMap.set(n.id, masterMap.get(key)!);
+        }
+      }
+    });
+  }
 
   nodes.forEach(n => {
     let isHidden = false;
@@ -1531,6 +1546,10 @@ export default function App() {
       // UX visual declutter: auto-hide components that belong to other containers
       if (activeView.type === 'Component' && n.data?.c4Level === 'Component') isHidden = true;
       if (activeView.type === 'Container' && n.data?.c4Level === 'Container') isHidden = true;
+    }
+
+    if (activeView.type !== 'Deployment' && replicaMap.has(n.id)) {
+      isHidden = true;
     }
 
     if (isHidden) hiddenSet.add(n.id);
@@ -1578,8 +1597,13 @@ export default function App() {
   });
 
   const getVisibleAncestor = (nodeId: string): string | null => {
-    if (!hiddenSet.has(nodeId)) return nodeId;
-    const n = nodes.find(x => x.id === nodeId);
+    let targetId = nodeId;
+    if (activeView.type !== 'Deployment' && hiddenSet.has(nodeId) && replicaMap.has(nodeId)) {
+      targetId = replicaMap.get(nodeId)!;
+    }
+
+    if (!hiddenSet.has(targetId)) return targetId;
+    const n = nodes.find(x => x.id === targetId);
     if (!n) return null;
     if (n.parentNode) return getVisibleAncestor(n.parentNode);
     // CRITICAL: Prevent Physical Runtime Replicas from aggressively spawning duplicate Logic edges natively rolling up when mathematically hidden!
@@ -2190,7 +2214,7 @@ export default function App() {
                   onClick={() => {
                     if (viewModal.mode === 'create') {
                       const newId = 'v-' + Date.now();
-                      setViews([...views, { id: newId, name: viewModalForm.name, type: viewModalForm.type, include: [], exclude: [] }]);
+                      setViews([...views, { id: newId, name: viewModalForm.name, type: viewModalForm.type, include: ['*'], exclude: [] }]);
                       setActiveViewId(newId);
                     } else {
                       setViews(views.map(v => v.id === viewModal.viewId ? { ...v, name: viewModalForm.name, type: viewModalForm.type } : v));

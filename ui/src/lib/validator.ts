@@ -44,7 +44,7 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
         nodes.forEach(dn => {
             const patternId = dn.properties?.widget_ref?.split('@')[0];
             const pattern = patternId ? patterns.find(p => p.id === patternId) : null;
-            const layerType = pattern?.layer || 'Unknown';
+            const layerType = pattern?.layer || dn.layer || 'Unknown';
 
             flatDeployments.push({ ...dn, type: layerType, layer: layerType, parentLayer, parentId });
 
@@ -317,6 +317,164 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
                             ruleId: rule.id,
                             patternName: originPattern.name,
                             patternId: originPattern.id
+                        });
+                    }
+                }
+            } else if (rule.type === 'placement_redundancy') {
+                const nodeSuffix = rule.node.replace('id_suffix:', '');
+                const targetNodes = instanceNodes.filter(n => getSuffixForExp(n, expId) === nodeSuffix);
+                
+                if (rule.constraints) {
+                    rule.constraints.forEach((constraint: any) => {
+                        const groups = new Map<string, any[]>();
+                        targetNodes.forEach(tn => {
+                            let parent = flatDeployments.find(p => p.id === tn.parentId || p.logicalId === tn.parentId);
+                            while (parent) {
+                                if (parent.type === constraint.groupBy.replace('layer:', '') || parent.layer === constraint.groupBy.replace('layer:', '')) {
+                                    if (!groups.has(parent.id)) groups.set(parent.id, []);
+                                    groups.get(parent.id)!.push(tn);
+                                    break;
+                                }
+                                parent = flatDeployments.find(p => p.id === parent.parentId || p.logicalId === parent.parentId);
+                            }
+                        });
+
+                        if (constraint.min_count && groups.size < constraint.min_count) {
+                            results.push({
+                                severity: severityVal,
+                                message: constraint.description || `Redundancy Violation: ${originPattern.name} requires ${nodeSuffix} across at least ${constraint.min_count} ${constraint.groupBy.replace('layer:', '')}s. Found ${groups.size}.`,
+                                ruleId: rule.id,
+                                patternName: originPattern.name,
+                                patternId: originPattern.id
+                            });
+                        }
+
+                        if (constraint.within) {
+                            const parentLayer = constraint.within.replace('layer:', '');
+                            const parentGroups = new Map<string, Set<string>>(); // parentGroupId -> Set of childGroupIds
+                            
+                            groups.forEach((_, groupId) => {
+                                const groupNode = flatDeployments.find(n => n.id === groupId);
+                                let p = flatDeployments.find(n => n.id === groupNode?.parentId);
+                                while (p) {
+                                    if (p.type === parentLayer || p.layer === parentLayer) {
+                                        if (!parentGroups.has(p.id)) parentGroups.set(p.id, new Set());
+                                        parentGroups.get(p.id)!.add(groupId);
+                                        break;
+                                    }
+                                    p = flatDeployments.find(n => n.id === p.parentId);
+                                }
+                            });
+
+                            parentGroups.forEach((children, pId) => {
+                                if (constraint.min_count && children.size < constraint.min_count) {
+                                    const pNode = flatDeployments.find(n => n.id === pId);
+                                    results.push({
+                                        severity: severityVal,
+                                        message: constraint.description || `Redundancy Violation: ${pNode?.name || pId} must contain at least ${constraint.min_count} ${constraint.groupBy.replace('layer:', '')}s hosting ${nodeSuffix}. Found ${children.size}.`,
+                                        ruleId: rule.id,
+                                        patternName: originPattern.name,
+                                        patternId: originPattern.id
+                                    });
+                                }
+                            });
+                        }
+                    });
+                }
+            } else if (rule.type === 'edge_property_constraint') {
+                const sourceSuffix = rule.source.replace('id_suffix:', '');
+                const targetSuffix = rule.target.replace('id_suffix:', '');
+                const sourceNodes = instanceNodes.filter(n => getSuffixForExp(n, expId) === sourceSuffix);
+                const targetNodes = instanceNodes.filter(n => getSuffixForExp(n, expId) === targetSuffix);
+
+                const getEdges = (src: any, tgt: any) => {
+                    const sCid = getCid(src);
+                    const tCid = getCid(tgt);
+                    return rels.filter((r: any) => r.sourceId === sCid && r.destinationId === tCid);
+                };
+
+                const allEdges: any[] = [];
+                sourceNodes.forEach(s => {
+                    targetNodes.forEach(t => {
+                        allEdges.push(...getEdges(s, t).map((e: any) => ({ edge: e, source: s, target: t })));
+                    });
+                });
+
+                if (rule.groupBy) {
+                    const layer = rule.groupBy.replace('layer:', '');
+                    const groups = new Map<string, { nodes: any[], edges: any[] }>();
+
+                    targetNodes.forEach(tn => {
+                        let p = flatDeployments.find(n => n.id === tn.parentId || n.logicalId === tn.parentId);
+                        while (p) {
+                            if (p.type === layer || p.layer === layer) {
+                                if (!groups.has(p.id)) groups.set(p.id, { nodes: [], edges: [] });
+                                groups.get(p.id)!.nodes.push(tn);
+                                break;
+                            }
+                            p = flatDeployments.find(n => n.id === p.parentId || n.logicalId === p.parentId);
+                        }
+                    });
+
+                    allEdges.forEach(ae => {
+                        const targetGroup = Array.from(groups.entries()).find(([_, g]) => g.nodes.some(n => n.id === ae.target.id));
+                        if (targetGroup) {
+                            targetGroup[1].edges.push(ae.edge);
+                        }
+                    });
+
+                    if (rule.enforce_group_cohesion) {
+                        groups.forEach((g, gid) => {
+                            if (g.edges.length > 0) {
+                                const firstEdge = g.edges[0];
+                                const mismatch = g.edges.some((e: any) => e.style !== firstEdge.style || e.label !== firstEdge.label);
+                                if (mismatch) {
+                                    const gNode = flatDeployments.find(n => n.id === gid);
+                                    results.push({
+                                        severity: severityVal,
+                                        message: `Topology Violation: ${layer} ${gNode?.name || gid} has mixed active/passive paths. All paths to a single ${layer} must be identical.`,
+                                        ruleId: rule.id,
+                                        patternName: originPattern.name,
+                                        patternId: originPattern.id
+                                    });
+                                }
+                            }
+                        });
+                    }
+
+                    if (rule.group_distribution) {
+                        const roleCounts = new Map<string, number>();
+                        groups.forEach(g => {
+                            rule.group_distribution!.forEach((dist: any) => {
+                                const matchesEdge = g.edges.length > 0 && (!dist.edge_property || Object.entries(dist.edge_property).every(([k, v]) => g.edges.some(e => e[k] === v)));
+                                const matchesNode = g.nodes.length > 0 && (!dist.target_node_property || Object.entries(dist.target_node_property).every(([k, v]) => g.nodes.some(n => (n.properties?.[k] === v || n[k] === v))));
+                                
+                                if (matchesEdge && matchesNode) {
+                                    roleCounts.set(dist.role, (roleCounts.get(dist.role) || 0) + 1);
+                                }
+                            });
+                        });
+
+                        rule.group_distribution.forEach((dist: any) => {
+                            const count = roleCounts.get(dist.role) || 0;
+                            if (dist.min_groups !== undefined && count < dist.min_groups) {
+                                results.push({
+                                    severity: severityVal,
+                                    message: dist.description || `Topology Violation: Expected at least ${dist.min_groups} ${dist.role} groups, found ${count}.`,
+                                    ruleId: rule.id,
+                                    patternName: originPattern.name,
+                                    patternId: originPattern.id
+                                });
+                            }
+                            if (dist.max_groups !== undefined && count > dist.max_groups) {
+                                results.push({
+                                    severity: severityVal,
+                                    message: dist.description || `Topology Violation: Expected at most ${dist.max_groups} ${dist.role} groups, found ${count}.`,
+                                    ruleId: rule.id,
+                                    patternName: originPattern.name,
+                                    patternId: originPattern.id
+                                });
+                            }
                         });
                     }
                 }

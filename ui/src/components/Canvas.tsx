@@ -24,7 +24,11 @@ const nodeTypes = {
     componentNode: ComponentNode,
 };
 
-const getId = () => `node_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+let idCounter = 0;
+const getId = () => {
+    idCounter++;
+    return `node_${Date.now()}_${idCounter}_${Math.floor(Math.random() * 1000)}`;
+};
 
 const isCompatibleNode = (sourceWidgetRef: string, targetWidgetRef: string) => {
     if (!sourceWidgetRef || !targetWidgetRef) return false;
@@ -378,7 +382,15 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     const processNodesHelper = (nodeList: any[], parentId: string | undefined, depth: number, startX: number, startY: number, extent?: 'parent') => {
                         nodeList.forEach((macroNode: any, index: number) => {
                             let existingNode = null;
-                            const checkType = (macroNode.type === 'deploymentNode') ? 'deploymentNode' : macroNode.type;
+                            const checkType = (macroNode.type === 'deploymentNode') ? 'deploymentNode' : (macroNode.type || (
+                                macroNode.c4Level === 'DeploymentNode' ? 'deploymentNode' :
+                                macroNode.c4Level === 'InfrastructureNode' ? 'infrastructureNode' :
+                                macroNode.c4Level === 'Container' ? 'containerNode' :
+                                macroNode.c4Level === 'Component' ? 'componentNode' :
+                                macroNode.c4Level === 'SoftwareSystem' ? 'systemNode' :
+                                macroNode.c4Level === 'Person' ? 'personNode' :
+                                undefined
+                            ));
 
                             if (adoptionNodeId && macroNode.id_suffix === adoptionRoleAlias) {
                                 existingNode = nodes.find(n => n.id === adoptionNodeId);
@@ -450,7 +462,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                     data: {
                                         label: macroNode.label || macroNode.id_suffix,
                                         widget_ref: macroNode.widget_ref,
-                                        c4Level: macroNode.c4Level,
+                                        c4Level: macroNode.c4Level || nPattern?.c4Level,
                                         layer: macroNode.layer,
                                         properties: { ...nDefaults, ...(macroNode.properties || {}) },
                                         status: 'new',
@@ -461,6 +473,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                         origin_pattern: `${pattern.id}@${pattern.version}`,
                                         composition_alias: macroNode.id_suffix,
                                         composition_id: expansionId,
+                                        logical_identity: macroNode.logical_identity,
                                         memberships: { [expansionId]: macroNode.id_suffix },
                                         logical_parent_id: (activeView?.scope_entity_id && (macroNode.c4Level === 'Container' || macroNode.c4Level === 'Component')) ? activeView.scope_entity_id : ((macroNode.c4Level === 'Container' || macroNode.c4Level === 'Component') ? nodes.find(n => n.type === 'systemNode')?.id : undefined),
                                     }
@@ -488,7 +501,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                         const edgeId = `e-${sourceId}-${targetId}`;
                         if (sourceId && targetId && !edges.some(e => e.id === edgeId)) {
                             const isAnimated = macroEdge.styleVariant === 'animated';
-                            const baseEdgeStyle: any = { strokeWidth: 3, stroke: '#64748b', ...macroEdge.style };
+                            const baseEdgeStyle: any = { strokeWidth: 3, stroke: '#64748b', ...(typeof macroEdge.style === 'object' ? macroEdge.style : {}) };
                             if (macroEdge.styleVariant === 'dashed') {
                                 baseEdgeStyle.strokeDasharray = '5, 5';
                                 baseEdgeStyle.strokeLinecap = 'square';
