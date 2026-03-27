@@ -39,12 +39,14 @@ composition:
         label: LB
         c4Level: InfrastructureNode
         layout_hint: { x: 0, y: 80 }
+        properties: { provider: avi }
       - id_suffix: gw
         type: infrastructureNode
         widget_ref: api-gateway@2.0.0
         label: Gateway
         c4Level: InfrastructureNode
         layout_hint: { x: 0, y: 0 }
+        properties: { provider: apigee }
     edges:
       - source_suffix: gw
         target_suffix: lb

@@ -36,6 +36,8 @@ export type CompositionNode = {
     layout_hint?: { x: number; y: number };
     property_mappings?: Record<string, string>;
     reuse_existing?: boolean; // Whether to reuse an existing canvas node if it matches, or force generic creation (defaults to true)
+    min?: number | string;
+    max?: number | string;
 };
 
 /** A preset networking path defined inside a Blueprint */

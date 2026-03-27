@@ -13,6 +13,8 @@ composition:
         label: Publisher Service
         c4Level: Container
         reuse_existing: false
+        min: 1
+        max: 1
         layout_hint: { x: 250, y: 0 }
       - id_suffix: topic
         type: containerNode
@@ -20,6 +22,8 @@ composition:
         label: Event Topic
         c4Level: Container
         reuse_existing: false
+        min: 1
+        max: 1
         layout_hint: { x: 250, y: 150 }
       - id_suffix: sub_a
         type: containerNode
@@ -27,6 +31,8 @@ composition:
         label: Subscriber A
         c4Level: Container
         reuse_existing: false
+        min: 1
+        max: n
         layout_hint: { x: 50, y: 300 }
       - id_suffix: sub_b
         type: containerNode
@@ -34,6 +40,8 @@ composition:
         label: Subscriber B
         c4Level: Container
         reuse_existing: false
+        min: 1
+        max: n
         layout_hint: { x: 450, y: 300 }
 
     edges:

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { ReactFlowProvider, applyNodeChanges, applyEdgeChanges, MarkerType } from 'reactflow';
+import { ReactFlowProvider, applyNodeChanges, applyEdgeChanges, MarkerType, type Edge } from 'reactflow';
 import { Sidebar } from './components/Sidebar';
 import { CanvasArea } from './components/Canvas';
 import { PropertyPanel } from './components/PropertyPanel';
@@ -63,7 +63,9 @@ export default function App() {
   const [viewModal, setViewModal] = useState<{ isOpen: boolean, mode: 'create' | 'edit', viewId?: string }>({ isOpen: false, mode: 'create' });
   const [viewModalForm, setViewModalForm] = useState({ name: '', type: 'SystemLandscape' });
   const [discoveryResults, setDiscoveryResults] = useState<DiscoveryResult[] | null>(null);
-  const [roleAssignment, setRoleAssignment] = useState<{ node: Node<NodeData>, pattern: any, roles: any[] } | null>(null);
+  const [roleAssignment, setRoleAssignment] = useState<{ node?: Node<NodeData>, pattern?: any, roles: any[], patternName?: string, onSelect?: (role: string) => void, onCancel?: () => void, targetToReplace?: Node<NodeData> } | null>(null);
+
+
   const [adoptionData, setAdoptionData] = useState<{ patternId: string, version: string, nodeId: string, roleAlias: string } | null>(null);
   const [validationResults, setValidationResults] = useState<ValidationResult[]>([]);
 
@@ -1250,6 +1252,155 @@ export default function App() {
     }
   };
 
+  const handleTransferRole = (sourceNode: Node<NodeData>, roleAlias: string, targetToReplace: Node<NodeData>) => {
+    const expansionId = targetToReplace.data.composition_id || Object.keys(targetToReplace.data.memberships || {})[0];
+    if (!expansionId) return;
+
+    setNodes(nds => nds.map(n => {
+      if (n.id === sourceNode.id) {
+        const origin = targetToReplace.data.origin_pattern || (targetToReplace.data as any)._originPattern;
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            origin_pattern: origin,
+            composition_alias: roleAlias,
+            composition_id: expansionId,
+            memberships: {
+              ...(n.data.memberships || {}),
+              [expansionId]: roleAlias
+            }
+          }
+        };
+      }
+      if (n.id === targetToReplace.id) {
+        const newMemberships = { ...(n.data.memberships || {}) };
+        delete newMemberships[expansionId];
+        const isPrimary = n.data.composition_id === expansionId;
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            composition_id: isPrimary ? undefined : n.data.composition_id,
+            composition_alias: isPrimary ? undefined : n.data.composition_alias,
+            origin_pattern: isPrimary ? undefined : n.data.origin_pattern,
+            memberships: newMemberships
+          }
+        };
+      }
+      return n;
+    }));
+
+    setEdges(eds => eds.map(e => {
+      const isFromTarget = e.source === targetToReplace.id;
+      const isToTarget = e.target === targetToReplace.id;
+      if (isFromTarget || isToTarget) {
+        const isPatternEdge = e.id.includes(expansionId) || e.data?.composition_id === expansionId;
+        if (isPatternEdge) {
+          return {
+            ...e,
+            source: isFromTarget ? sourceNode.id : e.source,
+            target: isToTarget ? sourceNode.id : e.target
+          };
+        }
+      }
+      return e;
+    }));
+
+    setValidationModal({
+      isOpen: true,
+      type: 'success',
+      message: `✅ Role "${roleAlias}" successfully transferred to ${sourceNode.data.label}.`
+    });
+  };
+
+  const handleJoinPattern = (sourceNode: Node<NodeData>, roleAlias: string, targetInPattern: Node<NodeData>) => {
+    const expansionId = targetInPattern.data.composition_id || Object.keys(targetInPattern.data.memberships || {})[0];
+    if (!expansionId) return;
+
+    const patId = targetInPattern.data.origin_pattern?.split('@')[0] || (targetInPattern.data as any)._originPattern?.split('@')[0];
+    const pattern = patId ? getPatternById(patId) : null;
+    if (!pattern) return;
+
+    // 1. Update source node membership
+    setNodes(nds => nds.map(n => {
+      if (n.id === sourceNode.id) {
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            origin_pattern: targetInPattern.data.origin_pattern,
+            composition_alias: roleAlias,
+            composition_id: expansionId,
+            memberships: {
+              ...(n.data.memberships || {}),
+              [expansionId]: roleAlias
+            }
+          }
+        };
+      }
+      return n;
+    }));
+
+    // 2. Add edges based on pattern definition
+    const currentNodes = nodes;
+    const newEdges: Edge[] = [];
+    
+    // Support nested composition search
+    const patternEdges = pattern.composition?.container?.edges || pattern.composition?.deployment?.edges || [];
+
+    patternEdges.forEach((patEdge: any) => {
+      if (patEdge.source_suffix === roleAlias) {
+        const targets = currentNodes.filter((n: any) => (n.data.composition_id === expansionId || n.data.memberships?.[expansionId]) && (n.data.composition_alias === patEdge.target_suffix || n.data.memberships?.[expansionId] === patEdge.target_suffix));
+        targets.forEach((t: any) => {
+          newEdges.push({
+            id: `edge-${expansionId}-${sourceNode.id}-${t.id}-${Date.now()}`,
+            source: sourceNode.id,
+            target: t.id,
+            data: { 
+              composition_id: expansionId,
+              label: patEdge.label,
+              technology: patEdge.technology,
+              styleVariant: patEdge.styleVariant
+            },
+            sourceHandle: patEdge.source_handle,
+            targetHandle: patEdge.target_handle,
+            markerEnd: { type: MarkerType.ArrowClosed }
+          });
+        });
+      }
+      if (patEdge.target_suffix === roleAlias) {
+        const sources = currentNodes.filter((n: any) => (n.data.composition_id === expansionId || n.data.memberships?.[expansionId]) && (n.data.composition_alias === patEdge.source_suffix || n.data.memberships?.[expansionId] === patEdge.source_suffix));
+        sources.forEach((s: any) => {
+          newEdges.push({
+            id: `edge-${expansionId}-${s.id}-${sourceNode.id}-${Date.now()}`,
+            source: s.id,
+            target: sourceNode.id,
+            data: { 
+              composition_id: expansionId,
+              label: patEdge.label,
+              technology: patEdge.technology,
+              styleVariant: patEdge.styleVariant
+            },
+            sourceHandle: patEdge.source_handle,
+            targetHandle: patEdge.target_handle,
+            markerEnd: { type: MarkerType.ArrowClosed }
+          });
+        });
+      }
+    });
+
+    if (newEdges.length > 0) {
+      setEdges(eds => [...eds, ...newEdges]);
+    }
+
+    setValidationModal({
+      isOpen: true,
+      type: 'success',
+      message: `✅ Successfully joined pattern! Added ${newEdges.length} connections for role "${roleAlias}".`
+    });
+  };
+
   const applyDiscoveries = (results: DiscoveryResult[]) => {
     if (results.length === 0) return;
 
@@ -1818,40 +1969,95 @@ export default function App() {
                 <div className="w-12 h-12 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center mb-4">
                     <Box className="w-6 h-6" />
                 </div>
-              <h3 className="text-xl font-bold text-slate-900">Assign Implementation Role</h3>
+              <h3 className="text-xl font-bold text-slate-900">
+                {roleAssignment.targetToReplace ? 'Replace Role Implementation?' : 'Assign Implementation Role'}
+              </h3>
               <p className="text-slate-500 text-sm mt-1">
-                The pattern <span className="font-bold text-slate-800">{roleAssignment.pattern.name}</span> defines multiple roles matching this container. 
-                Which role should it assume?
+                {roleAssignment.targetToReplace ? (
+                  <>
+                    Should <span className="font-bold text-indigo-600">{roleAssignment.node?.data.label}</span> replace <span className="font-bold text-slate-800">{roleAssignment.targetToReplace.data.label}</span> as the <span className="font-bold text-indigo-600">{roleAssignment.roles[0]}</span>?
+                  </>
+                ) : (
+                  <>
+                    The pattern <span className="font-bold text-slate-800">{roleAssignment.pattern?.name || roleAssignment.patternName}</span> defines {roleAssignment.roles.length > 1 ? 'multiple roles' : 'a matching role'} for this container. 
+                    Which role should it assume?
+                  </>
+                )}
               </p>
             </div>
-            <div className="p-4 max-h-[400px] overflow-y-auto space-y-2">
-              {roleAssignment.roles.map((role: any) => (
-                <button
-                  key={role.id_suffix}
-                  onClick={() => {
-                    setAdoptionData({
-                      patternId: roleAssignment.pattern.id,
-                      version: roleAssignment.pattern.version,
-                      nodeId: roleAssignment.node.id,
-                      roleAlias: role.id_suffix
-                    });
-                    setRoleAssignment(null);
-                  }}
-                  className="w-full flex items-center justify-between p-4 hover:bg-indigo-50 border border-slate-100 hover:border-indigo-200 rounded-xl transition-all group text-left"
-                >
-                  <div className="flex flex-col">
-                    <span className="font-bold text-slate-800 group-hover:text-indigo-900">{role.label || role.id_suffix}</span>
-                    <span className="text-xs text-slate-400 font-mono mt-0.5">Role: {role.id_suffix}</span>
+            <div className="p-4 max-h-[400px] overflow-y-auto space-y-3">
+              {roleAssignment.roles.map((role: any) => {
+                const roleId = typeof role === 'string' ? role : role.id_suffix;
+                const roleLabel = typeof role === 'string' ? role : (role.label || role.id_suffix);
+                
+                return (
+                  <div key={roleId} className="flex flex-col gap-2 p-4 bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-center justify-between px-1">
+                       <div className="flex flex-col">
+                        <span className="font-bold text-slate-800">{roleLabel}</span>
+                        <span className="text-xs text-slate-500 font-mono mt-0.5">Role Alias: {roleId}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        onClick={() => {
+                          if (roleAssignment.onSelect) {
+                            roleAssignment.onSelect(roleId);
+                          } else if (roleAssignment.targetToReplace && roleAssignment.node) {
+                            handleTransferRole(roleAssignment.node, roleId, roleAssignment.targetToReplace);
+                          } else if (roleAssignment.node && roleAssignment.pattern) {
+                            setAdoptionData({
+                              patternId: roleAssignment.pattern.id,
+                              version: roleAssignment.pattern.version,
+                              nodeId: roleAssignment.node.id,
+                              roleAlias: roleId
+                            });
+                          }
+                          setRoleAssignment(null);
+                        }}
+                        className="flex-1 px-3 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+                      >
+                         {roleAssignment.targetToReplace ? 'Replace Existing' : 'Assign to Role'}
+                      </button>
+
+                      {(() => {
+                        if (!roleAssignment.targetToReplace || !roleAssignment.node) return null;
+                        
+                        const expId = roleAssignment.targetToReplace.data.composition_id || Object.keys(roleAssignment.targetToReplace.data.memberships || {})[0];
+                        const patId = roleAssignment.targetToReplace.data.origin_pattern?.split('@')[0];
+                        const pat = patId ? getPatternById(patId) : null;
+                        const roleDef = (pat?.composition?.container?.nodes || pat?.composition?.deployment?.nodes || []).find((n: any) => n.id_suffix === roleId);
+                        
+                        if (!roleDef || !roleDef.max || roleDef.max === '1') return null;
+                        
+                        // Check current count
+                        const currentInstances = nodes.filter(n => (n.data.composition_id === expId || n.data.memberships?.[expId]) && (n.data.composition_alias === roleId || n.data.memberships?.[expId] === roleId));
+                        if (roleDef.max !== 'n' && currentInstances.length >= parseInt(roleDef.max.toString())) return null;
+
+                        return (
+                          <button
+                            onClick={() => {
+                              handleJoinPattern(roleAssignment.node!, roleId, roleAssignment.targetToReplace!);
+                              setRoleAssignment(null);
+                            }}
+                            className="flex-1 px-3 py-2.5 bg-white border border-indigo-200 hover:bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg transition-colors"
+                          >
+                            Add as Additional
+                          </button>
+                        );
+                      })()}
+                    </div>
                   </div>
-                  <div className="w-6 h-6 rounded-full border-2 border-slate-200 group-hover:border-indigo-500 flex items-center justify-center transition-colors">
-                    <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                </button>
-              ))}
+                );
+              })}
             </div>
             <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
               <button
-                onClick={() => setRoleAssignment(null)}
+                onClick={() => {
+                  if (roleAssignment.onCancel) roleAssignment.onCancel();
+                  setRoleAssignment(null);
+                }}
                 className="px-6 py-2.5 font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 rounded-xl transition-colors"
               >
                 Cancel Drop
@@ -1860,6 +2066,7 @@ export default function App() {
           </div>
         </div>
       )}
+
 
       {/* Discovery Modal Overlay */}
         {discoveryResults !== null && (

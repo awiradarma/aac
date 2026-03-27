@@ -26,6 +26,25 @@ const nodeTypes = {
 
 const getId = () => `node_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
+const isCompatibleNode = (sourceWidgetRef: string, targetWidgetRef: string) => {
+    if (!sourceWidgetRef || !targetWidgetRef) return false;
+    const sourceBase = sourceWidgetRef.split('@')[0];
+    const targetBase = targetWidgetRef.split('@')[0];
+    
+    if (sourceBase === targetBase) return true;
+    
+    let currId: string | undefined = sourceBase;
+    const visited = new Set<string>();
+    while (currId && !visited.has(currId)) {
+        visited.add(currId);
+        const p = getPatternById(currId);
+        if (!p) break;
+        if (p.base_type === targetBase) return true;
+        currId = p.base_type;
+    }
+    return false;
+};
+
 interface Props {
     onNodeSelect: (node: Node<NodeData> | null) => void;
     onEdgeSelect: (edge: Edge | null) => void;
@@ -265,7 +284,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     return false;
                 });
 
-                if (matchingRoles.length > 0 && onShowRoleAssignment) {
+                if (matchingRoles.length > 1 && onShowRoleAssignment) {
                     onShowRoleAssignment({
                         node: dropTargetNode,
                         pattern: pattern,
@@ -273,6 +292,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     });
                     return;
                 }
+
             }
 
             const possibleParents = nodes.filter(n => {
@@ -649,6 +669,37 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     });
                     possibleParents.sort((a, b) => ((a.width || 500) * (a.height || 400)) - ((b.width || 500) * (b.height || 400)));
                     const closestParent = possibleParents.length > 0 ? possibleParents[0] : null;
+                    
+                    // Smart Adoption/Role Replacement: Check if we dropped onto another node that belongs to a pattern
+                    const possibleAdoptionTargets = nodes.filter(n => {
+                        if (n.id === node.id || (n as any).hidden) return false;
+                        if (!n.data.composition_id) return false; // Must be part of a pattern to be replaceable
+                        const pos = getAbsolutePosition(n);
+                        const width = n.width || (n.style?.width ? Number(n.style.width) : 500);
+                        const height = n.height || (n.style?.height ? Number(n.style.height) : 400);
+                        const isInside = flowPos.x >= pos.x && flowPos.x <= pos.x + width && flowPos.y >= pos.y && flowPos.y <= pos.y + height;
+                        return isInside && isCompatibleNode(node.data.widget_ref, n.data.widget_ref);
+                    });
+
+                    
+                    const adoptionTarget = possibleAdoptionTargets.sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0)).pop();
+                    
+                    if (adoptionTarget && onShowRoleAssignment) {
+                        const patId = adoptionTarget.data.origin_pattern?.split('@')[0];
+                        const pattern = patId ? getPatternById(patId) : null;
+
+                        
+                        if (pattern) {
+                            onShowRoleAssignment({
+                                node: node,
+                                pattern: pattern,
+                                roles: [adoptionTarget.data.composition_alias], // Target's current role
+                                targetToReplace: adoptionTarget
+                            });
+                            return; // Intercept re-parenting if we are adopting
+                        }
+                    }
+
 
                     if (isComponentScopeBoundary) return;
 
