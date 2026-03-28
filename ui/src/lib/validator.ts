@@ -39,7 +39,6 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
             return n.properties?.id_suffix || n.properties?.composition_alias || n.composition_alias || n.properties?.logical_identity || n.logical_identity;
         }
         return null;
-        return null;
     };
 
     const nodeMatchesSelector = (n: any, selector: string, expId: string) => {
@@ -182,7 +181,11 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
 
     pNodes.forEach((p: any) => flatDeployments.push({ ...p, type: 'Person' }));
 
-    const uniqueDeployments = Array.from(new Map(flatDeployments.map(item => [item.id, item])).values());
+    const uniqueDeployments = Array.from(new Map(
+        [...flatDeployments]
+            .sort((a, b) => (a.isInstance === b.isInstance) ? 0 : (a.isInstance ? 1 : -1))
+            .map(n => [n.id || n.name, n])
+    ).values());
     flatDeployments.length = 0;
     flatDeployments.push(...uniqueDeployments);
 

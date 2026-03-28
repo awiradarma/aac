@@ -631,11 +631,8 @@ export default function App() {
         
         const containers = allChildren.filter(n => n.type === 'containerNode' || n.type === 'componentNode' || n.data?.c4Level === 'Container' || n.data?.c4Level === 'Component');
         if (containers.length > 0) {
-          dNode.containerInstances = containers.map(w => ({
-            id: w.id,
-            containerId: (w.data as any).containerId || w.id,
-            parentId: child.id,
-            properties: {
+          dNode.containerInstances = containers.map(w => {
+            const props = {
               widget_ref: w.data.widget_ref,
               aac_layout: serializeLayout(w),
               origin_pattern: (w.data as any).origin_pattern,
@@ -645,8 +642,14 @@ export default function App() {
               id_suffix: (w.data as any).composition_alias || (w.data as any).logical_identity,
               memberships: (w.data as any).memberships,
               ...w.data.properties
-            }
-          }));
+            };
+            return {
+              id: w.id,
+              containerId: (w.data as any).containerId || w.id,
+              parentId: child.id,
+              properties: props
+            };
+          });
         }
 
         const infra = allChildren.filter(n => n.type === 'infrastructureNode' || n.data?.c4Level === 'InfrastructureNode');
