@@ -7,37 +7,31 @@ composition:
   component:
     nodes:
       - id_suffix: api
-        type: componentNode
         widget_ref: generic-component@1.0.0
         label: API Controller
         c4Level: Component
         layout_hint: { x: 250, y: 0 }
       - id_suffix: command_handler
-        type: componentNode
         widget_ref: generic-component@1.0.0
         label: Command Handler
         c4Level: Component
         layout_hint: { x: 50, y: 150 }
       - id_suffix: query_handler
-        type: componentNode
         widget_ref: generic-component@1.0.0
         label: Query Handler
         c4Level: Component
         layout_hint: { x: 450, y: 150 }
       - id_suffix: write_repo
-        type: componentNode
         widget_ref: generic-component@1.0.0
         label: Write Repository
         c4Level: Component
         layout_hint: { x: 50, y: 300 }
       - id_suffix: read_repo
-        type: componentNode
         widget_ref: generic-component@1.0.0
         label: Read Repository
         c4Level: Component
         layout_hint: { x: 450, y: 300 }
       - id_suffix: sync_bus
-        type: componentNode
         widget_ref: generic-component@1.0.0
         label: Event Synchronizer
         c4Level: Component

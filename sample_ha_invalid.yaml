@@ -1,0 +1,64 @@
+model:
+  containers:
+    - id: api-logical
+      name: Global API Service
+      properties:
+        origin_pattern: ha-api-active-passive@1.0.0
+        composition_id: ha-api-exp-1
+        logical_identity: api-service
+
+deployment:
+  nodes:
+    - id: r1
+      name: Region-1
+      layer: Region
+      properties:
+        composition_id: ha-api-exp-1
+        composition_alias: region-1
+      nodes:
+        - id: dc1
+          name: DC-1
+          layer: Datacenter
+          properties:
+            composition_id: ha-api-exp-1
+            composition_alias: dc-1
+            traffic_role: active
+          containerInstances:
+            - id: ci1
+              containerId: api-logical
+              properties:
+                composition_id: ha-api-exp-1
+                composition_alias: api-1
+        - id: dc2
+          name: DC-2
+          layer: Datacenter
+          properties:
+            composition_id: ha-api-exp-1
+            composition_alias: dc-2
+            traffic_role: active
+          containerInstances:
+            - id: ci2
+              containerId: api-logical
+              properties:
+                composition_id: ha-api-exp-1
+                composition_alias: api-2
+    - id: r2
+      name: Region-2
+      layer: Region
+      properties:
+        composition_id: ha-api-exp-1
+        composition_alias: region-2
+      nodes:
+        - id: dc3
+          name: DC-3
+          layer: Datacenter
+          properties:
+            composition_id: ha-api-exp-1
+            composition_alias: dc-3
+            traffic_role: passive
+          containerInstances:
+            - id: ci3
+              containerId: api-logical
+              properties:
+                composition_id: ha-api-exp-1
+                composition_alias: api-3

@@ -334,11 +334,11 @@ export default function App() {
       }
     };
 
-    const allNodes = nodes.filter(n => n.type === 'deploymentNode' || n.type === 'infrastructureNode');
-    const containerNodes = nodes.filter(n => n.type === 'containerNode');
-    const componentNodes = nodes.filter(n => n.type === 'componentNode');
-    const systemNodes = nodes.filter(n => n.type === 'systemNode');
-    const personNodes = nodes.filter(n => n.type === 'personNode');
+    const allNodes = nodes.filter(n => (n.type === 'deploymentNode' || n.type === 'infrastructureNode') && !n.hidden);
+    const containerNodes = nodes.filter(n => n.type === 'containerNode' && !n.hidden);
+    const componentNodes = nodes.filter(n => n.type === 'componentNode' && !n.hidden);
+    const systemNodes = nodes.filter(n => n.type === 'systemNode' && !n.hidden);
+    const personNodes = nodes.filter(n => n.type === 'personNode' && !n.hidden);
 
     const allIdMap = new Map<string, string>();
     systemNodes.forEach(n => allIdMap.set(n.id, n.id));
@@ -1195,11 +1195,6 @@ export default function App() {
     try {
       const structurizrAst = generateYamlObj();
 
-      // DEBUG: Dump AST to disk so we can analyze what generateYamlObj produced!
-      if (typeof window !== 'undefined') {
-        // In browser, we can't easily write to disk without an API, but wait...
-        // We can use fetch or just console.log the JSON stringified version!
-      }
 
       const scopeParam = (activeView.type === 'Container' || activeView.type === 'Component' || activeView.type === 'SystemContext') ? 'container' : 'deployment';
       const results = validateArchitecture(structurizrAst, getRegistry() as any, scopeParam);
@@ -1537,7 +1532,7 @@ export default function App() {
     } else if (n.data?.containerId && activeView.type !== 'Deployment') {
       // Forcefully hide physical runtime replicas from polluting purely logical architecture views!
       isHidden = true;
-    } else if (!allowed.includes(n.data?.c4Level) && !isExplicitlyIncluded) {
+    } else if ((!allowed.includes(n.data?.c4Level) || (activeView.type === 'Deployment' && n.data?.c4Level === 'Container' && !n.data?.containerId)) && !isExplicitlyIncluded) {
       // Enforce structural abstractions mathematically natively unless explicitly drawn in the model tree or manually included
       isHidden = true;
     } else if (!activeView.include.includes('*') && !isExplicitlyIncluded) {
@@ -1814,7 +1809,8 @@ export default function App() {
                 }
 
                 if (activeView.exclude.includes(n.id)) return true;
-                if (!activeView.include.includes('*') && !isExplicitlyIncluded) return true;
+                const isAutoHiddenInDeployment = activeView.type === 'Deployment' && n.data?.c4Level === 'Container' && !n.data?.containerId;
+                if ((!activeView.include.includes('*') || isAutoHiddenInDeployment) && !isExplicitlyIncluded) return true;
                 return false;
               })}
               onRevealNode={(id: string) => {

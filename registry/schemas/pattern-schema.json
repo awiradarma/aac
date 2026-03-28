@@ -141,7 +141,6 @@
             "type": "object",
             "required": [
                 "id_suffix",
-                "type",
                 "widget_ref",
                 "label",
                 "c4Level"

@@ -5,10 +5,18 @@ description: Global API deployment across 2 Regions and 4 Datacenters with GSLB 
 scopes: [container, deployment]
 
 composition:
+  container:
+    nodes:
+      - id_suffix: api
+        widget_ref: api-container@1.0.0
+        label: Global API Service
+        c4Level: Container
+        logical_identity: api-service
+        layout_hint: { x: 50, y: 80 }
+
   deployment:
     nodes:
       - id_suffix: gslb
-        type: infrastructureNode
         widget_ref: global-load-balancer@1.0.0
         label: Global Traffic Manager
         layer: Global
@@ -18,7 +26,6 @@ composition:
       
       # Region 1 (Active)
       - id_suffix: region-1
-        type: deploymentNode
         widget_ref: region@1.0.0
         label: Primary Region (Active)
         layer: Region
@@ -26,7 +33,6 @@ composition:
         layout_hint: { x: 0, y: 200 }
         children:
           - id_suffix: dc-1
-            type: deploymentNode
             widget_ref: datacenter@1.0.0
             label: DC-1 (Active)
             layer: Datacenter
@@ -35,17 +41,14 @@ composition:
             properties: { traffic_role: active }
             children:
               - id_suffix: gw-1
-                type: infrastructureNode
                 widget_ref: api-gateway@2.0.0
                 c4Level: InfrastructureNode
                 logical_identity: gateway
               - id_suffix: api-1
-                type: containerNode
                 widget_ref: api-container@1.0.0
                 c4Level: Container
                 logical_identity: api-service
           - id_suffix: dc-2
-            type: deploymentNode
             widget_ref: datacenter@1.0.0
             label: DC-2 (Active)
             layer: Datacenter
@@ -55,19 +58,16 @@ composition:
             properties: { traffic_role: active }
             children:
               - id_suffix: gw-2
-                type: infrastructureNode
                 widget_ref: api-gateway@2.0.0
                 c4Level: InfrastructureNode
                 logical_identity: gateway
               - id_suffix: api-2
-                type: containerNode
                 widget_ref: api-container@1.0.0
                 c4Level: Container
                 logical_identity: api-service
 
       # Region 2 (Passive)
       - id_suffix: region-2
-        type: deploymentNode
         widget_ref: region@1.0.0
         label: DR Region (Passive)
         layer: Region
@@ -76,7 +76,6 @@ composition:
         layout_hint: { x: 800, y: 200 }
         children:
           - id_suffix: dc-3
-            type: deploymentNode
             widget_ref: datacenter@1.0.0
             label: DC-3 (Passive)
             layer: Datacenter
@@ -86,17 +85,14 @@ composition:
             properties: { traffic_role: passive }
             children:
               - id_suffix: gw-3
-                type: infrastructureNode
                 widget_ref: api-gateway@2.0.0
                 c4Level: InfrastructureNode
                 logical_identity: gateway
               - id_suffix: api-3
-                type: containerNode
                 widget_ref: api-container@1.0.0
                 c4Level: Container
                 logical_identity: api-service
           - id_suffix: dc-4
-            type: deploymentNode
             widget_ref: datacenter@1.0.0
             label: DC-4 (Passive)
             layer: Datacenter
@@ -106,12 +102,10 @@ composition:
             properties: { traffic_role: passive }
             children:
               - id_suffix: gw-4
-                type: infrastructureNode
                 widget_ref: api-gateway@2.0.0
                 c4Level: InfrastructureNode
                 logical_identity: gateway
               - id_suffix: api-4
-                type: containerNode
                 widget_ref: api-container@1.0.0
                 c4Level: Container
                 logical_identity: api-service
@@ -136,6 +130,7 @@ composition:
 
 rules:
   - id: api-enterprise-ha
+    scope: deployment
     type: placement_redundancy
     severity: mandatory
     node: "id_suffix:api"
@@ -149,6 +144,7 @@ rules:
         groupBy: "layer:Datacenter"
 
   - id: gslb-group-alignment
+    scope: deployment
     type: edge_property_constraint
     severity: mandatory
     source: "id_suffix:gslb"

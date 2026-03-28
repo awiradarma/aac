@@ -6,8 +6,7 @@
         "id",
         "name",
         "version",
-        "c4Level",
-        "type"
+        "c4Level"
     ],
     "properties": {
         "id": {

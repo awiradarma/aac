@@ -35,8 +35,7 @@ program
             const errors = validateArchitecture(archObj, registry);
 
             if (errors.length > 0) {
-                console.error("⚠️ Architecture Validation Failed:");
-                errors.forEach(e => console.error(`  • ${e}`));
+                errors.forEach(e => console.error(`  • ${e.message}`));
                 process.exit(1);
             } else {
                 console.log("✅ Architecture Valid! All constraints and placement boundaries conform to the Pattern Registry.");

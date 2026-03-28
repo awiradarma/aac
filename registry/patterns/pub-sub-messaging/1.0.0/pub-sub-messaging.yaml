@@ -8,7 +8,6 @@ composition:
   container:
     nodes:
       - id_suffix: publisher
-        type: containerNode
         widget_ref: executable@1.0.0
         label: Publisher Service
         c4Level: Container
@@ -17,7 +16,6 @@ composition:
         max: 1
         layout_hint: { x: 250, y: 0 }
       - id_suffix: topic
-        type: containerNode
         widget_ref: topic@1.0.0
         label: Event Topic
         c4Level: Container
@@ -26,7 +24,6 @@ composition:
         max: 1
         layout_hint: { x: 250, y: 150 }
       - id_suffix: sub_a
-        type: containerNode
         widget_ref: executable@1.0.0
         label: Subscriber A
         c4Level: Container
@@ -35,7 +32,6 @@ composition:
         max: n
         layout_hint: { x: 50, y: 300 }
       - id_suffix: sub_b
-        type: containerNode
         widget_ref: executable@1.0.0
         label: Subscriber B
         c4Level: Container

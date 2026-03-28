@@ -31,6 +31,17 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
         return null;
     };
 
+    const nodeMatchesSelector = (n: any, selector: string, expId: string) => {
+        const targetSuffix = selector.replace('id_suffix:', '');
+        const actualSuffix = getSuffixForExp(n, expId);
+        const logicalId = n.properties?.logical_identity || n.logical_identity;
+        
+        return (actualSuffix === targetSuffix) || 
+               (actualSuffix && actualSuffix.startsWith(targetSuffix + '-')) ||
+               (logicalId === targetSuffix) ||
+               (logicalId && logicalId.startsWith(targetSuffix + '-'));
+    };
+
     const isDescendant = (childId: string, possibleParentId: string): boolean => {
         let curr = flatDeployments.find(n => n.id === childId);
         while (curr && curr.parentId) {
@@ -180,7 +191,8 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
         return patterns.find(p => p.id === val);
     };
 
-    Object.entries(expansionInstances).forEach(([expId, instanceNodes]) => {
+    const instances = Object.entries(expansionInstances);
+    instances.forEach(([expId, instanceNodes]) => {
         let master = instanceNodes.find(n => {
             const pExp = n.properties?.composition_id || n.composition_id;
             return pExp === expId && (n.properties?.origin_pattern || n.origin_pattern);
@@ -200,13 +212,13 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
                     normalizedRules.push({
                         id: `legacy-${m.id_suffix}`,
                         scope: 'all', severity: 'mandatory', type: 'node_existence', node: `id_suffix:${m.id_suffix}`
-                    });
+                    } as any);
                     if (m.properties) {
                         Object.entries(m.properties).forEach(([k, v]) => {
                             normalizedRules.push({
                                 id: `legacy-prop-${m.id_suffix}-${k}`,
                                 scope: 'all', severity: 'mandatory', type: 'property_constraint', node: `id_suffix:${m.id_suffix}`, property: k, allowed_values: [v]
-                            });
+                            } as any);
                         });
                     }
                 });
@@ -216,7 +228,7 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
                     normalizedRules.push({
                         id: `legacy-edge-${i}`,
                         scope: 'all', severity: 'mandatory', type: 'edge_existence', source: `id_suffix:${e.source_suffix}`, target: `id_suffix:${e.target_suffix}`
-                    });
+                    } as any);
                 });
             }
         }
@@ -260,29 +272,26 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
         });
 
         // 2. RULES EVALUATION
-        const applicableRules = normalizedRules.filter(r => !scope || r.scope === scope || r.scope === 'all');
+        const applicableRules = normalizedRules.filter(r => !scope || !r.scope || r.scope === scope || r.scope === 'all');
 
         applicableRules.forEach(rule => {
             const severityVal: 'error' | 'warning' | 'info' = rule.severity === 'mandatory' ? 'error' : (rule.severity === 'recommended' ? 'warning' : 'info');
             
             if (rule.type === 'node_existence') {
-                const requiredSuffix = rule.node.replace('id_suffix:', '');
-                const hasIt = instanceNodes.some(n => getSuffixForExp(n, expId) === requiredSuffix);
+                const hasIt = instanceNodes.some(n => nodeMatchesSelector(n, rule.node, expId));
                 if (!hasIt) {
                     if (rule.severity === 'optional') return;
                     results.push({
                         severity: severityVal,
-                        message: rule.description || `Pattern '${originPattern.name}' is missing ${severityVal === 'error' ? 'mandatory' : 'recommended'} component '${requiredSuffix}'${scope === 'container' ? '. Switch to Deployment view to add it.' : '.'}`,
+                        message: rule.description || `Pattern '${originPattern.name}' is missing ${severityVal === 'error' ? 'mandatory' : 'recommended'} component '${rule.node}'${scope === 'container' ? '. Switch to Deployment view to add it.' : '.'}`,
                         ruleId: rule.id,
                         patternName: originPattern.name,
                         patternId: originPattern.id
                     });
                 }
             } else if (rule.type === 'edge_existence') {
-                const sourceSuffix = rule.source.replace('id_suffix:', '');
-                const targetSuffix = rule.target.replace('id_suffix:', '');
-                const sourceNode = instanceNodes.find(n => getSuffixForExp(n, expId) === sourceSuffix);
-                const targetNode = instanceNodes.find(n => getSuffixForExp(n, expId) === targetSuffix);
+                const sourceNode = instanceNodes.find(n => nodeMatchesSelector(n, rule.source, expId));
+                const targetNode = instanceNodes.find(n => nodeMatchesSelector(n, rule.target, expId));
 
                 if (sourceNode && targetNode) {
                     const sCid = getCid(sourceNode);
@@ -291,7 +300,7 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
                     if (!hasEdge && rule.severity !== 'optional') {
                         results.push({
                             severity: severityVal,
-                            message: rule.description || `Pattern '${originPattern.name}' is missing ${severityVal === 'error' ? 'mandatory' : 'recommended'} connection from '${sourceSuffix}' to '${targetSuffix}'.`,
+                            message: rule.description || `Pattern '${originPattern.name}' is missing ${severityVal === 'error' ? 'mandatory' : 'recommended'} connection from '${rule.source}' to '${rule.target}'.`,
                             ruleId: rule.id,
                             patternName: originPattern.name,
                             patternId: originPattern.id
@@ -299,11 +308,10 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
                     }
                 }
             } else if (rule.type === 'property_constraint') {
-                const nodeSuffix = rule.node.replace('id_suffix:', '');
-                const targetNode = instanceNodes.find(n => getSuffixForExp(n, expId) === nodeSuffix);
+                const targetNode = instanceNodes.find(n => nodeMatchesSelector(n, rule.node, expId));
                 if (targetNode) {
                     const propVal = targetNode.properties ? targetNode.properties[rule.property] : undefined;
-                    console.log(`[VALIDATOR DEBUG] Validating property_constraint for ${nodeSuffix}`);
+                    console.log(`[VALIDATOR DEBUG] Validating property_constraint for ${rule.node}`);
                     console.log(`Target Node Props:`, targetNode.properties);
                     console.log(`Expected Property [${rule.property}]:`, rule.allowed_values);
                     console.log(`Actual Property Value:`, propVal);
@@ -313,7 +321,7 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
                     if (!resolvedAllowed.includes(propVal) && rule.severity !== 'optional') {
                         results.push({
                             severity: severityVal,
-                            message: rule.description || `Standardization Violation: ${targetNode.name || nodeSuffix} must use ${rule.property}=${resolvedAllowed.join(' or ')} (required by ${originPattern.name}).`,
+                            message: rule.description || `Standardization Violation: ${targetNode.name || rule.node} must use ${rule.property}=${resolvedAllowed.join(' or ')} (required by ${originPattern.name}).`,
                             ruleId: rule.id,
                             patternName: originPattern.name,
                             patternId: originPattern.id
@@ -321,8 +329,7 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
                     }
                 }
             } else if (rule.type === 'placement_redundancy') {
-                const nodeSuffix = rule.node.replace('id_suffix:', '');
-                const targetNodes = instanceNodes.filter(n => getSuffixForExp(n, expId) === nodeSuffix);
+                const targetNodes = instanceNodes.filter(n => nodeMatchesSelector(n, rule.node, expId));
                 
                 if (rule.constraints) {
                     rule.constraints.forEach((constraint: any) => {
@@ -339,10 +346,23 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
                             }
                         });
 
-                        if (constraint.min_count && groups.size < constraint.min_count) {
+                        const actualCount = groups.size;
+                        const min = constraint.total_count || constraint.min_count;
+                        const max = constraint.max_count;
+
+                        if (min && actualCount < min) {
                             results.push({
                                 severity: severityVal,
-                                message: constraint.description || `Redundancy Violation: ${originPattern.name} requires ${nodeSuffix} across at least ${constraint.min_count} ${constraint.groupBy.replace('layer:', '')}s. Found ${groups.size}.`,
+                                message: constraint.description || `Redundancy Violation: ${originPattern.name} requires ${rule.node} across at least ${min} ${constraint.groupBy.replace('layer:', '')}s. Found ${actualCount}.`,
+                                ruleId: rule.id,
+                                patternName: originPattern.name,
+                                patternId: originPattern.id
+                            });
+                        }
+                        if (max && actualCount > max) {
+                            results.push({
+                                severity: severityVal,
+                                message: constraint.description || `Redundancy Violation: ${originPattern.name} requires ${rule.node} across at most ${max} ${constraint.groupBy.replace('layer:', '')}s. Found ${actualCount}.`,
                                 ruleId: rule.id,
                                 patternName: originPattern.name,
                                 patternId: originPattern.id
@@ -351,27 +371,17 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
 
                         if (constraint.within) {
                             const parentLayer = constraint.within.replace('layer:', '');
-                            const parentGroups = new Map<string, Set<string>>(); // parentGroupId -> Set of childGroupIds
+                            const candidateParents = instanceNodes.filter(n => n.type === parentLayer || n.layer === parentLayer);
                             
-                            groups.forEach((_, groupId) => {
-                                const groupNode = flatDeployments.find(n => n.id === groupId);
-                                let p = flatDeployments.find(n => n.id === groupNode?.parentId);
-                                while (p) {
-                                    if (p.type === parentLayer || p.layer === parentLayer) {
-                                        if (!parentGroups.has(p.id)) parentGroups.set(p.id, new Set());
-                                        parentGroups.get(p.id)!.add(groupId);
-                                        break;
-                                    }
-                                    p = flatDeployments.find(n => n.id === p.parentId);
-                                }
-                            });
+                            candidateParents.forEach(pNode => {
+                                const childrenOfThisParent = Array.from(groups.keys()).filter(groupId => {
+                                    return groupId === pNode.id || isDescendant(groupId, pNode.id);
+                                });
 
-                            parentGroups.forEach((children, pId) => {
-                                if (constraint.min_count && children.size < constraint.min_count) {
-                                    const pNode = flatDeployments.find(n => n.id === pId);
+                                if (constraint.min_count && childrenOfThisParent.length < constraint.min_count) {
                                     results.push({
                                         severity: severityVal,
-                                        message: constraint.description || `Redundancy Violation: ${pNode?.name || pId} must contain at least ${constraint.min_count} ${constraint.groupBy.replace('layer:', '')}s hosting ${nodeSuffix}. Found ${children.size}.`,
+                                        message: constraint.description || `Redundancy Violation: ${pNode.name || pNode.id} must contain at least ${constraint.min_count} ${constraint.groupBy.replace('layer:', '')}s hosting ${rule.node}. Found ${childrenOfThisParent.length}.`,
                                         ruleId: rule.id,
                                         patternName: originPattern.name,
                                         patternId: originPattern.id
@@ -382,10 +392,8 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
                     });
                 }
             } else if (rule.type === 'edge_property_constraint') {
-                const sourceSuffix = rule.source.replace('id_suffix:', '');
-                const targetSuffix = rule.target.replace('id_suffix:', '');
-                const sourceNodes = instanceNodes.filter(n => getSuffixForExp(n, expId) === sourceSuffix);
-                const targetNodes = instanceNodes.filter(n => getSuffixForExp(n, expId) === targetSuffix);
+                const sourceNodes = instanceNodes.filter(n => nodeMatchesSelector(n, rule.source, expId));
+                const targetNodes = instanceNodes.filter(n => nodeMatchesSelector(n, rule.target, expId));
 
                 const getEdges = (src: any, tgt: any) => {
                     const sCid = getCid(src);
@@ -479,8 +487,7 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
                     }
                 }
             } else if (rule.type === 'connectivity') {
-                const targetSuffix = rule.to.replace('id_suffix:', '');
-                const targetNode = instanceNodes.find(n => getSuffixForExp(n, expId) === targetSuffix);
+                const targetNode = instanceNodes.find(n => nodeMatchesSelector(n, rule.to, expId));
                 if (!targetNode) return;
 
                 const protectedNodes = flatDeployments.filter(n => n.id === targetNode.id || isDescendant(n.id, targetNode.id));
@@ -518,9 +525,8 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
 
                         // Check if AT LEAST ONE valid path fully routes through the required waypoints
                         const hasCompliantPath = allPaths.some(path => {
-                            return rule.must_pass_through?.every((waySuffix: string) => {
-                                const cleanSuffix = waySuffix.replace('id_suffix:', '');
-                                const wayNode = instanceNodes.find(n => getSuffixForExp(n, expId) === cleanSuffix);
+                            return rule.must_pass_through?.every((waySelector: string) => {
+                                const wayNode = instanceNodes.find(n => nodeMatchesSelector(n, waySelector, expId));
                                 if (!wayNode) return true; // Waypoint missing from model, can't reliably validate path
                                 return path.includes(getCid(wayNode));
                             });
@@ -529,7 +535,7 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
                         if (!hasCompliantPath) {
                             results.push({
                                 severity: severityVal,
-                                message: rule.description || `Connectivity Violation: entry '${entry.name}' bypassing security. Traffic to '${pNode.name || pNode.id}' MUST pass through '${rule.must_pass_through?.map((w: string) => w.replace('id_suffix:', '')).join("' and '")}'.`,
+                                message: rule.description || `Connectivity Violation: entry '${entry.name}' bypassing security. Traffic to '${pNode.name || pNode.id}' MUST pass through '${rule.must_pass_through?.map((w: string) => w).join("' and '")}'.`,
                                 ruleId: rule.id,
                                 patternName: originPattern.name,
                                 patternId: originPattern.id
@@ -543,8 +549,7 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
                 if (oldRule.connectivity_assertions) {
                     oldRule.connectivity_assertions.forEach((assertion: any) => {
                         // Very similar logic to connectivity type above... Simplified for legacy test compat 
-                        const tgtSuffix = assertion.to.replace('id_suffix:', '');
-                        const tgtNode = instanceNodes.find(n => getSuffixForExp(n, expId) === tgtSuffix);
+                        const tgtNode = instanceNodes.find(n => nodeMatchesSelector(n, assertion.to, expId));
                         if (!tgtNode) return;
                         const protNodes = flatDeployments.filter(n => n.id === tgtNode.id || isDescendant(n.id, tgtNode.id));
                         const extNodes = flatDeployments.filter(n => !getSuffixForExp(n, expId) && !protNodes.some(p => p.id === n.id));
@@ -555,13 +560,12 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
                                 const allPaths: string[][] = [];
                                 findPathsTo(pNodeCid, entryCid, new Set(), [], allPaths);
                                 allPaths.forEach(path => {
-                                    assertion.must_pass_through?.forEach((waySuffix: string) => {
-                                        const cleanSuffix = waySuffix.replace('id_suffix:', '');
-                                        const wayNode = instanceNodes.find(n => getSuffixForExp(n, expId) === cleanSuffix);
+                                    assertion.must_pass_through?.forEach((waySelector: string) => {
+                                        const wayNode = instanceNodes.find(n => nodeMatchesSelector(n, waySelector, expId));
                                         if (wayNode && !path.includes(getCid(wayNode))) {
                                             results.push({
                                                 severity: 'error',
-                                                message: `Connectivity Violation: entry '${entry.id}' bypassing security '${cleanSuffix}'.`
+                                                message: `Connectivity Violation: entry '${entry.id}' bypassing security '${waySelector}'.`
                                             });
                                         }
                                     });

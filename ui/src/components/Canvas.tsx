@@ -158,58 +158,58 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 possibleParents.sort((a, b) => ((a.width || 500) * (a.height || 400)) - ((b.width || 500) * (b.height || 400)));
                 const closestParent = possibleParents.length > 0 ? possibleParents[0] : null;
 
-                let cloned = false;
-                setNodes((nds: Node[]) => {
-                    const srcNode = nds.find(n => n.id === existingNodeId);
-                    if (!srcNode) return nds;
+                const srcNode = nodes.find(n => n.id === existingNodeId);
+                if (!srcNode) return;
 
-                    const isScopedView = !!activeView?.scope_entity_id && (activeView.type === 'Container' || activeView.type === 'Component');
-                    const srcIsPhysicalInstance = !!(srcNode.data as any)?.container_id;
-                    const shouldForceScopeParent = isScopedView && !srcIsPhysicalInstance && (
-                        (activeView?.type === 'Container' && srcNode.data?.c4Level === 'Container') ||
-                        (activeView?.type === 'Component' && srcNode.data?.c4Level === 'Component')
-                    );
+                const isScopedView = !!activeView?.scope_entity_id && (activeView.type === 'Container' || activeView.type === 'Component');
+                const srcIsPhysicalInstance = !!(srcNode.data as any)?.containerId;
+                const shouldForceScopeParent = isScopedView && !srcIsPhysicalInstance && (
+                    (activeView?.type === 'Container' && srcNode.data?.c4Level === 'Container') ||
+                    (activeView?.type === 'Component' && srcNode.data?.c4Level === 'Component')
+                );
 
-                    const forcedParent = shouldForceScopeParent ? nds.find(n => n.id === activeView!.scope_entity_id) : null;
-                    const effectiveParent = forcedParent || closestParent;
+                const forcedParent = shouldForceScopeParent ? nodes.find(n => n.id === activeView!.scope_entity_id) : null;
+                const effectiveParent = forcedParent || closestParent;
 
-                    const parentAbs = effectiveParent ? getAbsolutePosition(effectiveParent) : { x: 0, y: 0 };
-                    const newPosition = effectiveParent ? { x: Math.max(20, position.x - parentAbs.x), y: Math.max(20, position.y - parentAbs.y) } : position;
+                const parentAbs = effectiveParent ? getAbsolutePosition(effectiveParent) : { x: 0, y: 0 };
+                const newPosition = effectiveParent ? { x: Math.max(20, position.x - parentAbs.x), y: Math.max(20, position.y - parentAbs.y) } : position;
 
-                    if (activeView?.type === 'Deployment' && srcNode.type === 'containerNode') {
-                        cloned = true;
-                        const instanceNode: Node = {
-                            ...srcNode,
-                            id: `${srcNode.id}_inst_${getId()}`,
-                            position: newPosition,
-                            parentNode: effectiveParent ? effectiveParent.id : undefined,
-                            extent: effectiveParent ? 'parent' : undefined,
-                            zIndex: effectiveParent ? (effectiveParent.zIndex || 0) + 5 : 15,
-                            data: {
-                                ...srcNode.data,
-                                logical_parent_id: srcNode.id
-                            }
-                        };
-                        return [...nds, instanceNode];
-                    }
+                let targetRevealId = existingNodeId;
 
-                    let updatedNode: Node | null = null;
-                    const remaining = nds.filter(n => {
+                if (activeView?.type === 'Deployment' && srcNode.type === 'containerNode') {
+                    const instanceNodeId = `${srcNode.id}_inst_${getId()}`;
+                    targetRevealId = instanceNodeId;
+
+                    const instanceNode: Node = {
+                        ...srcNode,
+                        id: instanceNodeId,
+                        position: newPosition,
+                        parentNode: effectiveParent ? effectiveParent.id : undefined,
+                        extent: effectiveParent ? 'parent' : undefined,
+                        zIndex: effectiveParent ? (effectiveParent.zIndex || 0) + 5 : 15,
+                        data: {
+                            ...srcNode.data,
+                            containerId: srcNode.id,
+                            logical_parent_id: srcNode.id
+                        }
+                    };
+                    setNodes((nds: Node[]) => [...nds, instanceNode]);
+                } else {
+                    setNodes((nds: Node[]) => nds.map((n: Node) => {
                         if (n.id === existingNodeId) {
-                            updatedNode = {
+                            return {
                                 ...n,
                                 position: newPosition,
                                 parentNode: effectiveParent ? effectiveParent.id : undefined,
                                 extent: effectiveParent ? 'parent' : undefined,
                                 zIndex: effectiveParent ? (effectiveParent.zIndex || 0) + 5 : 15,
                             };
-                            return false;
                         }
-                        return true;
-                    });
-                    return updatedNode ? [...remaining, updatedNode] : remaining;
-                });
-                if (!cloned && onRevealNode) onRevealNode(existingNodeId);
+                        return n;
+                    }));
+                }
+
+                if (onRevealNode) onRevealNode(targetRevealId);
                 return;
             }
 
@@ -352,7 +352,15 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     let anchorMatchFound = false;
                     if (targetNode && rawMacroNodes.length > 0) {
                         anchorMatchFound = rawMacroNodes.some((mNode: any) => {
-                            const checkType = (mNode.type === 'deploymentNode') ? 'deploymentNode' : mNode.type;
+                            const checkType = (mNode.type === 'deploymentNode') ? 'deploymentNode' : (mNode.type || (
+                                mNode.c4Level === 'DeploymentNode' ? 'deploymentNode' :
+                                mNode.c4Level === 'InfrastructureNode' ? 'infrastructureNode' :
+                                mNode.c4Level === 'Container' ? 'containerNode' :
+                                mNode.c4Level === 'Component' ? 'componentNode' :
+                                mNode.c4Level === 'SoftwareSystem' ? 'systemNode' :
+                                mNode.c4Level === 'Person' ? 'personNode' :
+                                undefined
+                            ));
                             return targetNode.data.widget_ref === mNode.widget_ref &&
                                 targetNode.data.layer === mNode.layer &&
                                 targetNode.type === checkType;
@@ -374,12 +382,13 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     const generatedNodes: Node<NodeData>[] = [];
                     const generatedEdges: Edge[] = [];
                     const nodeMap: Record<string, string> = {};
+                    const logicalIdentityToId: Record<string, string> = {};
                     const mergedNodeMetadata: Record<string, any> = {};
                     const baseX = adoptionNodeId ? (nodes.find(n => n.id === adoptionNodeId)?.position.x || (isParentExtent ? 50 : position.x - 200)) : (isParentExtent ? (isMockTarget ? 50 * scale : 50) : position.x - 200);
                     const baseY = adoptionNodeId ? (nodes.find(n => n.id === adoptionNodeId)?.position.y || (isParentExtent ? 80 : position.y)) : (isParentExtent ? (isMockTarget ? 80 * scale : 100) : position.y);
                     const expansionId = `exp-${pattern.id}-${Date.now()}`;
 
-                    const processNodesHelper = (nodeList: any[], parentId: string | undefined, depth: number, startX: number, startY: number, extent?: 'parent') => {
+                    const processNodesHelper = (nodeList: any[], parentId: string | undefined, depth: number, startX: number, startY: number, extent?: 'parent', isLogicalPhase = false) => {
                         nodeList.forEach((macroNode: any, index: number) => {
                             let existingNode = null;
                             const checkType = (macroNode.type === 'deploymentNode') ? 'deploymentNode' : (macroNode.type || (
@@ -392,9 +401,20 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                 undefined
                             ));
 
+                            const logicalIdentity = macroNode.logical_identity || macroNode.logical_id;
+                            
                             if (adoptionNodeId && macroNode.id_suffix === adoptionRoleAlias) {
                                 existingNode = nodes.find(n => n.id === adoptionNodeId);
-                            } else if (depth === 0 && closestParent && macroNode.reuse_existing !== false) {
+                            } else if (isLogicalPhase && logicalIdentity) {
+                                // Prefer matching by logical identity globally first ONLY during the logical phase
+                                existingNode = nodes.find(n => 
+                                    n.data?.logical_identity === logicalIdentity || n.id === logicalIdentity
+                                ) || generatedNodes.find(n => 
+                                    n.data?.logical_identity === logicalIdentity || n.id === logicalIdentity
+                                );
+                            }
+                            
+                            if (!existingNode && depth === 0 && closestParent && macroNode.reuse_existing !== false) {
                                 const matchesPattern = closestParent.data.widget_ref === macroNode.widget_ref;
                                 const matchesLayer = closestParent.data.layer === macroNode.layer;
                                 const matchesType = closestParent.type === checkType;
@@ -417,6 +437,8 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                             if (existingNode) {
                                 currentNodeId = existingNode.id;
                                 nodeMap[macroNode.id_suffix] = currentNodeId;
+                                if (logicalIdentity) logicalIdentityToId[logicalIdentity] = currentNodeId;
+
                                 const existingMemberships = existingNode.data.memberships || {};
                                 mergedNodeMetadata[currentNodeId] = {
                                     memberships: { ...existingMemberships, [expansionId]: macroNode.id_suffix },
@@ -438,8 +460,10 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                     }
                                 }
                             } else {
-                                currentNodeId = getId();
+                                currentNodeId = (isLogicalPhase && logicalIdentity) ? logicalIdentity : getId();
                                 nodeMap[macroNode.id_suffix] = currentNodeId;
+                                if (logicalIdentity) logicalIdentityToId[logicalIdentity] = currentNodeId;
+
                                 let offsetX = (macroNode.layout_hint?.x ?? (index * 220)) * scale;
                                 let offsetY = (macroNode.layout_hint?.y ?? (depth * 150)) * scale;
                                 const nPattern = macroNode.widget_ref ? getPatternById(macroNode.widget_ref.split('@')[0]) : null;
@@ -449,6 +473,15 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                         if (pv.default !== undefined) nDefaults[pk] = pv.default;
                                         if (pv.const !== undefined) nDefaults[pk] = pv.const;
                                     });
+                                }
+
+                                // If this is a physical instance in a deployment diagram, link it back to the logical container identity
+                                const systemParentId = nodes.find(n => n.type === 'systemNode')?.id;
+                                const calculatedLogicalParent = (activeView?.scope_entity_id && (macroNode.c4Level === 'Container' || macroNode.c4Level === 'Component')) ? activeView.scope_entity_id : ((macroNode.c4Level === 'Container' || macroNode.c4Level === 'Component') ? systemParentId : undefined);
+                                
+                                let containerId = undefined;
+                                if (!isLogicalPhase && !isContainerView && (macroNode.c4Level === 'Container' || macroNode.c4Level === 'Component')) {
+                                    containerId = logicalIdentity ? logicalIdentityToId[logicalIdentity] : undefined;
                                 }
 
                                 const gNode: Node<NodeData> = {
@@ -473,9 +506,10 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                         origin_pattern: `${pattern.id}@${pattern.version}`,
                                         composition_alias: macroNode.id_suffix,
                                         composition_id: expansionId,
-                                        logical_identity: macroNode.logical_identity,
+                                        logical_identity: logicalIdentity,
                                         memberships: { [expansionId]: macroNode.id_suffix },
-                                        logical_parent_id: (activeView?.scope_entity_id && (macroNode.c4Level === 'Container' || macroNode.c4Level === 'Component')) ? activeView.scope_entity_id : ((macroNode.c4Level === 'Container' || macroNode.c4Level === 'Component') ? nodes.find(n => n.type === 'systemNode')?.id : undefined),
+                                        logical_parent_id: calculatedLogicalParent,
+                                        containerId: containerId
                                     }
                                 };
                                 if (macroNode.property_mappings) {
@@ -488,24 +522,30 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                             }
 
                             if (macroNode.children && macroNode.children.length > 0) {
-                                processNodesHelper(macroNode.children, currentNodeId, depth + 1, 0, 0, 'parent');
+                                processNodesHelper(macroNode.children, currentNodeId, depth + 1, 0, 0, 'parent', isLogicalPhase);
                             }
                         });
                     };
 
-                    processNodesHelper(rawMacroNodes, searchParentId, 0, baseX, baseY, isParentExtent ? 'parent' : undefined);
+                    if (!isContainerView && pattern.composition?.container) {
+                        // Multi-Phase expansion: ensure logical containers exist first so instances can link their containerId
+                        processNodesHelper(pattern.composition.container.nodes, undefined, 0, baseX, baseY, undefined, true);
+                    }
+
+                    processNodesHelper(rawMacroNodes, searchParentId, 0, baseX, baseY, isParentExtent ? 'parent' : undefined, false);
 
                     macroEdges.forEach((macroEdge: any) => {
                         const sourceId = nodeMap[macroEdge.source_suffix];
                         const targetId = nodeMap[macroEdge.target_suffix];
                         const edgeId = `e-${sourceId}-${targetId}`;
                         if (sourceId && targetId && !edges.some(e => e.id === edgeId)) {
-                            const isAnimated = macroEdge.styleVariant === 'animated';
+                            const styleVariant = macroEdge.styleVariant || (typeof macroEdge.style === 'string' ? macroEdge.style : 'solid');
+                            const isAnimated = styleVariant === 'animated';
                             const baseEdgeStyle: any = { strokeWidth: 3, stroke: '#64748b', ...(typeof macroEdge.style === 'object' ? macroEdge.style : {}) };
-                            if (macroEdge.styleVariant === 'dashed') {
+                            if (styleVariant === 'dashed') {
                                 baseEdgeStyle.strokeDasharray = '5, 5';
                                 baseEdgeStyle.strokeLinecap = 'square';
-                            } else if (macroEdge.styleVariant === 'dotted') {
+                            } else if (styleVariant === 'dotted') {
                                 baseEdgeStyle.strokeDasharray = '2, 5';
                                 baseEdgeStyle.strokeLinecap = 'round';
                             }
@@ -524,7 +564,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                 targetHandle: macroEdge.target_handle || 'target-left',
                                 animated: isAnimated, type: 'smoothstep', zIndex: 5000,
                                 markerStart: mStart, markerEnd: mEnd,
-                                data: { label: macroEdge.label || 'Uses', technology: macroEdge.technology || '', direction: direction, styleVariant: macroEdge.styleVariant || 'solid' },
+                                data: { label: macroEdge.label || 'Uses', technology: macroEdge.technology || '', direction: direction, styleVariant: styleVariant },
                                 label: displayLabel,
                                 labelStyle: { fill: '#475569', fontWeight: 700, fontSize: 11, whiteSpace: 'pre-wrap', textAlign: 'center' as any },
                                 labelBgStyle: { fill: '#f8fafc', color: '#f8fafc', fillOpacity: 0.9, stroke: '#e2e8f0', strokeWidth: 1 },
@@ -806,6 +846,22 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 onNodeClick={(_, node) => onNodeSelect(node)}
                 onEdgeClick={(_, edge) => onEdgeSelect(edge)}
                 onPaneClick={() => { onNodeSelect(null); onEdgeSelect(null); }}
+                onNodesDelete={(deleted) => {
+                    const deletedIds = new Set(deleted.map(n => n.id));
+                    setNodes((nds: any[]) => {
+                        const toDelete = new Set<string>(deletedIds);
+                        let size = 0;
+                        while (toDelete.size > size) {
+                            size = toDelete.size;
+                            nds.forEach(n => {
+                                if (n.parentNode && toDelete.has(n.parentNode)) {
+                                    toDelete.add(n.id);
+                                }
+                            });
+                        }
+                        return nds.filter(n => !toDelete.has(n.id));
+                    });
+                }}
                 fitView
                 className="bg-slate-50"
             >
