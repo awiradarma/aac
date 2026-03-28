@@ -98,7 +98,7 @@ describe('Validator Engine Regression Suite', () => {
         };
 
         const errors = validateArchitecture(ast, mockRegistry);
-        expect(errors.some(e => e.message.includes("is missing mandatory component 'gw'"))).toBe(true);
+        expect(errors.some(e => e.message.includes("is missing mandatory component 'id_suffix:gw'"))).toBe(true);
     });
 
     it('should throw an error when standardization governance properties are violated (e.g. dragging F5 instead of AVI)', () => {
@@ -277,7 +277,7 @@ describe('Validator Engine Regression Suite', () => {
         };
 
         const errors = validateArchitecture(ast, mockRegistry);
-        expect(errors.some(e => e.message.includes("is missing mandatory connection from 'queue' to 'consumer'"))).toBe(true);
+        expect(errors.some(e => e.message.includes("is missing mandatory connection from 'id_suffix:queue' to 'id_suffix:consumer'"))).toBe(true);
     });
 
     it('should strictly throw error when a required architectural node is graphically completely deleted natively in the AST', () => {
@@ -298,6 +298,6 @@ describe('Validator Engine Regression Suite', () => {
         };
 
         const errors = validateArchitecture(ast, mockRegistry);
-        expect(errors.some(e => e.message.includes("is missing mandatory component 'consumer'"))).toBe(true);
+        expect(errors.some(e => e.message.includes("is missing mandatory component 'id_suffix:consumer'"))).toBe(true);
     });
 });

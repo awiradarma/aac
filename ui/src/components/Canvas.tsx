@@ -401,7 +401,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                 undefined
                             ));
 
-                            const logicalIdentity = macroNode.logical_identity || macroNode.logical_id;
+                            const logicalIdentity = macroNode.logical_identity || macroNode.logical_id || macroNode.id_suffix;
                             
                             if (adoptionNodeId && macroNode.id_suffix === adoptionRoleAlias) {
                                 existingNode = nodes.find(n => n.id === adoptionNodeId);
@@ -460,7 +460,7 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                     }
                                 }
                             } else {
-                                currentNodeId = (isLogicalPhase && logicalIdentity) ? logicalIdentity : getId();
+                                currentNodeId = getId();
                                 nodeMap[macroNode.id_suffix] = currentNodeId;
                                 if (logicalIdentity) logicalIdentityToId[logicalIdentity] = currentNodeId;
 
@@ -721,7 +721,11 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                         return flowPos.x >= pos.x && flowPos.x <= pos.x + width && flowPos.y >= pos.y && flowPos.y <= pos.y + height;
                     });
                     possibleParents.sort((a, b) => ((a.width || 500) * (a.height || 400)) - ((b.width || 500) * (b.height || 400)));
-                    const closestParent = possibleParents.length > 0 ? possibleParents[0] : null;
+                    
+                    // Critical Fix: Disable aggressive auto-reparenting for nodes owned by a pattern
+                    // Pattern-owned nodes MUST stay in their structural hierarchy to maintain validation integrity.
+                    const isPatternOwned = !!node.data.composition_id;
+                    const closestParent = isPatternOwned ? null : (possibleParents.length > 0 ? possibleParents[0] : null);
                     
                     // Smart Adoption/Role Replacement: Check if we dropped onto another node that belongs to a pattern
                     const possibleAdoptionTargets = nodes.filter(n => {

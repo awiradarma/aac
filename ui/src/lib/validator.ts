@@ -26,27 +26,70 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
     const getSuffixForExp = (n: any, expId: string) => {
         const memberships = getMemberships(n);
         if (memberships[expId]) return memberships[expId];
-        const primaryExpId = n.properties?.composition_id || n.composition_id;
-        if (primaryExpId === expId) return n.properties?.composition_alias || n.composition_alias;
+        
+        const originVal = n.properties?.origin_pattern || n.origin_pattern;
+        const originId = originVal ? originVal.split('@')[0] : null;
+
+        // MATCH: Check qualified memberships first (most specific)
+        if (memberships[expId]) return memberships[expId];
+
+        // MATCH: If expId matches the pattern origin (base or versioned), return the logical suffix
+        if (primaryExpId === expId || originVal === expId || originId === expId) {
+            return n.properties?.id_suffix || n.properties?.composition_alias || n.composition_alias || n.properties?.logical_identity || n.logical_identity;
+        }
+        return null;
         return null;
     };
 
     const nodeMatchesSelector = (n: any, selector: string, expId: string) => {
         const targetSuffix = selector.replace('id_suffix:', '');
         const actualSuffix = getSuffixForExp(n, expId);
-        const logicalId = n.properties?.logical_identity || n.logical_identity;
+        if (targetSuffix === 'api' && (actualSuffix === 'api' || (actualSuffix && actualSuffix.startsWith('api-')))) {
+             return true;
+        }
         
-        return (actualSuffix === targetSuffix) || 
-               (actualSuffix && actualSuffix.startsWith(targetSuffix + '-')) ||
-               (logicalId === targetSuffix) ||
-               (logicalId && logicalId.startsWith(targetSuffix + '-'));
+        const matchesSuffix = (actualSuffix === targetSuffix) || 
+               (actualSuffix && actualSuffix.startsWith(targetSuffix + '-'));
+
+        const matchesLogicalMaster = n.logicalId === targetSuffix || (n.properties?.containerId === targetSuffix);
+        
+        if (matchesSuffix || matchesLogicalMaster) return true;
+        
+        let logicalTemplateMatches = false;
+        if (n.logicalId && containerMap[n.logicalId]) {
+            const template = containerMap[n.logicalId];
+            const templateSuffix = template.properties?.composition_alias || template.composition_alias;
+            if (templateSuffix === targetSuffix || (templateSuffix && templateSuffix.startsWith(targetSuffix + '-'))) {
+                logicalTemplateMatches = true;
+            }
+        }
+
+        const matchesLabel = n.name && (n.name.toLowerCase().includes(targetSuffix.toLowerCase()) || n.label?.toLowerCase().includes(targetSuffix.toLowerCase()));
+        const matchesType = (n.properties?.widget_ref || n.widget_ref || n.data?.widget_ref)?.split('@')[0]?.toLowerCase() === targetSuffix.toLowerCase();
+        
+        const matchesLogical = (n.logicalId && (n.logicalId.toLowerCase() === targetSuffix.toLowerCase() || 
+                                              n.logicalId.toLowerCase().startsWith(targetSuffix.toLowerCase() + '-') ||
+                                              targetSuffix.toLowerCase().startsWith(n.logicalId.toLowerCase())));
+        
+        // Final fallback: check internal properties directly (useful for Strays)
+        const matchesInternalSuffix = n.properties && (
+            n.properties.id_suffix === targetSuffix || 
+            (n.properties.id_suffix && n.properties.id_suffix.startsWith(targetSuffix + '-')) ||
+            n.properties.logical_identity === targetSuffix ||
+            (n.properties.logical_identity && n.properties.logical_identity.startsWith(targetSuffix + '-'))
+        );
+
+        // Absolute fallback: check if the GUID/ID itself contains the marker
+        const matchesId = n.id && n.id.toLowerCase().includes(targetSuffix.toLowerCase());
+
+        return matchesSuffix || logicalTemplateMatches || matchesLabel || matchesType || matchesLogical || !!matchesInternalSuffix || !!matchesId;
     };
 
     const isDescendant = (childId: string, possibleParentId: string): boolean => {
         let curr = flatDeployments.find(n => n.id === childId);
         while (curr && curr.parentId) {
             if (curr.parentId === possibleParentId) return true;
-            curr = flatDeployments.find(n => n.id === curr.parentId || n.logicalId === curr.parentId);
+            curr = flatDeployments.find(n => n.id === curr.parentId);
         }
         return false;
     };
@@ -57,11 +100,15 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
             const pattern = patternId ? patterns.find(p => p.id === patternId) : null;
             const layerType = pattern?.layer || dn.layer || 'Unknown';
 
-            flatDeployments.push({ ...dn, type: layerType, layer: layerType, parentLayer, parentId });
+            flatDeployments.push({ ...dn, type: layerType, layer: layerType, parentLayer, parentId, isInstance: true });
 
             if (dn.containerInstances) {
                 dn.containerInstances.forEach((ci: any) => {
-                    const cn = containerMap[ci.containerId];
+                    let cn = containerMap[ci.containerId];
+                    // Healing logic: if GUID lookup fails (state loss), try finding the template by logical identity
+                    if (!cn && ci.properties?.logical_identity) {
+                        cn = Object.values(containerMap).find(v => (v.properties?.logical_identity === ci.properties.logical_identity) || (v.logical_identity === ci.properties.logical_identity));
+                    }
                     if (cn) {
                         flatDeployments.push({
                             ...cn,
@@ -72,7 +119,20 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
                             layer: 'Container',
                             parentLayer: layerType,
                             parentId: dn.id,
-                            properties: { ...cn.properties, ...ci.properties }
+                            properties: { ...cn.properties, ...ci.properties, ...(ci.properties?.properties || {}) }
+                        });
+                    } else {
+                        // Diagnostic for missing template - PRESERVE PROPERTIES
+                        flatDeployments.push({
+                            id: ci.id,
+                            name: `STRAY-${ci.id.slice(-4)}`,
+                            containerId: ci.containerId,
+                            isInstance: true,
+                            type: 'StrayContainer',
+                            layer: 'StrayContainer',
+                            parentLayer: layerType,
+                            parentId: dn.id,
+                            properties: { ...ci.properties, _error: `Template ${ci.containerId} not found in containerMap` }
                         });
                     }
                 });
@@ -81,10 +141,12 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
                 dn.infrastructureNodes.forEach((infra: any) => {
                     flatDeployments.push({
                         ...infra,
+                        isInstance: true,
                         type: 'InfrastructureNode',
                         layer: 'InfrastructureNode',
                         parentLayer: layerType,
-                        parentId: dn.id
+                        parentId: dn.id,
+                        properties: { ...(infra.properties || {}), ...(infra.properties?.properties || {}) }
                     });
                 });
             }
@@ -147,38 +209,46 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
     flatDeployments.forEach(n => {
         const memberships = getMemberships(n);
         const primaryExpId = n.properties?.composition_id || n.composition_id;
+        const originVal = n.properties?.origin_pattern || n.origin_pattern;
+        const originId = originVal ? originVal.split('@')[0] : null;
+
         const allIds = new Set(Object.keys(memberships));
         if (primaryExpId) allIds.add(primaryExpId);
+        if (originVal) allIds.add(originVal);
+        if (originId) allIds.add(originId);
 
         allIds.forEach(id => {
-            if (n.isInstance) {
+            let validForThisId = false;
+            // A node is valid for a census ID if:
+            // 1. It carries that ID in its memberships (explicit role)
+            // 2. It IS an instance and its origin pattern (base or versioned) matches the ID
+            // 3. It is a logical template for that pattern
+            
+            const originVal = n.properties?.origin_pattern || n.origin_pattern;
+            const originId = originVal ? originVal.split('@')[0] : null;
+
+            if (memberships[id] || primaryExpId === id || originVal === id || originId === id) {
+                validForThisId = true;
+            } else if (n.isInstance) {
                 let currentP = flatDeployments.find(p => p.id === n.parentId);
-                let validForThisId = false;
                 while (currentP) {
                     const pMem = getMemberships(currentP);
                     const pPrime = currentP.properties?.composition_id || currentP.composition_id;
-                    if (pPrime === id || pMem[id]) {
+                    const pOrigin = currentP.properties?.origin_pattern || currentP.origin_pattern;
+                    const pOriginId = pOrigin ? pOrigin.split('@')[0] : null;
+
+                    if (pMem[id] || pPrime === id || pOrigin === id || pOriginId === id) {
                         validForThisId = true;
                         break;
                     }
                     currentP = flatDeployments.find(p => p.id === currentP.parentId);
                 }
-
-                if (!validForThisId) {
-                    const logicalPeer = flatDeployments.find(other =>
-                        !other.isInstance &&
-                        other.id !== n.id &&
-                        (other.properties?.composition_id === id || other.composition_id === id ||
-                            (getMemberships(other))[id])
-                    );
-                    if (logicalPeer) validForThisId = true;
-                }
-
-                if (!validForThisId) return;
             }
 
-            if (!expansionInstances[id]) expansionInstances[id] = [];
-            if (!expansionInstances[id].includes(n)) expansionInstances[id].push(n);
+            if (validForThisId) {
+                if (!expansionInstances[id]) expansionInstances[id] = [];
+                if (!expansionInstances[id].includes(n)) expansionInstances[id].push(n);
+            }
         });
     });
 
@@ -329,7 +399,7 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
                     }
                 }
             } else if (rule.type === 'placement_redundancy') {
-                const targetNodes = instanceNodes.filter(n => nodeMatchesSelector(n, rule.node, expId));
+                const targetNodes = instanceNodes.filter(n => n.isInstance && nodeMatchesSelector(n, rule.node, expId));
                 
                 if (rule.constraints) {
                     rule.constraints.forEach((constraint: any) => {
@@ -337,14 +407,14 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
                         const groupLayer = constraint.groupBy.replace('layer:', '');
 
                         targetNodes.forEach(tn => {
-                            let parent = flatDeployments.find(p => p.id === tn.parentId || p.logicalId === tn.parentId);
+                            let parent = uniqueDeployments.find(p => p.id === tn.parentId);
                             while (parent) {
-                                if (parent.type === groupLayer || parent.layer === groupLayer) {
+                                if (parent.type?.toLowerCase() === groupLayer.toLowerCase() || parent.layer?.toLowerCase() === groupLayer.toLowerCase()) {
                                     if (!groups.has(parent.id)) groups.set(parent.id, []);
                                     groups.get(parent.id)!.push(tn);
                                     break;
                                 }
-                                parent = flatDeployments.find(p => p.id === parent.parentId || p.logicalId === parent.parentId);
+                                parent = uniqueDeployments.find(p => p.id === parent.parentId);
                             }
                         });
 
@@ -353,9 +423,21 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
                         const max = constraint.max_count;
 
                         if (min && actualCount < min) {
+                            const matchedNodesInfo = targetNodes.map(tn => {
+                                const p = uniqueDeployments.find(p => p.id === tn.parentId);
+                                return `${tn.name}(rawParentId:${tn.parentId}, foundParent:${p?.name || 'none'}, layer:${p?.layer || p?.type || 'none'})`;
+                            }).join(', ');
+                            
+                            const structureSummary = uniqueDeployments.map(n => 
+                                `ID:${n.id}(Name:${n.name}, Layer:${n.layer}, Parent:${n.parentId})`
+                            ).slice(0, 10).join(' | '); // Limit to first 10 for space
+                            
+                            const foundLabels = Array.from(groups.keys()).map(gid => uniqueDeployments.find(n => n.id === gid)?.name || gid).join(', ');
+                            const diag = (targetNodes.length === 0) ? " (Zero target nodes matched selector)" : 
+                                         ` (Matches: ${matchedNodesInfo} | Groups: ${foundLabels || 'None'} | ModelHead: ${structureSummary})`;
                             results.push({
                                 severity: severityVal,
-                                message: constraint.description || `Redundancy Violation: ${originPattern.name} requires ${rule.node} across at least ${min} ${constraint.groupBy.replace('layer:', '')}s. Found ${actualCount}.`,
+                                message: constraint.description || `Redundancy Violation: ${originPattern.name} requires ${rule.node} across at least ${min} ${constraint.groupBy.replace('layer:', '')}s. Found ${actualCount}.${diag}`,
                                 ruleId: rule.id,
                                 patternName: originPattern.name,
                                 patternId: originPattern.id
@@ -454,10 +536,28 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
 
                     if (rule.group_distribution) {
                         const roleCounts = new Map<string, number>();
-                        groups.forEach(g => {
+                        groups.forEach((g, _gid) => {
                             rule.group_distribution!.forEach((dist: any) => {
-                                const matchesEdge = g.edges.length > 0 && (!dist.edge_property || Object.entries(dist.edge_property).every(([k, v]) => g.edges.some(e => e[k] === v)));
-                                const matchesNode = g.nodes.length > 0 && (!dist.target_node_property || Object.entries(dist.target_node_property).every(([k, v]) => g.nodes.some(n => (n.properties?.[k] === v || n[k] === v))));
+                                const matchesEdge = g.edges.length > 0 && (!dist.edge_property || Object.entries(dist.edge_property).every(([k, v]) => {
+                                    return g.edges.some(e => {
+                                        const actual = e.properties?.[k] || e[k] || (k === 'style' ? (e.properties?.styleVariant || e.styleVariant) : null);
+                                        return actual === v;
+                                    });
+                                }));
+                                
+                                const matchesNode = g.nodes.length > 0 && (!dist.target_node_property || Object.entries(dist.target_node_property).every(([k, v]) => {
+                                    return g.nodes.some(tn => {
+                                        // Check node itself
+                                        if (tn.properties?.[k] === v || tn[k] === v) return true;
+                                        // Check parents (inheritance)
+                                        let p = uniqueDeployments.find(parent => parent.id === tn.parentId);
+                                        while (p) {
+                                            if (p.properties?.[k] === v || p[k] === v) return true;
+                                            p = uniqueDeployments.find(parent => parent.id === p.parentId);
+                                        }
+                                        return false;
+                                    });
+                                }));
                                 
                                 if (matchesEdge && matchesNode) {
                                     roleCounts.set(dist.role, (roleCounts.get(dist.role) || 0) + 1);
@@ -468,9 +568,10 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
                         rule.group_distribution.forEach((dist: any) => {
                             const count = roleCounts.get(dist.role) || 0;
                             if (dist.min_groups !== undefined && count < dist.min_groups) {
+                                const diag = ` (Actually matched ${groups.size} groups, but only ${count} satisfied criteria for role ${dist.role})`;
                                 results.push({
                                     severity: severityVal,
-                                    message: dist.description || `Topology Violation: Expected at least ${dist.min_groups} ${dist.role} groups, found ${count}.`,
+                                    message: dist.description || `Topology Violation: Expected at least ${dist.min_groups} ${dist.role} groups, found ${count}.${diag}`,
                                     ruleId: rule.id,
                                     patternName: originPattern.name,
                                     patternId: originPattern.id

@@ -130,24 +130,36 @@ export default function App() {
     setNodes((nds) => {
       const updatedNodes = applyNodeChanges(finalChanges, nds);
 
-      // Actively wipe cascaded deleted edges to prevent topological ghost links
+      // Cascading edge cleanup for deletions
       const trueDeletions = new Set(finalChanges.filter(c => c.type === 'remove').map((c: any) => c.id));
       if (trueDeletions.size > 0) {
         setEdges(eds => eds.filter(e => !trueDeletions.has(e.source) && !trueDeletions.has(e.target)));
       }
 
-      return updatedNodes.map((n: Node, i: number) => {
-        const originalNode = nds[i];
+      return updatedNodes.map((n: Node) => {
+        const originalNode = nds.find(x => x.id === n.id);
         if (!originalNode) return n;
+
+        // MASTER PARENTAGE LOCK: Force-restore structural hierarchy from master state 
+        // to prevent UI projections from orphaning nodes during selection/visibility changes.
+        const restoredNode = { 
+          ...n, 
+          parentNode: originalNode.parentNode,
+          data: { ...originalNode.data, ...n.data } 
+        };
+
         const posChange = finalChanges.find((c: any) => c.type === 'position' && c.id === n.id);
         const isAutomatedJump = posChange && !posChange.dragging && !posChange.positionAbsolute;
 
-        if (!isAutomatedJump && (n.position.x !== originalNode.position.x || n.position.y !== originalNode.position.y || n.style?.width !== originalNode.style?.width || n.parentNode !== originalNode.parentNode)) {
-          const currentLayouts = n.data.layoutMap || {};
+        if (!isAutomatedJump && (n.position.x !== originalNode.position.x || n.position.y !== originalNode.position.y || n.style?.width !== originalNode.style?.width)) {
+          const currentLayouts = restoredNode.data.layoutMap || {};
+          const isDragging = !!posChange?.dragging;
+          const actualParentToPersist = isDragging ? n.parentNode : originalNode.parentNode;
+
           return {
-            ...n,
+            ...restoredNode,
             data: {
-              ...n.data,
+              ...restoredNode.data,
               layoutMap: {
                 ...currentLayouts,
                 [activeViewId]: {
@@ -155,13 +167,13 @@ export default function App() {
                   y: n.position.y,
                   width: n.style?.width,
                   height: n.style?.height,
-                  parentNode: n.parentNode
+                  parentNode: actualParentToPersist
                 }
               }
             }
           };
         }
-        return n;
+        return restoredNode;
       });
     });
   }, [activeViewId, nodes, views]);
@@ -334,11 +346,11 @@ export default function App() {
       }
     };
 
-    const allNodes = nodes.filter(n => (n.type === 'deploymentNode' || n.type === 'infrastructureNode') && !n.hidden);
-    const containerNodes = nodes.filter(n => n.type === 'containerNode' && !n.hidden);
-    const componentNodes = nodes.filter(n => n.type === 'componentNode' && !n.hidden);
-    const systemNodes = nodes.filter(n => n.type === 'systemNode' && !n.hidden);
-    const personNodes = nodes.filter(n => n.type === 'personNode' && !n.hidden);
+    const allNodes = nodes.filter(n => (n.type === 'deploymentNode' || n.type === 'infrastructureNode'));
+    const containerNodes = nodes.filter(n => n.type === 'containerNode');
+    const componentNodes = nodes.filter(n => n.type === 'componentNode');
+    const systemNodes = nodes.filter(n => n.type === 'systemNode');
+    const personNodes = nodes.filter(n => n.type === 'personNode');
 
     const allIdMap = new Map<string, string>();
     systemNodes.forEach(n => allIdMap.set(n.id, n.id));
@@ -350,7 +362,6 @@ export default function App() {
     containerNodes.forEach(w => {
       const logicalId = (w.data as any).containerId || w.id;
       allIdMap.set(w.id, logicalId);
-      (w as any)._logicalContainerId = logicalId;
     });
 
     const serializeLayout = (n: any) => {
@@ -431,7 +442,7 @@ export default function App() {
             memberships: { ...existingMemberships, ...nodeMemberships },
             status: 'new',
             aac_layout: serializeLayout(w),
-            ...w.data.properties
+            ...Object.fromEntries(Object.entries((w.data as any).properties || {}).filter(([k]) => !['parentId', 'id', 'c4Level', 'logical_parent_id'].includes(k)))
           }
         });
       } else if (!existing) {
@@ -449,13 +460,11 @@ export default function App() {
             memberships: { ...existingMemberships, ...nodeMemberships },
             status: 'new',
             aac_layout: serializeLayout(w),
-            ...w.data.properties
+            ...Object.fromEntries(Object.entries((w.data as any).properties || {}).filter(([k]) => !['parentId', 'id', 'c4Level', 'logical_parent_id'].includes(k)))
           }
         });
       }
 
-      // Store logical ID reference for deployment mapping
-      (w as any)._logicalContainerId = logicalId;
       containerIdMap.set(w.id, logicalId);
     });
 
@@ -520,11 +529,8 @@ export default function App() {
       const targetNode = nodes.find(n => n.id === e.target);
 
       if (sourceNode && targetNode) {
-        let sourceLogicId = sourceNode.id;
-        if (sourceNode.type === 'containerNode') sourceLogicId = (sourceNode as any)._logicalContainerId || sourceNode.id;
-
-        let targetLogicId = targetNode.id;
-        if (targetNode.type === 'containerNode') targetLogicId = (targetNode as any)._logicalContainerId || targetNode.id;
+        let sourceLogicId = (sourceNode.data as any)?.containerId || sourceNode.id;
+        let targetLogicId = (targetNode.data as any)?.containerId || targetNode.id;
 
         // Map relationships uniquely between explicitly defined distinct physical edge ports!
         const relId = `${sourceLogicId}-${targetLogicId}-${e.sourceHandle || ''}-${e.targetHandle || ''}`;
@@ -596,7 +602,7 @@ export default function App() {
     structurizr.model.relationships = [...relationships, ...inferredRelationships];
 
     const buildTree = (parentId?: string): any[] => {
-      const children = allNodes.filter(n => n.parentNode === parentId);
+      const children = nodes.filter(n => (n.type === 'deploymentNode' || n.type === 'infrastructureNode') && n.parentNode === parentId);
       return children.map(child => {
         const dNode: any = {
           name: child.data.label.replace(/\s+/g, '-'),
@@ -607,6 +613,8 @@ export default function App() {
             origin_pattern: (child.data as any).origin_pattern,
             composition_alias: (child.data as any).composition_alias,
             composition_id: (child.data as any).composition_id,
+            logical_identity: (child.data as any).logical_identity,
+            id_suffix: (child.data as any).composition_alias || (child.data as any).logical_identity,
             memberships: (child.data as any).memberships,
             status: 'new',
             ...child.data.properties
@@ -615,29 +623,34 @@ export default function App() {
         const nestedNodes = buildTree(child.id);
         if (nestedNodes.length > 0) dNode.nodes = nestedNodes;
 
-        // Find containers linked to this deployment node
-        const containers = containerNodes.filter(w => w.parentNode === child.id);
+        const allChildren = nodes.filter(n => n.parentNode === child.id);
+        
+        const containers = allChildren.filter(n => n.type === 'containerNode' || n.type === 'componentNode' || n.data?.c4Level === 'Container' || n.data?.c4Level === 'Component');
         if (containers.length > 0) {
           dNode.containerInstances = containers.map(w => ({
-            id: w.id, // Strictly preserve origin ID mapping mathematically seamlessly avoiding inclusion blinding
-            containerId: (w as any)._logicalContainerId || w.id,
+            id: w.id,
+            containerId: (w.data as any).containerId || w.id,
+            parentId: child.id,
             properties: {
               widget_ref: w.data.widget_ref,
               aac_layout: serializeLayout(w),
               origin_pattern: (w.data as any).origin_pattern,
               composition_alias: (w.data as any).composition_alias,
               composition_id: (w.data as any).composition_id,
+              logical_identity: (w.data as any).logical_identity,
+              id_suffix: (w.data as any).composition_alias || (w.data as any).logical_identity,
               memberships: (w.data as any).memberships,
               ...w.data.properties
             }
           }));
         }
 
-        const infra = nodes.filter(n => n.type === 'infrastructureNode' && n.parentNode === child.id);
+        const infra = allChildren.filter(n => n.type === 'infrastructureNode' || n.data?.c4Level === 'InfrastructureNode');
         if (infra.length > 0) {
           dNode.infrastructureNodes = infra.map(w => ({
             id: w.id,
             name: w.data.label.replace(/\s+/g, '-'),
+            parentId: child.id,
             properties: {
               widget_ref: w.data.widget_ref,
               aac_layout: serializeLayout(w),
@@ -1430,8 +1443,8 @@ export default function App() {
 
           nextNodes = nextNodes.map(n => {
             const isMatch = n.id === targetId ||
-              (n.type === 'containerNode' && (n as any)._logicalContainerId === targetId) ||
-              (n.type === 'containerNode' && logicalId && (n as any)._logicalContainerId === logicalId);
+              (n.type === 'containerNode' && (n.data as any).containerId === targetId) ||
+              (n.type === 'containerNode' && logicalId && (n.data as any).containerId === logicalId);
 
             if (isMatch) {
               return {
@@ -1529,10 +1542,17 @@ export default function App() {
     nodes.forEach(n => {
       if (n.data?.logical_identity && n.data?.composition_id) {
         const key = `${n.data.composition_id}-${n.data.logical_identity}`;
-        if (!masterMap.has(key)) {
+        const existingMaster = masterMap.get(key);
+        const isLogical = !(n.data as any).containerId;
+
+        if (!existingMaster) {
+          masterMap.set(key, n.id);
+        } else if (isLogical) {
+          // If a master exists but we just found the LOGICAL version, promote it to master
+          replicaMap.set(existingMaster, n.id);
           masterMap.set(key, n.id);
         } else {
-          replicaMap.set(n.id, masterMap.get(key)!);
+          replicaMap.set(n.id, existingMaster);
         }
       }
     });

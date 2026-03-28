@@ -117,35 +117,82 @@ export const Sidebar: React.FC<Props> = ({ activeView, hiddenNodes, onRevealNode
             <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-6">
                 {/* Existing Model Entities */}
                 {hasHiddenNodes && (
-                    <div>
-                        <div className="flex items-center gap-2 mb-3">
-                            <div className="h-px bg-slate-100 flex-1"></div>
-                            <h3 className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">Hidden Elements</h3>
-                            <div className="h-px bg-slate-100 flex-1"></div>
-                        </div>
-                        <div className="grid grid-cols-1 gap-2">
-                            {hiddenNodes?.map(node => (
-                                <div
-                                    key={node.id}
-                                    className="px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg cursor-pointer hover:border-indigo-400 hover:shadow-md transition-all group active:scale-95 flex items-center gap-3 cursor-grab active:cursor-grabbing"
-                                    onClick={() => onRevealNode && onRevealNode(node.id)}
-                                    draggable
-                                    onDragStart={(e) => {
-                                        e.dataTransfer.setData('application/existingNodeId', node.id);
-                                        e.dataTransfer.effectAllowed = 'move';
-                                    }}
-                                >
-                                    <div className="w-8 h-8 rounded-md flex items-center justify-center shrink-0 bg-indigo-100 text-indigo-600">
-                                        <DynamicIcon name={node.data?.icon || 'Box'} className="w-4 h-4" />
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                        <div className="text-[11px] font-bold text-slate-700 truncate leading-tight group-hover:text-indigo-700 transition-colors">{node.data?.label || 'Unnamed Node'}</div>
-                                        <div className="text-[9px] font-mono text-slate-400 mt-0.5 truncate uppercase">{node.data?.c4Level || 'Unknown'}</div>
-                                    </div>
-                                    <div className="text-[9px] font-black text-indigo-400 opacity-0 group-hover:opacity-100 uppercase tracking-widest shrink-0">ADD</div>
-                                </div>
-                            ))}
-                        </div>
+                    <div className="space-y-6">
+                        {(() => {
+                            const isDeployment = activeView?.type === 'Deployment';
+                            const templates = isDeployment ? hiddenNodes.filter(n => n.data?.c4Level === 'Container' && !n.data?.containerId) : [];
+                            const manuallyHidden = hiddenNodes.filter(n => !templates.some(t => t.id === n.id));
+
+                            return (
+                                <>
+                                    {templates.length > 0 && (
+                                        <div key="templates">
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <div className="h-px bg-slate-100 flex-1"></div>
+                                                <h3 className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em]">Deployment Templates</h3>
+                                                <div className="h-px bg-slate-100 flex-1"></div>
+                                            </div>
+                                            <div className="grid grid-cols-1 gap-2">
+                                                {templates.map(node => (
+                                                    <div
+                                                        key={node.id}
+                                                        className="px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-lg cursor-pointer hover:border-emerald-400 hover:shadow-md transition-all group active:scale-95 flex items-center gap-3 cursor-grab active:cursor-grabbing"
+                                                        onClick={() => onRevealNode && onRevealNode(node.id)}
+                                                        draggable
+                                                        onDragStart={(e) => {
+                                                            e.dataTransfer.setData('application/existingNodeId', node.id);
+                                                            e.dataTransfer.effectAllowed = 'move';
+                                                        }}
+                                                    >
+                                                        <div className="w-8 h-8 rounded-md flex items-center justify-center shrink-0 bg-emerald-100 text-emerald-600">
+                                                            <DynamicIcon name={node.data?.icon || 'Box'} className="w-4 h-4" />
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="text-[11px] font-bold text-slate-700 truncate leading-tight group-hover:text-emerald-700 transition-colors">{node.data?.label || 'Unnamed Node'}</div>
+                                                            <div className="text-[9px] font-mono text-slate-400 mt-0.5 truncate uppercase">TEMPLATE</div>
+                                                        </div>
+                                                        <div className="text-[9px] font-black text-emerald-400 opacity-0 group-hover:opacity-100 uppercase tracking-widest shrink-0">DEPLOY</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {manuallyHidden.length > 0 && (
+                                        <div key="hidden">
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <div className="h-px bg-slate-100 flex-1"></div>
+                                                <h3 className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">Hidden Elements</h3>
+                                                <div className="h-px bg-slate-100 flex-1"></div>
+                                            </div>
+                                            <div className="grid grid-cols-1 gap-2">
+                                                {manuallyHidden.map(node => (
+                                                    <div
+                                                        key={node.id}
+                                                        className="px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg cursor-pointer hover:border-indigo-400 hover:shadow-md transition-all group active:scale-95 flex items-center gap-3 cursor-grab active:cursor-grabbing"
+                                                        onClick={() => onRevealNode && onRevealNode(node.id)}
+                                                        draggable
+                                                        onDragStart={(e) => {
+                                                            e.dataTransfer.setData('application/existingNodeId', node.id);
+                                                            e.dataTransfer.effectAllowed = 'move';
+                                                        }}
+                                                    >
+                                                        <div className="w-8 h-8 rounded-md flex items-center justify-center shrink-0 bg-indigo-100 text-indigo-600">
+                                                            <DynamicIcon name={node.data?.icon || 'Box'} className="w-4 h-4" />
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="text-[11px] font-bold text-slate-700 truncate leading-tight group-hover:text-indigo-700 transition-colors">{node.data?.label || 'Unnamed Node'}</div>
+                                                            <div className="text-[9px] font-mono text-slate-400 mt-0.5 truncate uppercase">{node.data?.c4Level || 'Unknown'}</div>
+                                                        </div>
+                                                        <div className="text-[9px] font-black text-indigo-400 opacity-0 group-hover:opacity-100 uppercase tracking-widest shrink-0">REVEAL</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            );
+                        })()}
                     </div>
                 )}
 

@@ -44,10 +44,14 @@ composition:
                 widget_ref: api-gateway@2.0.0
                 c4Level: InfrastructureNode
                 logical_identity: gateway
+                properties: { traffic_role: active }
+                layout_hint: { x: 50, y: 50 }
               - id_suffix: api-1
                 widget_ref: api-container@1.0.0
                 c4Level: Container
                 logical_identity: api-service
+                properties: { traffic_role: active }
+                layout_hint: { x: 50, y: 250 }
           - id_suffix: dc-2
             widget_ref: datacenter@1.0.0
             label: DC-2 (Active)
@@ -61,10 +65,14 @@ composition:
                 widget_ref: api-gateway@2.0.0
                 c4Level: InfrastructureNode
                 logical_identity: gateway
+                properties: { traffic_role: active }
+                layout_hint: { x: 50, y: 50 }
               - id_suffix: api-2
                 widget_ref: api-container@1.0.0
                 c4Level: Container
                 logical_identity: api-service
+                properties: { traffic_role: active }
+                layout_hint: { x: 50, y: 250 }
 
       # Region 2 (Passive)
       - id_suffix: region-2
@@ -88,10 +96,14 @@ composition:
                 widget_ref: api-gateway@2.0.0
                 c4Level: InfrastructureNode
                 logical_identity: gateway
+                properties: { traffic_role: passive }
+                layout_hint: { x: 50, y: 50 }
               - id_suffix: api-3
                 widget_ref: api-container@1.0.0
                 c4Level: Container
                 logical_identity: api-service
+                properties: { traffic_role: passive }
+                layout_hint: { x: 50, y: 250 }
           - id_suffix: dc-4
             widget_ref: datacenter@1.0.0
             label: DC-4 (Passive)
@@ -105,10 +117,14 @@ composition:
                 widget_ref: api-gateway@2.0.0
                 c4Level: InfrastructureNode
                 logical_identity: gateway
+                properties: { traffic_role: passive }
+                layout_hint: { x: 50, y: 50 }
               - id_suffix: api-4
                 widget_ref: api-container@1.0.0
                 c4Level: Container
                 logical_identity: api-service
+                properties: { traffic_role: passive }
+                layout_hint: { x: 50, y: 250 }
 
     edges:
       - source_suffix: gslb
