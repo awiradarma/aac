@@ -334,10 +334,12 @@ export function validateArchitecture(arch: any, registry: Registry, scope?: 'con
                 if (rule.constraints) {
                     rule.constraints.forEach((constraint: any) => {
                         const groups = new Map<string, any[]>();
+                        const groupLayer = constraint.groupBy.replace('layer:', '');
+
                         targetNodes.forEach(tn => {
                             let parent = flatDeployments.find(p => p.id === tn.parentId || p.logicalId === tn.parentId);
                             while (parent) {
-                                if (parent.type === constraint.groupBy.replace('layer:', '') || parent.layer === constraint.groupBy.replace('layer:', '')) {
+                                if (parent.type === groupLayer || parent.layer === groupLayer) {
                                     if (!groups.has(parent.id)) groups.set(parent.id, []);
                                     groups.get(parent.id)!.push(tn);
                                     break;

@@ -63,6 +63,11 @@ parameters:
 ### 4. Sizing & Visual Constraints
 Ensure consistent UI presentation and prevent illegal resizing of complex containers.
 
+![Validation Bug Reproduction](/home/andre/.gemini/antigravity/brain/d9c84f70-3c14-40de-b055-abcfef79fd7f/reproduce_validation_bug_1774664859047.webp)
+![Final Validation Fix](/home/andre/.gemini/antigravity/brain/d9c84f70-3c14-40de-b055-abcfef79fd7f/final_verify_validation_fix_1774665408650.webp)
+![Validation Groups](/home/andre/.gemini/antigravity/brain/d9c84f70-3c14-40de-b055-abcfef79fd7f/debug_validation_groups_1774665629390.webp)
+![Final Logs](/home/andre/.gemini/antigravity/brain/d9c84f70-3c14-40de-b055-abcfef79fd7f/debug_validation_final_logs_mode_agent_mode_verification_1774666301673.webp)
+
 ```yaml
 default_width: 1200
 default_height: 1000

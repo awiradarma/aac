@@ -416,12 +416,31 @@ export default function App() {
 
       // Store this container if: (a) no entry exists yet, or (b) existing is a physical instance
       // and current is a logical container (logical containers have the user-edited properties)
-      if (!existing || (existing._isPhysicalInstance && !isPhysicalInstance)) {
+      // ALSO: Ensure we don't accidentally keep a physical instance if a logical one exists!
+      if (!isPhysicalInstance) {
         uniqueContainers.set(logicalId, {
           name: w.data.label.replace(/\s+/g, '-'),
           id: logicalId,
           logical_parent_id: w.data.logical_parent_id,
-          _isPhysicalInstance: isPhysicalInstance, // Track for priority comparison
+          _isPhysicalInstance: false,
+          properties: {
+            widget_ref: w.data.widget_ref,
+            origin_pattern: (w.data as any).origin_pattern,
+            composition_alias: (w.data as any).composition_alias,
+            composition_id: (w.data as any).composition_id,
+            memberships: { ...existingMemberships, ...nodeMemberships },
+            status: 'new',
+            aac_layout: serializeLayout(w),
+            ...w.data.properties
+          }
+        });
+      } else if (!existing) {
+        // Only store as a fallback if no logical version exists yet
+        uniqueContainers.set(logicalId, {
+          name: w.data.label.replace(/\s+/g, '-'),
+          id: logicalId,
+          logical_parent_id: w.data.logical_parent_id,
+          _isPhysicalInstance: true,
           properties: {
             widget_ref: w.data.widget_ref,
             origin_pattern: (w.data as any).origin_pattern,

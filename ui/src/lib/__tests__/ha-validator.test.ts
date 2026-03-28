@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { validateArchitecture } from '../validator';
-import { Registry } from '../../types';
+import type { Registry } from '../../types';
 
 describe('HA Validator Engine', () => {
     const mockRegistry: Registry = {
