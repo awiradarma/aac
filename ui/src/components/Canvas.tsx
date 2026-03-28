@@ -408,9 +408,11 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                             } else if (isLogicalPhase && logicalIdentity) {
                                 // Prefer matching by logical identity globally first ONLY during the logical phase
                                 existingNode = nodes.find(n => 
-                                    n.data?.logical_identity === logicalIdentity || n.id === logicalIdentity
+                                    (n.data?.logical_identity === logicalIdentity || n.id === logicalIdentity) &&
+                                    !n.data?.containerId // ONLY match logical masters
                                 ) || generatedNodes.find(n => 
-                                    n.data?.logical_identity === logicalIdentity || n.id === logicalIdentity
+                                    (n.data?.logical_identity === logicalIdentity || n.id === logicalIdentity) &&
+                                    !n.data?.containerId
                                 );
                             }
                             
@@ -429,7 +431,10 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                     n.parentNode === parentId &&
                                     n.data.widget_ref === macroNode.widget_ref &&
                                     n.data.layer === macroNode.layer &&
-                                    n.type === checkType
+                                    n.type === checkType &&
+                                    // In physical phase, only reuse if it's already an instance.
+                                    // In logical phase, don't match existing physical instances.
+                                    (isLogicalPhase ? !n.data.containerId : !!n.data.containerId)
                                 );
                             }
 
@@ -440,11 +445,27 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                 if (logicalIdentity) logicalIdentityToId[logicalIdentity] = currentNodeId;
 
                                 const existingMemberships = existingNode.data.memberships || {};
+                                const newPos = { x: startX + (macroNode.layout_hint?.x ?? (index * 220)) * scale, y: startY + (macroNode.layout_hint?.y ?? (depth * 150)) * scale };
+                                const viewId = activeView?.id;
+                                const layoutUpdate = viewId ? {
+                                    [viewId]: {
+                                        x: newPos.x,
+                                        y: newPos.y,
+                                        parentNode: parentId,
+                                        width: existingNode.style?.width,
+                                        height: existingNode.style?.height
+                                    }
+                                } : {};
+
                                 mergedNodeMetadata[currentNodeId] = {
                                     memberships: { ...existingMemberships, [expansionId]: macroNode.id_suffix },
                                     origin_pattern: `${pattern.id}@${pattern.version}`,
                                     composition_alias: macroNode.id_suffix,
                                     composition_id: expansionId,
+                                    parentNode: parentId,
+                                    extent: extent,
+                                    position: newPos,
+                                    layoutMap: { ...(existingNode.data.layoutMap || {}), ...layoutUpdate },
                                     status: 'existing'
                                 };
                                 const logicalRootId = (existingNode.data as any)?.logical_parent_id;
@@ -484,10 +505,22 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                     containerId = logicalIdentity ? logicalIdentityToId[logicalIdentity] : undefined;
                                 }
 
+                                const newPos = { x: startX + offsetX, y: startY + offsetY };
+                                const viewId = activeView?.id;
+                                const initialLayout = viewId ? {
+                                    [viewId]: {
+                                        x: newPos.x,
+                                        y: newPos.y,
+                                        parentNode: parentId,
+                                        width: (nPattern?.default_width || 500) * scale,
+                                        height: (nPattern?.default_height || 400) * scale
+                                    }
+                                } : {};
+
                                 const gNode: Node<NodeData> = {
                                     id: currentNodeId,
                                     type: checkType,
-                                    position: { x: startX + offsetX, y: startY + offsetY },
+                                    position: newPos,
                                     style: (checkType === 'deploymentNode') ? { width: (nPattern?.default_width || 500) * scale, height: (nPattern?.default_height || 400) * scale } : undefined,
                                     parentNode: parentId,
                                     extent: extent,
@@ -509,7 +542,8 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                         logical_identity: logicalIdentity,
                                         memberships: { [expansionId]: macroNode.id_suffix },
                                         logical_parent_id: calculatedLogicalParent,
-                                        containerId: containerId
+                                        containerId: containerId,
+                                        layoutMap: initialLayout
                                     }
                                 };
                                 if (macroNode.property_mappings) {
@@ -583,7 +617,17 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     }
 
                     setNodes((nds: Node[]) => {
-                        const updated = nds.map(n => mergedNodeMetadata[n.id] ? { ...n, data: { ...n.data, ...mergedNodeMetadata[n.id] } } : n);
+                        const updated = nds.map(n => {
+                            const meta = mergedNodeMetadata[n.id];
+                            if (!meta) return n;
+                            return { 
+                                ...n, 
+                                parentNode: meta.parentNode ?? n.parentNode,
+                                extent: meta.extent ?? n.extent,
+                                position: meta.position ?? n.position,
+                                data: { ...n.data, ...meta } 
+                            };
+                        });
                         return [...updated, ...generatedNodes];
                     });
                     if (generatedEdges.length > 0) setEdges((eds: Edge[]) => eds.concat(generatedEdges));

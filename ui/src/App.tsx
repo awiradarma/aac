@@ -142,9 +142,13 @@ export default function App() {
 
         // MASTER PARENTAGE LOCK: Force-restore structural hierarchy from master state 
         // to prevent UI projections from orphaning nodes during selection/visibility changes.
+        // However, allow EXPLICIT re-parenting (change to a new non-null parent).
+        const explicitParentChange = n.parentNode && n.parentNode !== originalNode.parentNode;
+        const isOrphaning = !n.parentNode && originalNode.parentNode && !explicitParentChange;
+
         const restoredNode = { 
           ...n, 
-          parentNode: originalNode.parentNode,
+          parentNode: isOrphaning ? originalNode.parentNode : n.parentNode,
           data: { ...originalNode.data, ...n.data } 
         };
 
@@ -154,7 +158,7 @@ export default function App() {
         if (!isAutomatedJump && (n.position.x !== originalNode.position.x || n.position.y !== originalNode.position.y || n.style?.width !== originalNode.style?.width)) {
           const currentLayouts = restoredNode.data.layoutMap || {};
           const isDragging = !!posChange?.dragging;
-          const actualParentToPersist = isDragging ? n.parentNode : originalNode.parentNode;
+          const actualParentToPersist = isDragging ? n.parentNode : restoredNode.parentNode;
 
           return {
             ...restoredNode,
