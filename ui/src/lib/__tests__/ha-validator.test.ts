@@ -119,6 +119,7 @@ describe('HA Validator Engine', () => {
         };
 
         const results = validateArchitecture(arch, mockRegistry);
+        if (results.length > 0) console.log('HA Cohesion Results:', results);
         expect(results.some(r => r.message.includes('mixed active/passive paths'))).toBe(true);
     });
 

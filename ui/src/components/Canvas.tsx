@@ -336,8 +336,10 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                 const scopedComp = isContainerView ? pattern.composition.container : pattern.composition.deployment;
                 const rawMacroNodes = scopedComp?.nodes || (pattern.composition as any).nodes || [];
                 const macroEdges = scopedComp?.edges || (pattern.composition as any).edges || [];
+                console.log(`[EXPANSION] Starting for pattern ${pattern.id}, rawNodes: ${rawMacroNodes.length}, rawEdges: ${macroEdges.length}`);
 
                 const startExpansion = (role?: string) => {
+                    console.log(`[EXPANSION] startExpansion called with role: ${role}`);
                     const chosenRole = role;
                     const resolveValue = (path: string, scopeNode: Node<NodeData> | null): any => {
                         if (!path.startsWith('parent.') || !scopeNode || !scopeNode.parentNode) return undefined;
@@ -611,10 +613,14 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                     if (pattern.composition?.workload_target_suffix) {
                         const targetHostId = nodeMap[pattern.composition.workload_target_suffix];
                         if (targetHostId) {
-                            newNode.parentNode = targetHostId; newNode.extent = 'parent'; newNode.position = { x: 50, y: 80 }; newNode.zIndex = 20;
-                            generatedNodes.push(newNode);
+                            newNode.parentNode = targetHostId; 
+                            newNode.extent = 'parent'; 
+                            newNode.position = { x: 50, y: 80 }; 
+                            newNode.zIndex = 20;
                         }
                     }
+                    // CRITICAL: Always add the anchor node so the validator has a root to anchor the expansion!
+                    generatedNodes.push(newNode);
 
                     setNodes((nds: Node[]) => {
                         const updated = nds.map(n => {
@@ -628,9 +634,13 @@ export const CanvasArea: React.FC<Props> = ({ nodes, edges, setNodes, setEdges, 
                                 data: { ...n.data, ...meta } 
                             };
                         });
+                        console.log(`[EXPANSION] Adding ${generatedNodes.length} new nodes to canvas`);
                         return [...updated, ...generatedNodes];
                     });
-                    if (generatedEdges.length > 0) setEdges((eds: Edge[]) => eds.concat(generatedEdges));
+                    if (generatedEdges.length > 0) {
+                        console.log(`[EXPANSION] Adding ${generatedEdges.length} new edges to canvas`);
+                        setEdges((eds: Edge[]) => eds.concat(generatedEdges));
+                    }
                 };
 
                 if (targetNode && targetNode.type === 'containerNode') {

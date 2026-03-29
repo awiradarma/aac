@@ -1787,11 +1787,11 @@ export default function App() {
             type="button"
             onClick={() => {
               if (window.confirm('Are you sure you want to clear the canvas and start a new design?')) {
-                setNodes(initialNodes);
+                setNodes(initialNodes.map(n => ({ ...n, data: { ...n.data, properties: { ...(n.data.properties || {}) } } })));
                 setEdges([]);
                 setSelectedNodeId(null);
                 setSelectedEdgeId(null);
-                setViews(initialViews);
+                setViews(initialViews.map(v => ({ ...v, include: [...v.include], exclude: [...v.exclude] })));
                 setActiveViewId('default');
                 setValidationModal({ isOpen: false, type: 'success', message: '' });
                 setDiscoveryResults(null);

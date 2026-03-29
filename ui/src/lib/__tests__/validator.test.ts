@@ -300,4 +300,44 @@ describe('Validator Engine Regression Suite', () => {
         const errors = validateArchitecture(ast, mockRegistry);
         expect(errors.some(e => e.message.includes("is missing mandatory component 'id_suffix:consumer'"))).toBe(true);
     });
+
+    it('should correctly implement Smart Adoption for manually Added nodes matching a pattern alias', () => {
+        const arch = {
+            deployment: {
+                nodes: [
+                    {
+                        id: 'dc1',
+                        nodes: [
+                            { id: 'api1', properties: { origin_pattern: 'internal-api-ocp@3.0.0', composition_alias: 'api', composition_id: 'exp1' } },
+                            { id: 'gw1', properties: { composition_alias: 'gw', composition_id: 'exp1' } }, // Adopted: No origin_pattern
+                            { id: 'lb1', properties: { composition_alias: 'lb', composition_id: 'exp1', provider: 'avi' } } // Adopted
+                        ]
+                    }
+                ]
+            }
+        };
+        const results = validateArchitecture(arch, mockRegistry);
+        // Should NOT have existence errors for gw and lb because they were adopted by exp1
+        expect(results.filter(r => r.message.includes('Missing node')).length).toBe(0);
+    });
+
+    it('should implement Ghost Census Suppression (ignore validation for patterns with zero surviving nodes)', () => {
+        const arch = {
+            deployment: {
+                nodes: [
+                    {
+                        id: 'dc1',
+                        nodes: [
+                            // Suppose exp2 was a pattern that was completely deleted from the canvas
+                            // It might still have edges referencing it in a dirty AST, but it has no nodes.
+                            { id: 'stray', properties: { origin_pattern: 'internal-api-ocp@3.0.0', composition_alias: 'api', composition_id: 'exp1' } }
+                        ]
+                    }
+                ]
+            }
+        };
+        const results = validateArchitecture(arch, mockRegistry);
+        // It should NOT complain about exp2 missing its gateway/lb because it's a ghost pattern (0 nodes)
+        expect(results.filter(r => r.message.includes('Missing node')).length).toBe(0);
+    });
 });
